@@ -24,7 +24,7 @@ struct RustMinimal {
 
 impl kernel::Module for RustMinimal {
     fn init(_module: &'static ThisModule) -> Result<Self> {
-        pr_info!("Rust minimal sample (init)\n");
+        pr_info!("lwz: Rust minimal sample (init)\n");
         pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
         pr_info!(
             "test_parameter: {}\n",
@@ -43,6 +43,6 @@ impl kernel::Module for RustMinimal {
 impl Drop for RustMinimal {
     fn drop(&mut self) {
         pr_info!("My numbers are {:?}\n", self.numbers);
-        pr_info!("Rust minimal sample (exit)\n");
+        pr_info!("lwz: Rust minimal sample (exit)\n");
     }
 }
