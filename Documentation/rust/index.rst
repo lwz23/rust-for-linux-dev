@@ -38,5 +38,16 @@ more details.
     arch-support
     testing
 
+Local fork notes
+----------------
+
+This fork also keeps local development notes for the ``lwz23`` Rust-for-Linux
+workspace.
+
+.. toctree::
+    :maxdepth: 1
+
+    lwz-dev/index
+
 You can also find learning materials for Rust in its section in
 :doc:`../process/kernel-docs`.
