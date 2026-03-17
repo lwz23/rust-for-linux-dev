@@ -151,6 +151,41 @@
 - GitHub 有正式远端。
 - ``dev`` 可作为长期主开发分支。
 
+8. in-tree Rust sample 整内核重编验证
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+在完成 out-of-tree Rust 模块验证之后，今天还进一步验证了
+“修改内核树内部的 Rust 代码并重新编译整个内核”这条链路。
+
+本次选择的目标是内核树中的 ``samples/rust/rust_minimal.rs``。
+这样做的原因是：
+
+- 它是官方 in-tree Rust sample，适合做低风险验证。
+- 逻辑简单，只需要改少量 ``pr_info!`` 日志即可。
+- 可以通过 built-in 方式直接在启动日志里确认是否生效。
+
+本次操作包括：
+
+- 修改 ``samples/rust/rust_minimal.rs`` 中的启动和退出日志，加入 ``lwz`` 标记。
+- 在构建配置中开启 ``CONFIG_SAMPLES=y``。
+- 在构建配置中开启 ``CONFIG_SAMPLES_RUST=y``。
+- 在构建配置中开启 ``CONFIG_SAMPLE_RUST_MINIMAL=y``。
+- 重新编译整个内核并重新启动 QEMU。
+
+最终在 QEMU 启动日志中观察到了下面这组关键输出：
+
+.. code-block:: text
+
+   [    0.672622] rust_minimal: lwz: Rust minimal sample (init)
+   [    0.672920] rust_minimal: Am I built-in? true
+   [    0.673160] rust_minimal: test_parameter: 1
+
+这组日志说明：
+
+- ``rust_minimal`` 已经成功编译进内核映像，而不是以独立模块形式加载。
+- 修改过的 Rust 源码已经进入新 ``bzImage``，并在启动早期执行。
+- 当前环境不仅支持 out-of-tree Rust 模块验证，也支持 in-tree Rust 代码的整内核重编验证。
+
 今日产出
 --------
 
@@ -159,6 +194,7 @@
 - 新工作区 ``/home/lwz/rfl-dev``
 - 可启动的新内核 ``bzImage``
 - 可加载的 Rust out-of-tree 模块 ``rust_out_of_tree.ko``
+- 成功验证的 in-tree Rust sample ``rust_minimal``
 - 新 BusyBox initramfs
 - GitHub fork ``lwz23/rust-for-linux-dev``
 - 本地 ``dev`` 与远端 ``origin/dev`` 的长期开发关系
@@ -167,13 +203,14 @@
 关键结论
 --------
 
-今天最重要的结论有四点：
+今天最重要的结论有五点：
 
 1. 旧环境不再适合作为长期开发主线，新环境已经成功替代它。
 2. 当前 Rust-for-Linux 项目在这台机器上是可以正常跑起来的，而且不是“只编过”，
    而是已经完成了真实模块加载与卸载验证。
-3. 把浅克隆直接推到空仓库不可靠，长期维护应以 GitHub fork 为 ``origin``。
-4. 文档、分支和构建命令如果不同时规范化，后续维护成本会很快上升，因此今天优先把
+3. 当前环境不仅支持 out-of-tree Rust 模块，也支持 in-tree Rust 代码改动后的整内核重编验证。
+4. 把浅克隆直接推到空仓库不可靠，长期维护应以 GitHub fork 为 ``origin``。
+5. 文档、分支和构建命令如果不同时规范化，后续维护成本会很快上升，因此今天优先把
    开发说明和工作记录一起补齐是必要动作。
 
 遗留事项与下一步建议
@@ -184,8 +221,9 @@
 1. 在 GitHub 网页中把仓库默认分支从 ``rust-next`` 调整为 ``dev``。
 2. 后续所有实际开发都从 ``dev`` 切 ``feature/<topic>``。
 3. 每轮开发结束前都至少完成一次模块加载和卸载验证。
-4. 需要同步上游时，先合并 ``upstream/rust-next`` 到 ``dev``，再开始新工作。
-5. 如果后续需要更完整的历史，再考虑对本地内核仓库执行 ``git fetch --unshallow upstream``。
+4. 如果后续要做整内核 Rust 改动，可把 ``rust_minimal`` 作为 smoke test，用来快速确认新的 ``bzImage`` 确实生效。
+5. 需要同步上游时，先合并 ``upstream/rust-next`` 到 ``dev``，再开始新工作。
+6. 如果后续需要更完整的历史，再考虑对本地内核仓库执行 ``git fetch --unshallow upstream``。
 
 备注
 ----
