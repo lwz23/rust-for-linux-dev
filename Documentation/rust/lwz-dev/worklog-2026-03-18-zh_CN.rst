@@ -138,4 +138,41 @@
 - 本阶段不定义新的 C 结构体，不承载设备业务逻辑，只负责为后续
   ``rust/kernel/net`` 抽象提供可绑定的最小 FFI 入口。
 
+6. net 基础抽象
+~~~~~~~~~~~~~~~
+
+- 新增 ``rust/kernel/net/skbuff.rs``，引入拥有型 ``SkBuff``，其 ``Drop`` 使用
+  已存在主 bindings 中的 ``consume_skb()`` 完成释放语义。
+- 新增 ``rust/kernel/net/netdevice.rs``，先只落地本阶段所需的最小安全对象：
+
+  - ``DeviceRef``：共享 ``net_device`` 引用包装，供基础对象传递设备句柄
+  - ``NetlinkTapHandle``：封装 ``netlink_add_tap()`` / ``netlink_remove_tap()``
+  - ``LinkStats64``：封装 ``struct rtnl_link_stats64`` 的接收统计写入
+  - ``LStats``：封装 ``dev_lstats_add()`` / ``dev_lstats_read()``
+  - ``hardware / features / device_flags / priv_flags / stat_type / netlink / link_attrs`` 常量接口
+
+- 更新 ``rust/kernel/net.rs``，导出上述基础抽象，同时保持与现有 ``net`` 模块布局一致。
+- 本阶段刻意不引入 ``rtnl_link_ops`` / ``net_device_ops`` / ``ethtool_ops`` 桥接；
+  这些内容留待下一阶段单独实现并提交，避免把“基础对象”和“回调桥接”混成一次提交。
+- 编译验证命令：
+
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+
+- 编译结果：
+
+  - ``rust/kernel.o`` 编译通过
+  - 全量增量内核构建通过
+  - 当前仍构建 C 版 ``drivers/net/nlmon.ko``，因为 Rust 驱动尚未接入
+
+- 本阶段遇到的问题：
+
+  - 将基础抽象单独拆出后，若干 ``from_raw()`` 构造入口暂时还未被桥接层调用，
+    会被 ``-D warnings`` 视为 ``dead_code``；已仅对这些过渡性内部入口加最小
+    ``#[allow(dead_code)]`` 标注，保持阶段切分而不提前混入第 7 阶段内容。
+
+- 下一步：
+
+  - 在 ``rust/kernel/net/`` 中补齐 ``NetDevice`` / ``SetupContext`` / ``Driver`` /
+    ``Registration`` 等 netdev 与 rtnl 桥接抽象，完成纯安全驱动所需的回调边界。
+
 后续阶段会继续在本文件中追加记录。
