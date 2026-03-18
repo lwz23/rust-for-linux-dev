@@ -1582,3 +1582,73 @@
 
   - 转入 ``pcap`` 去时间戳/规范化比较
   - 然后收紧 ``netns`` 发生器公共噪声
+
+31. 补充 ``pcap`` 去时间戳/规范化比较
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 为了不再只盯着原始 ``pcap.sha256``，本阶段继续增强 guest 侧观测：
+
+  - 修改 ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 在不落地整份 decoded 文本的前提下，新增：
+
+    - ``<tag>.normalized.sha256``
+    - ``<tag>.normalized.head``
+
+  - 具体做法是对 ``tcpdump -nn -r`` 的输出按行去掉最前面的时间戳字段，再对其做哈希
+    和摘要采样
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 为了得到统一口径的数据，重新补采了三套调试内核下的 C/Rust ``baseline``：
+
+  - ``memory-debug``
+  - ``concurrency-debug``
+  - ``leak-debug``
+
+- 实际结果显示出一个非常重要的现象：
+
+  - 三个 profile 下，C/Rust 两边都满足：
+
+    - ``baseline.pcap.bytes`` 一致
+    - ``baseline.decoded.lines`` 一致
+    - ``baseline.tcpdump.stderr.head`` 一致
+    - ``baseline.normalized.head`` 一致
+    - ``status=ok``
+
+  - 但三组 C/Rust ``baseline.normalized.sha256`` 仍然全部不同
+
+- 这说明：
+
+  - 原始 ``pcap.sha256`` 的差异，确实不能简单地解读为“功能不一致”
+  - 但它也不只是 pcap 外层记录时间戳那么简单
+  - 即使去掉了 ``tcpdump`` 文本解码前缀中的时间戳，整个解码流的哈希仍然不同
+  - 更合理的解释是：
+
+    - 被捕获的 netlink 报文本体里仍包含运行相关的可变字段
+    - 单纯“去掉外层时间戳”还不足以构成字节级规范化
+
+- 因此本阶段得到的研究性结论是：
+
+  - 当前可以把“只看原始 ``pcap`` 哈希”这条判据正式降级
+  - 当前较稳健的已对齐指标包括：
+
+    - ``pcap.bytes``
+    - decoded 行数
+    - captured/filter 计数
+    - 去时间戳后的头部摘要
+
+  - 如果后续要追求更严格的字节级/内容级等价，需要：
+
+    - 针对 netlink 报文字段做更细粒度的语义规范化
+    - 或者引入真正理解 netlink 负载结构的比较器
+
+- 本阶段同时新增正式报告：
+
+  - ``Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-normalized-pcap-zh_CN.rst``
+
+- 下一步：
+
+  - 收紧 ``netns`` 事件发生器里的公共噪声
+  - 然后重跑受影响的 ``matrix`` / ``stress`` 场景

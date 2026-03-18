@@ -133,15 +133,32 @@ finalize_capture() {
     local tag="$1"
     local decoded_head="$RESULT_DIR/$tag.decoded.head"
     local decoded_lines="$RESULT_DIR/$tag.decoded.lines"
+    local normalized_head="$RESULT_DIR/$tag.normalized.head"
+    local normalized_sha="$RESULT_DIR/$tag.normalized.sha256"
 
     : >"$decoded_head"
+    : >"$normalized_head"
     if ! tcpdump -nn -r "$RESULT_DIR/$tag.pcap" 2>"$RESULT_DIR/$tag.decode.err" \
-        | awk -v head_file="$decoded_head" '
-            NR <= 20 { print > head_file }
-            { count++ }
-            END { print count + 0 }
-        ' >"$decoded_lines"; then
+        | awk -v decoded_head_file="$decoded_head" \
+            -v decoded_lines_file="$decoded_lines" \
+            -v normalized_head_file="$normalized_head" '
+            NR <= 20 { print > decoded_head_file }
+            {
+                decoded_count++
+                normalized = $0
+                if ($1 ~ /^[0-9:.]+$/) {
+                    sub(/^[0-9:.]+[[:space:]]+/, "", normalized)
+                }
+                if (decoded_count <= 20) {
+                    print normalized > normalized_head_file
+                }
+                print normalized
+            }
+            END { print decoded_count + 0 > decoded_lines_file }
+        ' \
+        | sha256sum | awk '{ print $1 }' >"$normalized_sha"; then
         echo 0 >"$decoded_lines"
+        : >"$normalized_sha"
     fi
     sha256sum "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.sha256" 2>/dev/null || true
     wc -c "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.bytes" 2>/dev/null || true
@@ -151,10 +168,12 @@ finalize_capture() {
     emit_file_value "$tag.pcap.sha256" "$RESULT_DIR/$tag.pcap.sha256"
     emit_file_value "$tag.pcap.bytes" "$RESULT_DIR/$tag.pcap.bytes"
     emit_file_value "$tag.decoded.lines" "$RESULT_DIR/$tag.decoded.lines"
+    emit_file_value "$tag.normalized.sha256" "$normalized_sha"
     emit_file_value "$tag.tcpdump.stdout.lines" "$RESULT_DIR/$tag.tcpdump.stdout.lines"
     emit_file_value "$tag.tcpdump.stderr.lines" "$RESULT_DIR/$tag.tcpdump.stderr.lines"
     emit_file_value "$tag.decode.err.lines" "$RESULT_DIR/$tag.decode.err.lines"
     emit_file_excerpt "$tag.decoded.head" "$decoded_head"
+    emit_file_excerpt "$tag.normalized.head" "$normalized_head"
     emit_file_excerpt "$tag.tcpdump.stderr.head" "$RESULT_DIR/$tag.tcpdump.stderr"
     emit_file_excerpt "$tag.decode.err.head" "$RESULT_DIR/$tag.decode.err"
     observe_iface nlmon0 "$tag.nlmon0"
