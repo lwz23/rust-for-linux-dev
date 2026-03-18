@@ -1035,3 +1035,83 @@
 
   - 单独修复 guest rootfs 中的 ``tcpdump`` 用户环境
   - 让 ``pcap`` 能真正落下报文后，再重新执行 baseline / lifecycle 差分并更新阶段报告
+
+23. 为 guest rootfs 补齐 ``tcpdump`` 运行身份
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 经过上一阶段的主机侧摘要增强，``pcap`` 为空的根因已经明确：
+
+  - C/Rust 两侧都记录 ``baseline.pcap.bytes=24``
+  - C/Rust 两侧都记录 ``baseline.tcpdump.stderr.head=tcpdump: Couldn't find user 'tcpdump'``
+
+- 这说明当前问题不在 ``nlmon`` 本体，而在测试 rootfs 太“干净”：
+
+  - ``tcpdump`` 在 root 身份启动后会默认降权到 ``tcpdump`` 用户
+  - 但当前 guest rootfs 没有 ``/etc/passwd`` / ``/etc/group`` 中的对应条目
+  - 因此它会在打开接口后直接报错，最终只留下 24 字节的 ``pcap`` 头
+
+- 因此本阶段对 ``tools/testing/rust/nlmon/prepare-test-rootfs.sh`` 做最小修正：
+
+  - 在生成 rootfs 时写入最小化的 ``/etc/passwd``
+
+    - ``root``
+    - ``tcpdump``
+
+  - 同时写入最小化的 ``/etc/group``
+
+    - ``root``
+    - ``tcpdump``
+
+- 本阶段预期验证命令：
+
+  - 重新生成 C/Rust baseline rootfs
+  - 重新执行 ``memory-debug`` / C baseline
+  - 重新切回 Rust 实现并执行 ``memory-debug`` / Rust baseline
+
+- 预期目标：
+
+  - ``baseline.tcpdump.stderr.head`` 不再出现 ``Couldn't find user 'tcpdump'``
+  - ``baseline.pcap.bytes`` 明显大于 24
+  - ``baseline.decoded.lines`` 大于 0
+
+- 实际验证命令：
+
+  - ``bash -n tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+  - 重新生成并执行 ``memory-debug`` / C baseline
+  - 切回 ``CONFIG_NLMON_RUST=y`` 并重建后，重新生成并执行 ``memory-debug`` / Rust baseline
+
+- 实际验证结果：
+
+  - ``tcpdump`` 用户缺失问题已经被修正：
+
+    - C 版不再出现 ``Couldn't find user 'tcpdump'``
+    - Rust 版不再出现 ``Couldn't find user 'tcpdump'``
+    - C/Rust 两侧 ``baseline.decode.err.head`` 都只剩下正常的 ``reading from file ...`` 提示
+
+  - 这说明 ``/etc/passwd`` / ``/etc/group`` 的最小补齐已经生效。
+
+  - 但新的摘要也暴露出下一层问题：
+
+    - C 版 ``baseline.tcpdump.stderr.head`` 变为
+      ``... 0 packets captured 158 packets received by filter ...``
+    - Rust 版 ``baseline.tcpdump.stderr.head`` 变为
+      ``... 10 packets captured 158 packets received by filter ...``
+    - C 版 ``baseline.pcap.bytes=24``，``baseline.decoded.lines=0``
+    - Rust 版 ``baseline.pcap.bytes=1568``，``baseline.decoded.lines=101``
+
+  - 因此，本阶段的结论应当谨慎表述为：
+
+    - ``tcpdump`` 运行身份问题已经解决
+    - 但当前 baseline 采样链路仍然存在明显的“捕获/写盘/收尾时序不稳定”
+    - 在未继续收敛该时序问题之前，不能把这组 C/Rust 差异直接解读为功能差异
+
+  - 同时两边仍然保持：
+
+    - ``dmesg_anomaly.baseline=0``
+    - ``observation_mode.baseline.nlmon0=full-iproute2``
+    - ``status=ok``
+
+- 下一步：
+
+  - 单独修正 ``tcpdump`` 的缓冲与收尾时序
+  - 目标是先让 C/Rust baseline 都稳定产出非空 ``pcap``，再继续 lifecycle 与阶段报告

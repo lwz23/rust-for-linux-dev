@@ -112,6 +112,16 @@ mkdir -p \
     "$ROOTFS_DIR/usr/libexec" \
     "$ROOTFS_DIR/usr/sbin"
 
+cat > "$ROOTFS_DIR/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/sh
+tcpdump:x:72:72:tcpdump:/nonexistent:/usr/sbin/nologin
+EOF
+
+cat > "$ROOTFS_DIR/etc/group" <<'EOF'
+root:x:0:
+tcpdump:x:72:
+EOF
+
 nlmon_stage_busybox_applets
 
 for bin_path in \
