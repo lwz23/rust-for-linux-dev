@@ -1715,3 +1715,54 @@
 
   - 更新 ``memory-debug`` 强化差分报告，让正式文档反映当前净化后的 ``netns`` 结果
   - 然后刷新 ``unsafe`` 审计口径，并继续输出最终工程验收与完整复现手册
+
+33. 刷新 ``unsafe`` 审计到当前抽象版本
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在准备输出最终工程验收文档前，先重新核对了当前源码与现有 ``unsafe`` 审计文档的对应关系，
+  结果发现旧审计文本已经明显落后于当前实现：
+
+  - 旧文还把 ``DeviceRef`` 记成“无生命周期参数”
+  - 旧文还把 ``DeviceRef::private()`` 视为对外公开
+  - 旧文还把 ``SetupContext::device_mut()`` 记为可用
+  - 旧文还把 ``SkBuff::into_raw()`` 记成现存风险面
+
+- 但这些点其实已经在 ``rust: tighten nlmon net abstraction lifetimes`` 中被修正。
+  如果不先更新审计，后续的工程结论就会直接和源码事实冲突。
+
+- 因此本阶段没有改代码，而是先刷新正式审计文档：
+
+  - ``Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst``
+
+- 本阶段重新核对的源码与命令包括：
+
+  - ``rg -n "DeviceRef|SetupContext|NetlinkTapHandle|into_raw|Send/Sync|AttrTable" rust/kernel/net rust/helpers/net.c``
+  - ``sed -n '1,260p' rust/kernel/net/netdevice.rs``
+  - ``sed -n '1,320p' rust/kernel/net/rtnl.rs``
+  - ``sed -n '1,220p' rust/kernel/net/skbuff.rs``
+  - ``sed -n '1,200p' rust/helpers/net.c``
+
+- 更新后的审计结论要点：
+
+  - 早期最明显的 safe API 过宽问题已经被修正：
+
+    - ``DeviceRef`` 现已带生命周期，且不再暴露私有区访问
+    - ``SetupContext`` 已收缩为 setup 阶段 setter 集合
+    - ``SkBuff`` 已移除 ``into_raw()``
+    - ``AttrTable::is_present()`` 已先做边界检查
+
+  - 当前仍需保留的优化项主要是：
+
+    - ``NetlinkTapHandle::add()`` 还没有在类型层面表达“必须绑定当前设备自身”
+    - ``Registration<T>`` 的 ``Send/Sync`` 仍依赖当前注册对象生命周期契约
+    - vtable 的 ``zeroed().assume_init()`` 仍依赖内核 C ABI 的零初始化尾部语义
+
+- 因此，审计口径也被同步改成更贴近当前真实状态的表述：
+
+  - 对 ``nlmon`` 当前单驱动用例而言，抽象层已经达到工程上可接受的程度
+  - 但若要把这套抽象直接视为“通用 netdev/rtnl Rust 抽象”，仍建议继续收紧
+
+- 下一步：
+
+  - 基于更新后的 ``unsafe`` 审计 + 三套调试 profile 差分结果，输出最终工程验收结论
+  - 然后整理“从零开始完整复现”的总手册终稿
