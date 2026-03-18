@@ -3,7 +3,7 @@
 
 set -eu
 
-PATH=/bin:/sbin:/usr/bin:/usr/sbin
+PATH=/usr/sbin:/usr/bin:/bin:/sbin
 RESULT_DIR=/tmp/nlmon-results
 mkdir -p "$RESULT_DIR" /run/netns
 

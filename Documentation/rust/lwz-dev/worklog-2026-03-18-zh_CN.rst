@@ -829,3 +829,46 @@
 
   - 再次重跑 ``memory-debug`` / C 版 baseline，直到基线场景能够完整结束并输出
     可用于对照的摘要结果。
+
+20. 修正 guest ``ip`` 工具优先级
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在继续追查 baseline 提前退出原因时，串口日志给出了决定性线索：
+
+  - guest 中打印出了 BusyBox ``ip`` 的帮助文本
+  - 这说明当前测试实际上优先命中了 ``/bin/ip``（BusyBox applet），而不是
+    事先分发进 rootfs 的完整 ``/usr/sbin/ip``（iproute2）
+
+- 这一点非常关键，因为：
+
+  - BusyBox ``ip`` 不支持本项目需要的完整 ``veth`` / ``bridge`` / ``netns`` /
+    ``ip -d`` 行为
+  - 如果不先修正，之前发生器失败的很多现象都不能作为 ``nlmon`` 的有效测试信号
+
+- 因此本阶段修正三个位置：
+
+  - ``tools/testing/rust/nlmon/common.sh``
+
+    - BusyBox applet 列表中不再创建 ``/bin/ip`` 链接
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+
+    - 统一把 guest ``PATH`` 调整为 ``/usr/sbin:/usr/bin:/bin:/sbin``，
+      确保完整 ``iproute2`` 优先于 BusyBox applet
+
+- 本阶段验证命令：
+
+  - ``bash -n tools/testing/rust/nlmon/common.sh tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 本阶段验证结果：
+
+  - 相关脚本语法检查继续通过
+  - 后续 rootfs 重建后，guest 将优先使用完整 ``iproute2``，此前由 BusyBox ``ip``
+    造成的能力缺失不再污染基线结论
+
+- 下一步：
+
+  - 基于修正后的 rootfs 再次重跑 ``memory-debug`` / C 版 baseline，
+    观察五类事件发生器是否终于能在完整 ``iproute2`` 下走完主路径。

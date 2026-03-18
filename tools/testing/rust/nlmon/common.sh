@@ -90,4 +90,3 @@ nlmon_stage_busybox_applets() {
         ln -sf /bin/busybox "$ROOTFS_DIR/sbin/$applet"
     done
 }
-

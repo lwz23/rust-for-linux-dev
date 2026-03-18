@@ -163,7 +163,7 @@ cat > "$ROOTFS_DIR/init" <<'EOF'
 
 set -eu
 
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH=/usr/sbin:/usr/bin:/bin:/sbin
 
 mount -t proc none /proc
 mount -t sysfs none /sys
