@@ -223,4 +223,64 @@
   - 新增 ``drivers/net/nlmon_rust.rs`` 驱动骨架，并通过 ``CONFIG_NLMON_RUST`` 把
     Rust 实现真正接入 ``drivers/net/`` 的构建路径。
 
+8. Rust 驱动骨架接入
+~~~~~~~~~~~~~~~~~~~~
+
+- 新增 ``drivers/net/nlmon_rust.rs``，完成最小可编译的 Rust 驱动骨架：
+
+  - ``module!`` 元数据
+  - ``alias: ["rtnl-link-nlmon"]``
+  - ``NlmonModule`` 持有 ``net::Registration<NlmonDriver>``
+  - ``NlmonDriver`` 实现 ``net::Driver`` trait
+
+- 当前骨架已接通以下内容：
+
+  - ``Registration::<NlmonDriver>::new()``，使 RTNL link 类型注册路径生效
+  - 与 C 版一致的 ``setup`` 语义：
+
+    - ``ARPHRD_NETLINK``
+    - ``IFF_NO_QUEUE``
+    - ``lltx = true``
+    - ``NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_HIGHDMA``
+    - ``IFF_NOARP``
+    - ``NETDEV_PCPU_STAT_LSTATS``
+    - ``mtu = NLMSG_GOODSIZE``
+    - ``min_mtu = sizeof(struct nlmsghdr)``
+
+  - ``validate`` 的最小实现：拒绝 ``IFLA_ADDRESS``
+  - ``get_link`` 的最小实现：返回链路 up
+
+- 当前骨架仍刻意保留占位行为，留待下一阶段对齐：
+
+  - ``open()``
+  - ``stop()``
+  - ``start_xmit()``
+  - ``get_stats64()``
+  - ``NetlinkTapHandle`` 私有状态接入
+
+- 本阶段验证前，先用 ``scripts/config`` 确认 ``CONFIG_NLMON=m`` 与
+  ``CONFIG_NLMON_RUST=y`` 可以同时成立；``olddefconfig`` 后该组合被保留，
+  满足模块化差分测试需求。
+- 编译验证命令：
+
+  - ``/home/lwz/rfl-dev/linux/scripts/config --file /home/lwz/rfl-dev/build/.config -m NLMON -e NLMON_RUST``
+  - ``make -C "$KERNEL_SRC" O="$KERNEL_BUILD" LLVM=1 olddefconfig``
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+  - ``modinfo /home/lwz/rfl-dev/build/drivers/net/nlmon_rust.ko``
+
+- 验证结果：
+
+  - 构建日志出现 ``RUSTC [M] drivers/net/nlmon_rust.o``
+  - 构建日志出现 ``LD [M] drivers/net/nlmon_rust.ko``
+  - ``modinfo`` 确认：
+
+    - ``name: nlmon_rust``
+    - ``alias: rtnl-link-nlmon``
+    - ``description: Rust netlink monitoring device``
+
+- 下一步：
+
+  - 把 ``nlmon.c`` 的 ``open/close/xmit/get_stats64`` 等运行期行为逐项迁入 Rust，
+    接通 ``NetlinkTapHandle`` 与统计路径，形成可进入差分测试的等价实现。
+
 后续阶段会继续在本文件中追加记录。
