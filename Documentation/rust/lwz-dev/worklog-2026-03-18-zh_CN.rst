@@ -315,4 +315,86 @@
   - 以原 C 版 ``nlmon`` 为金标准，在 QEMU 中执行同一套创建、启停、抓包与重复删除
     测试，逐项比对 ``ip -d`` / ``ip -s`` / ``pcap`` / ``dmesg`` 结果。
 
+10. C / Rust 差分测试
+~~~~~~~~~~~~~~~~~~~~~
+
+- 先后切换 ``CONFIG_NLMON_RUST=n`` 与 ``CONFIG_NLMON_RUST=y``，分别构建 C 基线轮与
+  Rust 对照轮；两轮都通过相同脚本更新 ``rootfs`` 中的 ``dummy.ko`` 与对应
+  ``nlmon`` 模块，并重新打包 ``initramfs``。
+- 实际在 QEMU 中测试时，确认了两个与环境相关的重要事实：
+
+  - BusyBox 版本的 ``ip`` 不支持 ``ip -d link show`` 与 ``ip -s link show``；
+    因此最终比较改为 ``ip link show`` + ``/sys/class/net/*`` 读取 ``type`` /
+    ``flags`` / ``mtu`` / ``statistics``。
+  - 在当前环境里，``insmod /lib/modules/dummy.ko`` 后会直接出现 ``dummy0``，
+    因而原始命令 ``ip link add dummy0 type dummy`` 在首次测试中返回
+    ``RTNETLINK answers: File exists``。这不是 ``dummy`` 驱动失效，而是接口已存在。
+    在删除该接口后，再执行 ``ip link add dummy0 type dummy`` 可以成功，证明
+    ``dummy`` 功能本身正常。
+
+- C 基线轮最终使用的观测序列：
+
+  - ``insmod /lib/modules/dummy.ko``
+  - ``insmod /lib/modules/nlmon.ko``
+  - 复用预存在的 ``dummy0``
+  - ``ip link add nlmon0 type nlmon``
+  - ``ip link set nlmon0 up``
+  - ``tcpdump -i nlmon0 -w /tmp/cf_nlmon.pcap``
+  - ``ip link set dummy0 up``
+  - ``ip addr add 192.0.2.1/24 dev dummy0``
+  - ``tcpdump -nn -r /tmp/cf_nlmon.pcap``
+  - ``ip link show`` 与 ``/sys/class/net/*`` 采样
+
+- Rust 对照轮使用完全相同的观测序列，只把 ``insmod /lib/modules/nlmon.ko`` 替换为
+  ``insmod /lib/modules/nlmon_rust.ko``。
+- C / Rust 两轮对比结果：
+
+  - ``dummy0_preexisting=yes``，两轮一致
+  - ``dummy0`` 链路属性一致：
+
+    - ``<BROADCAST,NOARP,UP,LOWER_UP>``
+    - ``mtu 1500``
+    - 成功配置 ``192.0.2.1/24``
+
+  - ``nlmon0`` 链路属性一致：
+
+    - ``<NOARP,UP,LOWER_UP>``
+    - ``mtu 3776``
+    - ``link/[824]``
+
+  - ``/sys/class/net/nlmon0`` 关键值一致：
+
+    - ``type = 824``（即 ``ARPHRD_NETLINK``）
+    - ``flags = 0x81``
+    - ``mtu = 3776``
+    - ``rx_packets = 21``
+    - ``rx_bytes = 30532``
+
+  - ``/sys/class/net/dummy0/statistics/tx_packets = 1``，两轮一致
+  - ``tcpdump -nn -r`` 的文本解码结果均非空，且两轮文本总行数同为 ``494``，
+    说明抓包路径与报文数量级一致
+  - 严格 ``dmesg`` 检查（``warning/oops/lockdep/kasan/use-after-free``）两轮均为空
+
+- Rust 轮额外执行了重复创建设备/删除设备测试：
+
+  - ``ip link add nlmon0 type nlmon``
+  - ``ip link set nlmon0 up``
+  - ``ip link del nlmon0``
+  - 上述序列连续执行两次，均成功完成
+  - 严格 ``dmesg`` 检查仍为空
+
+- 与 ``nlmon`` 无关但测试中反复出现的已知噪声：
+
+  - ``rootfs`` 的 ``/init`` 仍会自动尝试加载旧的
+    ``/lib/modules/rust_out_of_tree.ko``，因版本魔数不匹配而报
+    ``invalid module format``；这是既有 ``rootfs`` 状态带来的独立问题，不属于
+    本轮 ``dummy/nlmon`` C/Rust 对照差异。
+
+- 当前结论：
+
+  - 原 C 版 ``nlmon`` 可正常工作
+  - Rust 版 ``nlmon_rust`` 在本轮已实现与 C 版一致的核心外部行为
+  - ``dummy`` 与 ``nlmon`` 都可以作为后续继续验证和差分测试的目标模块
+  - 以本轮观测结果看，``nlmon`` Rust 化后的当前实现已经达到可接受的第一版对齐状态
+
 后续阶段会继续在本文件中追加记录。
