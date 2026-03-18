@@ -58,6 +58,7 @@
 #include <linux/firmware.h>
 #include <linux/fs.h>
 #include <linux/i2c.h>
+#include <linux/if_arp.h>
 #include <linux/interrupt.h>
 #include <linux/io-pgtable.h>
 #include <linux/ioport.h>
@@ -66,6 +67,8 @@
 #include <linux/mdio.h>
 #include <linux/mm.h>
 #include <linux/miscdevice.h>
+#include <linux/netdevice.h>
+#include <linux/netlink.h>
 #include <linux/of_device.h>
 #include <linux/pci.h>
 #include <linux/phy.h>
@@ -88,6 +91,7 @@
 #include <linux/wait.h>
 #include <linux/workqueue.h>
 #include <linux/xarray.h>
+#include <net/rtnetlink.h>
 #include <trace/events/rust_sample.h>
 
 /*
@@ -114,6 +118,10 @@ const gfp_t RUST_CONST_HELPER___GFP_HIGHMEM = ___GFP_HIGHMEM;
 const gfp_t RUST_CONST_HELPER___GFP_NOWARN = ___GFP_NOWARN;
 const blk_features_t RUST_CONST_HELPER_BLK_FEAT_ROTATIONAL = BLK_FEAT_ROTATIONAL;
 const fop_flags_t RUST_CONST_HELPER_FOP_UNSIGNED_OFFSET = FOP_UNSIGNED_OFFSET;
+const unsigned int RUST_CONST_HELPER_NLMSG_GOODSIZE = NLMSG_GOODSIZE;
+const netdev_features_t RUST_CONST_HELPER_NETIF_F_SG = NETIF_F_SG;
+const netdev_features_t RUST_CONST_HELPER_NETIF_F_FRAGLIST = NETIF_F_FRAGLIST;
+const netdev_features_t RUST_CONST_HELPER_NETIF_F_HIGHDMA = NETIF_F_HIGHDMA;
 
 const xa_mark_t RUST_CONST_HELPER_XA_PRESENT = XA_PRESENT;
 

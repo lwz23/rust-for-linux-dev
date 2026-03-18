@@ -83,4 +83,47 @@
 - 在 ``drivers/net/Makefile`` 中参考 ``AX88796B_RUST_PHY`` 模式，按 ``CONFIG_NLMON_RUST`` 在 ``nlmon.o`` 与 ``nlmon_rust.o`` 之间二选一。
 - 这一阶段只建立构建切换入口，不引入 bindings/helper/抽象/驱动代码。
 
+4. 主 bindings 暴露与缺口审计
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在 ``rust/bindings/bindings_helper.h`` 中补入：
+
+  - ``<linux/if_arp.h>``
+  - ``<linux/netdevice.h>``
+  - ``<linux/netlink.h>``
+  - ``<net/rtnetlink.h>``
+
+- 在 ``rust/bindgen_parameters`` 中为 ``NLMSG_GOODSIZE``、``NETIF_F_SG``、
+  ``NETIF_F_FRAGLIST``、``NETIF_F_HIGHDMA`` 补入 ``blocklist-item``，并在
+  ``bindings_helper.h`` 中增加对应 ``RUST_CONST_HELPER_*`` 常量，确保这些
+  宏值能稳定进入主 bindings。
+- 先尝试用单目标 ``make ... rust/bindings/bindings_generated.rs`` 做增量刷新，
+  发现旧产物未自动失效；随后改用既有脚本
+  ``/home/lwz/rfl-dev/scripts/build-kernel.sh`` 触发完整增量构建，确认主
+  ``bindgen`` 实际重新执行。
+- 当前主 bindings 已确认覆盖以下 ``nlmon`` 依赖：
+
+  - ``struct net_device``
+  - ``struct net_device_ops``
+  - ``struct rtnl_link_ops``
+  - ``struct netlink_tap``
+  - ``rtnl_link_register`` / ``rtnl_link_unregister``
+  - ``netlink_add_tap`` / ``netlink_remove_tap``
+  - ``dev_lstats_read``
+  - ``ARPHRD_NETLINK``
+  - ``IFF_NO_QUEUE``
+  - ``IFF_NOARP``
+  - ``NETDEV_PCPU_STAT_LSTATS``
+  - ``NETDEV_TX_OK``
+  - ``NLMSG_GOODSIZE``
+  - ``NETIF_F_SG`` / ``NETIF_F_FRAGLIST`` / ``NETIF_F_HIGHDMA``
+
+- 本轮审计后仍需要通过 helper 解决的剩余盲区为：
+
+  - ``netdev_priv``（inline）
+  - ``dev_lstats_add``（inline）
+
+- ``dev_kfree_skb`` 暂不列入 helper 缺口，因为当前 bindings 已直接提供
+  ``consume_skb``，后续在抽象层再决定是否需要额外兼容包装。
+
 后续阶段会继续在本文件中追加记录。
