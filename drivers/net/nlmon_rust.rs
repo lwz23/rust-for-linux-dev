@@ -32,7 +32,9 @@ impl kernel::Module for NlmonModule {
 }
 
 #[derive(Default)]
-struct NlmonPrivate;
+struct NlmonPrivate {
+    tap: net::NetlinkTapHandle,
+}
 
 struct NlmonDriver;
 
@@ -52,19 +54,23 @@ impl net::Driver for NlmonDriver {
         dev.set_min_mtu(netlink::HEADER_LEN);
     }
 
-    fn open(_dev: &mut net::NetDevice<Self>) -> Result {
-        Ok(())
+    fn open(dev: &mut net::NetDevice<Self>) -> Result {
+        let dev_ref = dev.device_ref();
+        dev.private_mut().tap.add(dev_ref)
     }
 
-    fn stop(_dev: &mut net::NetDevice<Self>) -> Result {
-        Ok(())
+    fn stop(dev: &mut net::NetDevice<Self>) -> Result {
+        dev.private_mut().tap.remove()
     }
 
-    fn start_xmit(_skb: net::SkBuff, _dev: net::DeviceRef<Self>) -> net::TxStatus {
+    fn start_xmit(skb: net::SkBuff, dev: net::DeviceRef<Self>) -> net::TxStatus {
+        net::LStats::add(dev, skb.len());
         net::TxStatus::OK
     }
 
-    fn get_stats64(_dev: net::DeviceRef<Self>, _stats: &mut net::LinkStats64) {}
+    fn get_stats64(dev: net::DeviceRef<Self>, stats: &mut net::LinkStats64) {
+        net::LStats::read(dev, stats);
+    }
 
     fn validate(
         tb: net::AttrTable<'_>,

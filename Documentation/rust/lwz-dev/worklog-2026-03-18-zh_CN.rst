@@ -283,4 +283,36 @@
   - 把 ``nlmon.c`` 的 ``open/close/xmit/get_stats64`` 等运行期行为逐项迁入 Rust，
     接通 ``NetlinkTapHandle`` 与统计路径，形成可进入差分测试的等价实现。
 
+9. Rust 驱动行为对齐
+~~~~~~~~~~~~~~~~~~~~
+
+- 扩展 ``drivers/net/nlmon_rust.rs`` 中的私有状态：
+
+  - ``NlmonPrivate`` 现在持有 ``net::NetlinkTapHandle``
+
+- 按 ``drivers/net/nlmon.c`` 对齐运行期行为：
+
+  - ``open()``：通过 ``dev.private_mut().tap.add(dev.device_ref())`` 注册 netlink tap
+  - ``stop()``：通过 ``tap.remove()`` 注销 netlink tap
+  - ``start_xmit()``：调用 ``net::LStats::add()`` 记录字节数并返回 ``NETDEV_TX_OK``
+  - ``SkBuff`` 在离开作用域时自动 ``Drop``，由抽象层内部调用 ``consume_skb()``
+  - ``get_stats64()``：调用 ``net::LStats::read()`` 填充 ``rx_packets/rx_bytes``
+
+- 当前 ``drivers/net/nlmon_rust.rs`` 继续保持零 ``unsafe``；所有 FFI、原始指针、
+  结构体字段写入和 C ABI 回调桥接仍全部位于 ``rust/kernel/net/*`` 抽象层中。
+- 编译验证命令：
+
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+
+- 验证结果：
+
+  - ``RUSTC [M] drivers/net/nlmon_rust.o`` 成功
+  - ``LD [M] drivers/net/nlmon_rust.ko`` 成功
+  - 说明当前 Rust 驱动已具备进入 QEMU 差分测试的构建条件
+
+- 下一步：
+
+  - 以原 C 版 ``nlmon`` 为金标准，在 QEMU 中执行同一套创建、启停、抓包与重复删除
+    测试，逐项比对 ``ip -d`` / ``ip -s`` / ``pcap`` / ``dmesg`` 结果。
+
 后续阶段会继续在本文件中追加记录。
