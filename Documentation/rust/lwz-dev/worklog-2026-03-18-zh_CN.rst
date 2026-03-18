@@ -1190,3 +1190,51 @@
 
   - 继续补跑 C/Rust lifecycle
   - 若 lifecycle 也收敛，再把 baseline + lifecycle 的差分结果写入阶段报告
+
+25. 输出 ``memory-debug`` 强化差分阶段报告
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在完成当前一轮 baseline + lifecycle 对照后，已经具备一组比“第一版原型报告”更可靠的结论：
+
+  - ``memory-debug`` 内核下：
+
+    - C/Rust baseline 都可稳定完成
+    - C/Rust lifecycle 都可稳定完成
+    - ``dmesg_anomaly`` 在两边都为 0
+    - baseline 的 ``pcap`` 字节数、decoded 行数与 captured/filter 计数已收敛
+
+- 因此本阶段需要把这些结果从工作日志中提升为正式文档：
+
+  - 新增一份中文强化差分报告
+  - 将其加入 ``Documentation/rust/lwz-dev/index.rst``
+  - 在旧的原型阶段报告顶部补充“已被二阶段结果补充”的提示，避免读者误读为最新结论
+
+- 本阶段预期目标：
+
+  - 后续接手者可以直接阅读正式报告，而不必先翻完整工作日志
+  - 文档中明确写清：
+
+    - 当前已经成立的证据
+    - 当前仍未成立的证据
+    - 还需要继续做哪些测试
+
+- 实际验证结果：
+
+  - 已新增：
+
+    - ``Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-memory-debug-zh_CN.rst``
+
+  - 已更新：
+
+    - ``Documentation/rust/lwz-dev/index.rst``
+    - ``Documentation/rust/lwz-dev/report-2026-03-18-nlmon-rust-zh_CN.rst``
+
+  - 新报告明确记录了：
+
+    - ``memory-debug`` 下 ``baseline`` 已收敛
+    - ``memory-debug`` 下 ``lifecycle`` 已收敛
+    - 当前只能做“阶段性收敛”判断，不能提前写成最终工程验收
+
+- 下一步：
+
+  - 若继续推进本轮计划，应转入 ``matrix`` / ``stress`` 与其他调试内核配置

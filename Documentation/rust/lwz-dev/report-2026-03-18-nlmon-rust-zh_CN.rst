@@ -3,6 +3,14 @@
 2026-03-18 工作报告：nlmon Rust 化阶段总结
 ==========================================
 
+.. note::
+
+   本文主要记录 2026-03-18 第一版原型完成时的阶段快照。
+   关于二阶段术语修正、``unsafe`` 审计，以及 ``memory-debug`` 下更严格的
+   C/Rust 差分结果，请同时参见
+   ``unsafe-audit-2026-03-18-nlmon-rust-zh_CN`` 与
+   ``diff-test-report-2026-03-18-nlmon-memory-debug-zh_CN``。
+
 摘要
 ----
 
