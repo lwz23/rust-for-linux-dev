@@ -1766,3 +1766,43 @@
 
   - 基于更新后的 ``unsafe`` 审计 + 三套调试 profile 差分结果，输出最终工程验收结论
   - 然后整理“从零开始完整复现”的总手册终稿
+
+34. 输出 ``nlmon`` Rust 化工程验收结论
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在 ``memory-debug`` / ``concurrency-debug`` / ``leak-debug`` 三套报告以及更新后的
+  ``unsafe`` 审计都就位后，开始整理“到底能不能把当前结果视为通过工程验收”的正式结论。
+
+- 本阶段新增文档：
+
+  - ``Documentation/rust/lwz-dev/engineering-acceptance-2026-03-18-nlmon-rust-zh_CN.rst``
+
+- 同时更新索引：
+
+  - ``Documentation/rust/lwz-dev/index.rst``
+
+- 本阶段在文档中明确区分了三层判断：
+
+  - ``nlmon`` 这个具体 DUT 是否通过本项目当前阶段工程验收
+  - 当前 ``rust/kernel/net/*`` 抽象是否足以支撑 ``nlmon`` 通过验收
+  - 这套抽象是否已经可以直接当作通用 ``netdev/rtnl`` Rust 抽象上游化
+
+- 最终写入正式结论的口径是：
+
+  - ``nlmon_rust`` 已通过当前阶段工程验收
+  - 当前抽象层足以支撑 ``nlmon`` 用例
+  - 但通用化/上游化结论仍然保留，不做过度承诺
+
+- 工程验收文档中同时把以下事实统一收口：
+
+  - 原始 ``nlmon.c`` 保留
+  - Rust 驱动层零 ``unsafe``
+  - ``unsafe`` 已被压缩到 ``rust/kernel/net/*`` 与极小 helper
+  - 三套调试 profile 的 ``baseline`` / ``lifecycle`` 已完成
+  - ``memory-debug`` 的 ``matrix`` / ``stress`` 已完成并清除了 ``netns`` 公共噪声
+  - ``pcap.sha256`` 差异已被正确降级为研究现象，而不是直接的失败判据
+
+- 下一步：
+
+  - 把现有 ``driver-rustification-playbook-zh_CN.rst`` 扩展为“从零开始完整复现”的终稿
+  - 让下一窗口或下一位接手者可以直接照着执行完整流程

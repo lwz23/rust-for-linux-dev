@@ -20,3 +20,4 @@ LWZ Rust-for-Linux 本地开发文档
    diff-test-report-2026-03-18-nlmon-leak-debug-zh_CN
    diff-test-report-2026-03-18-nlmon-normalized-pcap-zh_CN
    unsafe-audit-2026-03-18-nlmon-rust-zh_CN
+   engineering-acceptance-2026-03-18-nlmon-rust-zh_CN
