@@ -132,36 +132,40 @@ scan_dmesg() {
 }
 
 gen_dummy() {
+    log "generator: dummy"
     ip link add nlmon_dummy0 type dummy
     ip link set nlmon_dummy0 up
     ip addr add 192.0.2.1/24 dev nlmon_dummy0
     ip -s link show nlmon_dummy0 >/dev/null 2>&1 || true
     observe_iface nlmon_dummy0 dummy
-    ip link del nlmon_dummy0
+    ip link del nlmon_dummy0 || true
 }
 
 gen_veth() {
+    log "generator: veth"
     ip link add nlmon_veth0 type veth peer name nlmon_veth1
     ip link set nlmon_veth0 up
     ip link set nlmon_veth1 up
     ip addr add 198.51.100.1/24 dev nlmon_veth0
     ip addr add 198.51.100.2/24 dev nlmon_veth1
     ip -s link show nlmon_veth0 >/dev/null 2>&1 || true
-    ip link del nlmon_veth0
+    ip link del nlmon_veth0 || true
 }
 
 gen_bridge() {
+    log "generator: bridge"
     ip link add nlmon_bridge0 type bridge
     ip link add nlmon_br_veth0 type veth peer name nlmon_br_veth1
     ip link set nlmon_bridge0 up
     ip link set nlmon_br_veth0 master nlmon_bridge0
     ip link set nlmon_br_veth0 up
     ip link set nlmon_br_veth1 up
-    ip link del nlmon_br_veth0
-    ip link del nlmon_bridge0
+    ip link del nlmon_br_veth0 || true
+    ip link del nlmon_bridge0 || true
 }
 
 gen_route_rule() {
+    log "generator: route_rule"
     ip route add 198.18.0.0/24 dev lo table 100
     ip rule add pref 1000 from 192.0.2.0/24 table 100
     ip rule del pref 1000
@@ -169,14 +173,15 @@ gen_route_rule() {
 }
 
 gen_netns() {
+    log "generator: netns"
     ip netns add nlmonns0
     ip link add nlmon_ns_veth0 type veth peer name nlmon_ns_veth1
     ip link set nlmon_ns_veth1 netns nlmonns0
     ip link set nlmon_ns_veth0 up
     ip netns exec nlmonns0 ip link set lo up
     ip netns exec nlmonns0 ip link set nlmon_ns_veth1 up
-    ip netns del nlmonns0
-    ip link del nlmon_ns_veth0
+    ip netns del nlmonns0 || true
+    ip link del nlmon_ns_veth0 || true
 }
 
 run_all_generators_once() {

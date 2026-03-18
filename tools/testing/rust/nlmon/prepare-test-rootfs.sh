@@ -177,8 +177,11 @@ mdev -s
 echo "=== nlmon automated test init ==="
 uname -a
 
-/usr/libexec/nlmon-guest-runner.sh
-rc=$?
+if /usr/libexec/nlmon-guest-runner.sh; then
+    rc=0
+else
+    rc=$?
+fi
 
 echo "=== nlmon automated test exit rc=$rc ==="
 sync

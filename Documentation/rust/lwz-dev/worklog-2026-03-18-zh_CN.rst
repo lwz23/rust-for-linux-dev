@@ -706,3 +706,49 @@
 - 下一步：
 
   - 开始真正构建调试 profile、准备测试 initramfs，并执行 C / Rust 的功能基线和生命周期循环差分。
+
+17. 自动化测试框架稳健性修正
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在首次执行 ``memory-debug`` / C 版 baseline 场景时，QEMU 已成功启动并进入自动化
+  guest runner，但测试并未顺利结束：
+
+  - guest 侧确实已经开始输出 ``NLMON_RESULT`` 摘要
+  - 但在事件发生器清理路径上出现了 ``ip: SIOCGIFFLAGS: No such device``
+  - 由于 guest runner 与 ``/init`` 都是 ``set -e``，导致 ``init`` 提前退出，
+    最终触发 ``Attempted to kill init!`` 类型的 panic
+
+- 这一失败说明：
+
+  - 当前遇到的不是 ``nlmon`` 行为差异，而是测试框架本身对“设备可能在清理阶段已自动消失”
+    这一现实处理得不够稳健
+  - 如果不先修复，后续所有差分都会混入测试框架自身失败带来的噪声
+
+- 因此本阶段先修正测试脚本：
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``：
+
+    - 为各个事件发生器补充 ``log`` 输出，明确当前执行到哪一类事件
+    - 对 ``ip link del`` / ``ip netns del`` 这类清理命令改为 ``|| true``，
+      避免设备已被联动删除时误判为测试失败
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh``：
+
+    - 调整生成的 ``/init``，改为显式捕获 guest runner 返回码，再执行
+      ``poweroff/reboot``，避免因为 ``set -e`` 直接杀掉 ``init`` 进程
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - ``bash -n tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+
+- 本阶段验证结果：
+
+  - 两个脚本语法检查通过
+  - 后续 baseline 重跑时，guest 失败将不再直接表现为 ``init`` 被杀导致的 panic，
+    而会在串口日志中保留更可分析的错误上下文
+
+- 下一步：
+
+  - 基于修正后的脚本重新执行 ``memory-debug`` 下的 C / Rust baseline，
+    再进入生命周期循环差分。
