@@ -1493,3 +1493,92 @@
 - 下一步：
 
   - 转入 ``leak-debug``，至少先复跑 C/Rust 的 ``baseline`` / ``lifecycle``
+
+30. 修正 ``leak-debug`` 误报并完成 ``baseline`` / ``lifecycle``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 进入 ``leak-debug`` 后，第一次执行 Rust ``baseline`` 时出现了一个新的测试口径问题：
+
+  - ``status=ok``
+  - 但 ``dmesg_anomaly.baseline=1``
+  - 命中的并不是真实泄漏，而是两条启动横幅：
+
+    - ``kmemleak: Kernel memory leak detector initialized ...``
+    - ``kmemleak: Automatic memory scanning thread started``
+
+- 这说明之前 ``scan_dmesg()`` 中把任意 ``kmemleak`` 文本都当成异常的做法过宽了。
+  对 ``leak-debug`` 而言，真正应该保留的是：
+
+  - ``kmemleak: <count> new suspected memory leaks``
+  - ``unreferenced object``
+
+  而不是初始化横幅。
+
+- 因此本阶段先修测试 harness：
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+    - 将 ``dmesg`` 异常匹配里的 ``kmemleak`` 粗匹配
+      收紧为真正疑似泄漏的输出模式
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 在修正口径后，重新完成 ``leak-debug`` 下的 C/Rust ``baseline`` / ``lifecycle``：
+
+  - 生成并使用 ``/home/lwz/rfl-dev/build-nlmon-kmem``
+  - 与 ``concurrency-debug`` 一样，由于初始配置继承自主 ``build/.config``，所以先跑 Rust，
+    再切到 C
+
+- Rust 版结果：
+
+  - ``baseline``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.baseline=0``
+    - ``baseline.pcap.bytes=39488``
+    - ``baseline.decoded.lines=2531``
+    - ``160 packets captured``
+
+  - ``lifecycle``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.lifecycle=0``
+
+- C 版结果：
+
+  - ``baseline``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.baseline=0``
+    - ``baseline.pcap.bytes=39488``
+    - ``baseline.decoded.lines=2531``
+    - ``160 packets captured``
+
+  - ``lifecycle``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.lifecycle=0``
+
+- 在 ``leak-debug`` 的串口日志中，C/Rust 侧都可能出现：
+
+  - ``ip (...) used greatest stack depth: ... bytes left``
+
+  当前仍将其视为普通调试统计信息，而不是 ``nlmon`` 回归。
+
+- 阶段性结论：
+
+  - ``leak-debug`` 当前至少已经不再被启动横幅误报污染
+  - C/Rust 两边的 ``baseline`` / ``lifecycle`` 都已经通过
+  - 当前没有观测到新的 ``kmemleak: <count> new suspected memory leaks`` 或
+    ``unreferenced object`` 输出
+
+- 本阶段同时新增正式报告：
+
+  - ``Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-leak-debug-zh_CN.rst``
+
+- 下一步：
+
+  - 转入 ``pcap`` 去时间戳/规范化比较
+  - 然后收紧 ``netns`` 发生器公共噪声

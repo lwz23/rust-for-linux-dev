@@ -164,7 +164,7 @@ scan_dmesg() {
     local tag="$1"
     local anomaly_pattern
 
-    anomaly_pattern="BUG:|WARNING:|Oops:|KASAN:|KFENCE:|KCSAN:|UBSAN:|use-after-free|double[- ]free|lockdep:|possible recursive locking detected|suspicious RCU usage|refcount_t:|kmemleak|DEBUG_OBJECTS|bad unlock balance"
+    anomaly_pattern="BUG:|WARNING:|Oops:|KASAN:|KFENCE:|KCSAN:|UBSAN:|use-after-free|double[- ]free|lockdep:|possible recursive locking detected|suspicious RCU usage|refcount_t:|kmemleak: [0-9]+ new suspected memory leaks|unreferenced object|DEBUG_OBJECTS|bad unlock balance"
     dmesg >"$RESULT_DIR/$tag.dmesg.txt" 2>&1 || true
     if grep -E "$anomaly_pattern" "$RESULT_DIR/$tag.dmesg.txt" >"$RESULT_DIR/$tag.dmesg.anomalies.txt"; then
         emit "dmesg_anomaly.$tag=1"
