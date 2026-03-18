@@ -460,3 +460,56 @@
   - 新增正式的 ``unsafe`` 审计文档，逐项记录 ``rust/kernel/net/*`` 与
     ``rust/helpers/net.c`` 中每一个 ``unsafe`` 点的前置条件、后置条件、
     生命周期、别名约束与析构配对关系。
+
+13. ``unsafe`` 契约审计初稿
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 新增正式审计文档：
+
+  - ``Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst``
+
+- 审计范围固定为：
+
+  - ``rust/kernel/net/skbuff.rs``
+  - ``rust/kernel/net/netdevice.rs``
+  - ``rust/kernel/net/rtnl.rs``
+  - ``rust/helpers/net.c``
+
+- 本阶段按“前置条件 / 后置条件 / 所有权 / 生命周期 / 别名 / 析构配对 /
+  safe API 是否可能破坏不变式”的统一格式，逐项审计所有 ``unsafe`` 点。
+
+- 本阶段得到的关键结论：
+
+  - ``DeviceRef<T>`` 缺少生命周期参数且公开 ``private()``，这是当前 safe API 中
+    最需要优先收缩的高风险点
+  - ``LStats`` 没有把 ``NETDEV_PCPU_STAT_LSTATS`` 这一配置前提编码进类型
+  - ``AttrTable::is_present()`` 没有边界信息，当前是一个 safe 越界入口
+  - ``SetupContext::device_mut()`` 泄漏了 setup 阶段不应暴露的运行期能力
+  - ``NetlinkTapHandle::add()`` 目前依赖调用者“恰好传的是当前设备”，这一点还没有被 API 编码
+  - ``Registration<T>`` 的 ``Send/Sync`` 证明目前仍偏弱，需要在重构阶段复核
+
+- 本阶段修改文件：
+
+  - ``Documentation/rust/lwz-dev/index.rst``
+  - ``Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/worklog-2026-03-18-zh_CN.rst``
+
+- 本阶段验证命令：
+
+  - ``rg -n \"unsafe|unsafe impl|extern \\\"C\\\"\" rust/kernel/net rust/helpers/net.c``
+  - ``nl -ba rust/kernel/net/skbuff.rs``
+  - ``nl -ba rust/kernel/net/netdevice.rs``
+  - ``nl -ba rust/kernel/net/rtnl.rs``
+  - ``nl -ba rust/helpers/net.c``
+
+- 本阶段验证结果：
+
+  - 已形成一份可交接的正式审计文档
+  - 已明确 P0/P1/P2 级别的抽象收缩任务
+  - 在完成这些改造前，不应继续把当前抽象层称为“已证明健全的 safe API”
+
+- 下一步：
+
+  - 按审计文档给出的 P0/P1 顺序重构 ``rust/kernel/net/*``，
+    先收缩 ``DeviceRef`` / ``LStats`` / ``AttrTable`` / ``SetupContext`` 的 safe API 表面，
+    再重新编译并进入调试内核与强化差分测试阶段。
