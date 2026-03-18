@@ -126,4 +126,16 @@
 - ``dev_kfree_skb`` 暂不列入 helper 缺口，因为当前 bindings 已直接提供
   ``consume_skb``，后续在抽象层再决定是否需要额外兼容包装。
 
+5. 最小 helper 补齐
+~~~~~~~~~~~~~~~~~~
+
+- 新增 ``rust/helpers/net.c``，只为本轮审计中确认的两个 inline 盲区提供包装：
+
+  - ``rust_helper_netdev_priv()``
+  - ``rust_helper_dev_lstats_add()``
+
+- 在 ``rust/helpers/helpers.c`` 中按字母序纳入 ``net.c``。
+- 本阶段不定义新的 C 结构体，不承载设备业务逻辑，只负责为后续
+  ``rust/kernel/net`` 抽象提供可绑定的最小 FFI 入口。
+
 后续阶段会继续在本文件中追加记录。
