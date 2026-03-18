@@ -18,8 +18,11 @@
 
 - ``baseline`` 场景下，C/Rust 两边都已经稳定抓到非空 ``pcap``。
 - ``lifecycle`` 场景下，C/Rust 两边都能稳定完成 100 轮 add/up/del。
-- 当前 ``memory-debug`` 结果支持“外部行为已基本收敛”的阶段性判断。
-- 但由于原始 ``pcap`` 的 ``sha256`` 仍不同，且尚未跑完 ``matrix`` / ``stress`` /
+- ``matrix`` 场景下，``dummy`` / ``veth`` / ``bridge`` / ``route_rule`` 四类发生器的
+  摘要已经对齐，``netns`` 仍有公共噪声与轻微漂移。
+- ``stress`` 场景下，C/Rust 两边都能稳定运行 1800 秒并完成大规模抓包。
+- 当前 ``memory-debug`` 结果支持“强化行为对照已经基本成形”的阶段性判断。
+- 但由于 ``netns`` 发生器尚未收紧、原始 ``pcap`` 的 ``sha256`` 仍不同，且尚未跑完
   ``concurrency-debug`` / ``leak-debug``，因此还不能把这轮结果写成最终工程验收通过。
 
 范围与前提
@@ -37,11 +40,11 @@
 
   - ``baseline``
   - ``lifecycle``
+  - ``matrix``
+  - ``stress``
 
 本轮不覆盖：
 
-- ``matrix``
-- ``stress``
 - ``concurrency-debug``
 - ``leak-debug``
 - 最终工程验收结论
@@ -71,7 +74,18 @@
    - 每 10 轮混入一次事件发生器流量
    - 检查 ``status``、``dmesg`` 与公共噪声是否同型
 
-4. 结果对比优先看：
+4. ``matrix`` 场景中：
+
+   - 分别对 ``dummy`` / ``veth`` / ``bridge`` / ``route_rule`` / ``netns``
+     做 50 轮事件发生器循环
+   - 对每类发生器分别记录 ``pcap`` 摘要与 ``dmesg`` 摘要
+
+5. ``stress`` 场景中：
+
+   - 连续 1800 秒循环触发五类事件发生器
+   - 检查长时抓包、摘要行数与 ``dmesg`` 是否稳定
+
+6. 结果对比优先看：
 
    - ``status=ok``
    - ``dmesg_anomaly``
@@ -146,28 +160,98 @@
 由于该现象在两边完全同型，目前更适合作为“事件发生器实现尚待收紧”的公共噪声，
 而不应归因到 ``nlmon`` C/Rust 实现差异上。
 
+5. ``matrix`` 已经完成首轮强化对照
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+当前 ``memory-debug`` 下，C/Rust 两边都已经完成 ``matrix`` 场景，其中：
+
+- ``dummy``：
+
+  - 两边均为 ``600424`` bytes / ``38300`` decoded lines / ``1900`` captured
+
+- ``veth``：
+
+  - 两边均为 ``492824`` bytes / ``31600`` decoded lines / ``1900`` captured
+
+- ``bridge``：
+
+  - 两边均为 ``542824`` bytes / ``34800`` decoded lines / ``2300`` captured
+
+- ``route_rule``：
+
+  - 两边均为 ``132824`` bytes / ``8650`` decoded lines / ``800`` captured
+
+- ``netns``：
+
+  - C：``161608`` bytes / ``10464`` decoded lines / ``1004`` captured
+  - Rust：``160716`` bytes / ``10407`` decoded lines / ``1002`` captured
+  - 两边的 ``dmesg_anomaly.matrix.netns`` 都为 ``0``
+  - 两边日志都带有 ``Cannot find device "nlmon_ns_veth0"`` 公共噪声
+
+这说明：
+
+- 四类较稳定事件发生器已经完成逐类 50 轮后的摘要对齐。
+- 当前 ``matrix`` 里剩余的主要不确定性，已经收敛到 ``netns`` 发生器本身的清理顺序与
+  事件边界上，而不是 ``nlmon`` 整体功能路径都在漂移。
+
+6. ``stress`` 已经完成长时抓包对照
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+当前 ``memory-debug`` 下，C/Rust 两边都已经完成默认 ``1800`` 秒 ``stress``：
+
+- Rust：
+
+  - ``status=ok``
+  - ``dmesg_anomaly.stress=0``
+  - ``416143792`` bytes
+  - ``26691293`` decoded lines
+  - ``1703996`` captured
+
+- C：
+
+  - ``status=ok``
+  - ``dmesg_anomaly.stress=0``
+  - ``416168736`` bytes
+  - ``26692887`` decoded lines
+  - ``1704052`` captured
+
+这一轮结果可以支持以下判断：
+
+- 两边都已经通过长时抓包与高频事件发生器混合负载。
+- 上一阶段出现的 ``No space left on device`` 已被确认是测试 harness 问题，而不是
+  ``nlmon`` 功能失败。
+- 当前 ``stress`` 里仍存在轻微摘要漂移，因此还不能把它写成“逐字节完全一致”。
+  结合 ``matrix.netns`` 的现象，更合理的解释仍然是：
+
+  - ``netns`` 发生器存在公共噪声
+  - 原始 ``pcap`` 受时间戳/记录细节影响，不能只看原始哈希
+
 阶段性判断
 ----------
 
 基于当前证据，可以成立的判断是：
 
-- 当前 ``memory-debug`` 下的 ``baseline`` 与 ``lifecycle`` 已经完成一阶差分收敛。
-- Rust 版 ``nlmon`` 至少没有在这两类场景里引入额外的调试内核异常。
-- 在当前主机侧可见指标下，C/Rust 外部行为已经高度一致。
+- 当前 ``memory-debug`` 下的 ``baseline``、``lifecycle``、``matrix``、``stress``
+  都已经完成一轮 C/Rust 强化对照。
+- Rust 版 ``nlmon`` 至少没有在这四类场景里引入额外的调试内核异常。
+- 在当前主机侧可见指标下，C/Rust 外部行为已经高度接近，且差异面已被压缩到
+  ``netns`` 发生器与原始 ``pcap`` 口径。
 
 当前不能成立的判断是：
 
 - “已经完成最终工程验收”
 - “抽象层的 ``unsafe`` 已被完全证明健全”
-- “C/Rust 在更强压力矩阵下也完全一致”
+- “C/Rust 已经逐字节完全一致”
 
 下一步建议
 ----------
 
 建议按照以下顺序继续推进：
 
-1. 跑完 ``matrix`` 场景，观察五类事件发生器逐类 50 轮后的摘要是否仍然收敛。
-2. 跑完 ``stress`` 场景，确认长时抓包与 ``dmesg`` 仍然稳定。
-3. 在 ``concurrency-debug`` 与 ``leak-debug`` 内核下复用同一套脚本。
-4. 若仍需解释 ``pcap.sha256`` 差异，补充去时间戳后的 decoded 摘要比较。
+1. 在 ``concurrency-debug`` 与 ``leak-debug`` 内核下，至少先复跑 C/Rust 的
+   ``baseline`` / ``lifecycle``。
+2. 为 ``pcap`` 增加去时间戳/规范化后的比较口径，不再只盯原始 ``sha256``。
+3. 收紧 ``netns`` 发生器的清理顺序，去掉
+   ``Cannot find device "nlmon_ns_veth0"`` 这类公共噪声。
+4. 在完成上述两点后，重跑受影响的 ``matrix`` / ``stress`` 场景。
 5. 在上述步骤全部完成后，再输出最终工程验收结论文档与完整复现流程文档。

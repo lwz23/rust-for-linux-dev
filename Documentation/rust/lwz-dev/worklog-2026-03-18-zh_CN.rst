@@ -1320,3 +1320,79 @@
 - 下一步：
 
   - 若 Rust ``stress`` 收敛，再切回 C 实现完成对应 ``matrix`` / ``stress``
+
+28. 完成 ``memory-debug`` 下的 ``matrix`` / ``stress`` 对照
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在完成上一阶段的 harness 修复后，继续按既定顺序推进 ``memory-debug`` 下更强的
+  差分证据：
+
+  - 先重跑 Rust ``stress``
+  - 再切回 C 实现重建内核与模块
+  - 再执行 C ``matrix``
+  - 最后执行 C ``stress``
+
+- 本阶段实际执行的关键命令包括：
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation rust --scenario stress --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-stress-rust-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-stress-rust.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-stress-rust.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-stress.log --timeout-seconds 2400``
+  - ``scripts/config --file /home/lwz/rfl-dev/build-nlmon-kasan/.config -d NLMON_RUST``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 olddefconfig``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 rustavailable``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 -j$(nproc) bzImage modules``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario matrix --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-matrix-c-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-matrix-c.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-matrix-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-matrix.log --timeout-seconds 1200``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario stress --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-stress-c-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-stress-c.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-stress-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-stress.log --timeout-seconds 2400``
+
+- Rust ``stress`` 的实际结果：
+
+  - ``status=ok``
+  - ``dmesg_anomaly.stress=0``
+  - ``stress.pcap.bytes=416143792``
+  - ``stress.decoded.lines=26691293``
+  - ``1703996 packets captured``
+  - 说明上一阶段“guest 空间耗尽”已经被确认是测试基础设施问题，而不是 ``nlmon`` 本体故障
+
+- C ``matrix`` 的实际结果：
+
+  - ``status=ok``
+  - ``dmesg_anomaly.matrix.dummy=0``
+  - ``dmesg_anomaly.matrix.veth=0``
+  - ``dmesg_anomaly.matrix.bridge=0``
+  - ``dmesg_anomaly.matrix.route_rule=0``
+  - ``dmesg_anomaly.matrix.netns=0``
+  - 与当前已有 Rust ``matrix`` 结果对比：
+
+    - ``dummy`` / ``veth`` / ``bridge`` / ``route_rule`` 的 ``pcap.bytes``、
+      ``decoded.lines`` 与 captured/filter 计数完全一致
+    - ``netns`` 仍存在公共噪声 ``Cannot find device "nlmon_ns_veth0"``
+    - ``netns`` 的摘要出现轻微漂移：
+
+      - C：``161608`` bytes / ``10464`` lines / ``1004`` captured
+      - Rust：``160716`` bytes / ``10407`` lines / ``1002`` captured
+
+- C ``stress`` 的实际结果：
+
+  - ``status=ok``
+  - ``dmesg_anomaly.stress=0``
+  - ``stress.pcap.bytes=416168736``
+  - ``stress.decoded.lines=26692887``
+  - ``1704052 packets captured``
+
+- 由此可以先得到一个更强但仍保守的阶段结论：
+
+  - ``memory-debug`` 下，C/Rust 两边现在都已经完成 ``baseline`` / ``lifecycle`` /
+    ``matrix`` / ``stress``
+  - 两边都没有新增的 ``dmesg`` 异常
+  - ``dummy`` / ``veth`` / ``bridge`` / ``route_rule`` 四类发生器在 ``matrix`` 下已完全对齐
+  - 当前剩余的主要问题已经收敛到：
+
+    - ``netns`` 发生器的公共噪声与轻微计数漂移
+    - 原始 ``pcap.sha256`` 仍不足以作为最终等价判据
+
+- 下一步：
+
+  - 更新 ``memory-debug`` 强化差分报告，将 ``matrix`` / ``stress`` 结果补为正式文档
+  - 以独立提交记录本阶段结果
+  - 然后转入 ``concurrency-debug`` 与 ``leak-debug`` 的 ``baseline`` / ``lifecycle``
