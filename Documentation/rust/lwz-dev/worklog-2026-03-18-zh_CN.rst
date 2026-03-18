@@ -1806,3 +1806,42 @@
 
   - 把现有 ``driver-rustification-playbook-zh_CN.rst`` 扩展为“从零开始完整复现”的终稿
   - 让下一窗口或下一位接手者可以直接照着执行完整流程
+
+35. 完成“从零开始完整复现”总手册终稿
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 结合今天已经完成的全部内容，开始把现有
+  ``driver-rustification-playbook-zh_CN.rst`` 从“方法提纲”升级为真正可执行的终稿。
+
+- 本阶段重点不是再追加结论，而是把所有关键路径写实：
+
+  - 工作区与分支
+  - Kbuild / Kconfig 切换
+  - 主 bindgen 暴露
+  - helper 设计原则
+  - ``rust/kernel/*`` 抽象分层
+  - ``unsafe`` 审计口径
+  - 调试内核构建
+  - rootfs 与 QEMU 自动化测试脚本
+  - 差分测试顺序
+  - ``pcap`` 判读规则
+  - ``netns`` 发生器踩坑记录
+  - 工程验收写法
+  - commit / push 纪律
+
+- 更新文件：
+
+  - ``Documentation/rust/lwz-dev/driver-rustification-playbook-zh_CN.rst``
+
+- 手册终稿特别强调了几条本轮项目里真正验证过的经验：
+
+  - 先主 bindgen，后 helper，再抽象，再驱动
+  - DUT 只有 ``nlmon``，``dummy`` 等只是事件发生器
+  - ``stress`` 用来证明稳定性，不用来强行证明逐字节一致
+  - 测试发生器本身也必须当作工程对象维护
+  - 工程验收必须区分“当前用例通过”与“通用抽象定型”
+
+- 下一步：
+
+  - 检查当前分支状态
+  - 将本轮新增提交统一 push 到 ``origin/feature/nlmon-rust``
