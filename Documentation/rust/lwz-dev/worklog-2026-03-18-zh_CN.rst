@@ -574,3 +574,97 @@
 
   - 开始建立专用调试内核输出目录、配置片段、测试 rootfs 与自动化测试脚本，
     为强化差分测试矩阵做准备。
+
+15. 调试内核与自动化测试基线脚本
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在仓库中新增可追踪的测试基础设施目录：
+
+  - ``tools/testing/rust/nlmon/common.sh``
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh``
+
+- 本阶段设计目标：
+
+  - 不再复用单一 ``/home/lwz/rfl-dev/build`` 作为所有测试场景的输出目录
+  - 用仓库内脚本固定化三套调试 profile：
+
+    - ``memory-debug`` -> ``/home/lwz/rfl-dev/build-nlmon-kasan``
+    - ``concurrency-debug`` -> ``/home/lwz/rfl-dev/build-nlmon-lockdep``
+    - ``leak-debug`` -> ``/home/lwz/rfl-dev/build-nlmon-kmem``
+
+  - 用专用 initramfs 和自动执行的 guest runner 取代“手工进 shell 再逐条敲命令”的测试方式
+
+- 脚本能力概览：
+
+  - ``configure-debug-kernel.sh``：
+
+    - 从现有基线 ``.config`` 派生独立 build dir
+    - 打开 ``NLMON/DUMMY/VETH/BRIDGE/STP/LLC`` 等事件发生器所需配置
+    - 根据 profile 打开 ``KASAN``、``PROVE_LOCKING``、``DEBUG_KMEMLEAK`` 等调试项
+    - 在 ``olddefconfig`` 后显式检查关键配置是否真的生效，并对缺失项打印 warning
+
+  - ``prepare-test-rootfs.sh``：
+
+    - 生成独立测试 rootfs staging tree 与 ``initramfs-nlmon-test.cpio.gz``
+    - 除 BusyBox 外，额外分发宿主机上的 ``ip``、``tcpdump``、``sha256sum``、
+      ``cmp``、``awk``、``sed``、``grep``
+    - 若宿主机存在 ``ethtool`` 则一并分发；若不存在，则在准备阶段打印降级 warning
+    - 按 ``c/rust`` 选择要打包的 ``nlmon`` 模块，并一并打包 ``dummy/llc/stp/bridge/veth``
+    - 生成自动执行的 ``/init`` 与 ``/etc/nlmon-test.env``
+
+  - ``nlmon-guest-runner.sh``：
+
+    - 在 guest 中自动加载模块
+    - 自动运行 ``baseline/lifecycle/matrix/stress`` 场景
+    - 自动触发 ``dummy/veth/bridge/route_rule/netns`` 五类事件发生器
+    - 自动采集 ``ip -d`` / ``ip -s`` / ``sysfs`` / ``tcpdump`` / ``sha256sum`` / ``dmesg``
+    - 自动检测 ``KASAN/UAF/lockdep/RCU/kmemleak`` 关键词
+
+  - ``run-qemu-test.sh``：
+
+    - 接收 ``build dir``、``initramfs``、``log file`` 和超时参数
+    - 自动启动 QEMU 并把串口日志重定向到主机文件
+
+- 本阶段验证命令：
+
+  - ``bash -n tools/testing/rust/nlmon/common.sh tools/testing/rust/nlmon/configure-debug-kernel.sh tools/testing/rust/nlmon/prepare-test-rootfs.sh tools/testing/rust/nlmon/run-qemu-test.sh``
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh memory-debug``
+  - ``rg -n "CONFIG_(KASAN|SLUB_DEBUG_ON|DEBUG_OBJECTS|NLMON|DUMMY|VETH|BRIDGE|STP|LLC|NET_NS|PACKET|IP_MULTIPLE_TABLES|RUST)=" /home/lwz/rfl-dev/build-nlmon-kasan/.config``
+
+- 本阶段验证结果：
+
+  - 新增脚本均通过语法检查
+  - ``memory-debug`` profile 已成功生成 ``/home/lwz/rfl-dev/build-nlmon-kasan/.config``
+  - 关键配置项已确认开启：
+
+    - ``CONFIG_RUST=y``
+    - ``CONFIG_NET_NS=y``
+    - ``CONFIG_PACKET=y``
+    - ``CONFIG_IP_MULTIPLE_TABLES=y``
+    - ``CONFIG_STP=m``
+    - ``CONFIG_BRIDGE=m``
+    - ``CONFIG_LLC=m``
+    - ``CONFIG_DUMMY=m``
+    - ``CONFIG_VETH=m``
+    - ``CONFIG_NLMON=m``
+    - ``CONFIG_SLUB_DEBUG_ON=y``
+    - ``CONFIG_DEBUG_OBJECTS=y``
+    - ``CONFIG_KASAN=y``
+    - ``CONFIG_KASAN_GENERIC=y``
+
+- 本阶段发现的环境/树内现实问题：
+
+  - 当前这棵内核树里没有 ``CONFIG_REFCOUNT_FULL``，因此 ``memory-debug`` profile
+    在校验阶段会显式给出 warning，而不是静默假装已经开启
+  - 宿主机当前没有 ``/usr/sbin/ethtool``，因此测试 rootfs 准备脚本会显式记录
+    观测降级，而不是假装具备完整 ``ethtool`` 采样能力
+
+- 下一步：
+
+  - 基于这些脚本继续生成并构建三套调试内核
+  - 准备 C / Rust 两轮测试所需的专用 initramfs
+  - 先执行功能基线与生命周期循环，再进入行为矩阵和长时压力测试。

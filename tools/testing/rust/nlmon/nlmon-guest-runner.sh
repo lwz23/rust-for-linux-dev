@@ -1,0 +1,259 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0
+
+set -eu
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+RESULT_DIR=/tmp/nlmon-results
+mkdir -p "$RESULT_DIR" /run/netns
+
+. /etc/nlmon-test.env
+
+log() {
+    echo "NLMON_TEST: $*"
+}
+
+emit() {
+    echo "NLMON_RESULT: $*"
+}
+
+cleanup_names() {
+    ip link del nlmon0 2>/dev/null || true
+    ip link del nlmon_dummy0 2>/dev/null || true
+    ip link del nlmon_veth0 2>/dev/null || true
+    ip link del nlmon_bridge0 2>/dev/null || true
+    ip link del nlmon_br_veth0 2>/dev/null || true
+    ip link del nlmon_br_veth1 2>/dev/null || true
+    ip link del nlmon_ns_veth0 2>/dev/null || true
+    ip netns del nlmonns0 2>/dev/null || true
+    ip rule del pref 1000 2>/dev/null || true
+    ip route del 198.18.0.0/24 table 100 2>/dev/null || true
+}
+
+finish() {
+    sync
+    cleanup_names
+}
+
+trap finish EXIT
+
+load_modules() {
+    insmod /lib/modules/dummy.ko
+    insmod /lib/modules/llc.ko
+    insmod /lib/modules/stp.ko
+    insmod /lib/modules/bridge.ko
+    insmod /lib/modules/veth.ko
+    insmod "$NLMON_MODULE"
+}
+
+ensure_nlmon_up() {
+    ip link add nlmon0 type nlmon
+    ip link set nlmon0 up
+}
+
+start_capture() {
+    local tag="$1"
+    rm -f "$RESULT_DIR/$tag.pcap"
+    tcpdump -i nlmon0 -w "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.tcpdump.stdout" 2>"$RESULT_DIR/$tag.tcpdump.stderr" &
+    TCPDUMP_PID=$!
+    sleep 1
+}
+
+stop_capture() {
+    if [ -n "${TCPDUMP_PID:-}" ]; then
+        kill -INT "$TCPDUMP_PID" 2>/dev/null || true
+        wait "$TCPDUMP_PID" 2>/dev/null || true
+        TCPDUMP_PID=
+    fi
+}
+
+observe_iface() {
+    local iface="$1"
+    local tag="$2"
+
+    if ip -d link show "$iface" >"$RESULT_DIR/$tag.ip-d.txt" 2>"$RESULT_DIR/$tag.ip-d.err"; then
+        emit "observation_mode.$tag=full-iproute2"
+    else
+        ip link show "$iface" >"$RESULT_DIR/$tag.ip.txt" 2>&1 || true
+        for field in type flags mtu; do
+            cat "/sys/class/net/$iface/$field" >"$RESULT_DIR/$tag.$field.txt" 2>/dev/null || true
+        done
+        emit "observation_mode.$tag=sysfs-fallback"
+    fi
+
+    if ip -s link show "$iface" >"$RESULT_DIR/$tag.ip-s.txt" 2>"$RESULT_DIR/$tag.ip-s.err"; then
+        :
+    else
+        for field in rx_packets rx_bytes tx_packets tx_bytes; do
+            cat "/sys/class/net/$iface/statistics/$field" >"$RESULT_DIR/$tag.$field.txt" 2>/dev/null || true
+        done
+    fi
+
+    if [ "$NLMON_HAVE_ETHTOOL" = "1" ]; then
+        /usr/sbin/ethtool "$iface" >"$RESULT_DIR/$tag.ethtool.txt" 2>&1 || true
+    else
+        echo "ethtool unavailable on host; not staged into guest" >"$RESULT_DIR/$tag.ethtool.txt"
+    fi
+}
+
+finalize_capture() {
+    local tag="$1"
+
+    tcpdump -nn -r "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.decoded.txt" 2>"$RESULT_DIR/$tag.decode.err" || true
+    sha256sum "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.sha256" 2>/dev/null || true
+    wc -l "$RESULT_DIR/$tag.decoded.txt" >"$RESULT_DIR/$tag.decoded.lines" 2>/dev/null || true
+    observe_iface nlmon0 "$tag.nlmon0"
+}
+
+scan_dmesg() {
+    local tag="$1"
+    dmesg >"$RESULT_DIR/$tag.dmesg.txt" 2>&1 || true
+    if grep -E "BUG:|WARNING:|Oops:|KASAN|KFENCE|KCSAN|UBSAN|use-after-free|double free|lockdep|RCU|refcount|kmemleak|DEBUG_OBJECTS" \
+        "$RESULT_DIR/$tag.dmesg.txt" >"$RESULT_DIR/$tag.dmesg.anomalies.txt"; then
+        emit "dmesg_anomaly.$tag=1"
+    else
+        emit "dmesg_anomaly.$tag=0"
+    fi
+}
+
+gen_dummy() {
+    ip link add nlmon_dummy0 type dummy
+    ip link set nlmon_dummy0 up
+    ip addr add 192.0.2.1/24 dev nlmon_dummy0
+    ip -s link show nlmon_dummy0 >/dev/null 2>&1 || true
+    observe_iface nlmon_dummy0 dummy
+    ip link del nlmon_dummy0
+}
+
+gen_veth() {
+    ip link add nlmon_veth0 type veth peer name nlmon_veth1
+    ip link set nlmon_veth0 up
+    ip link set nlmon_veth1 up
+    ip addr add 198.51.100.1/24 dev nlmon_veth0
+    ip addr add 198.51.100.2/24 dev nlmon_veth1
+    ip -s link show nlmon_veth0 >/dev/null 2>&1 || true
+    ip link del nlmon_veth0
+}
+
+gen_bridge() {
+    ip link add nlmon_bridge0 type bridge
+    ip link add nlmon_br_veth0 type veth peer name nlmon_br_veth1
+    ip link set nlmon_bridge0 up
+    ip link set nlmon_br_veth0 master nlmon_bridge0
+    ip link set nlmon_br_veth0 up
+    ip link set nlmon_br_veth1 up
+    ip link del nlmon_br_veth0
+    ip link del nlmon_bridge0
+}
+
+gen_route_rule() {
+    ip route add 198.18.0.0/24 dev lo table 100
+    ip rule add pref 1000 from 192.0.2.0/24 table 100
+    ip rule del pref 1000
+    ip route del 198.18.0.0/24 table 100
+}
+
+gen_netns() {
+    ip netns add nlmonns0
+    ip link add nlmon_ns_veth0 type veth peer name nlmon_ns_veth1
+    ip link set nlmon_ns_veth1 netns nlmonns0
+    ip link set nlmon_ns_veth0 up
+    ip netns exec nlmonns0 ip link set lo up
+    ip netns exec nlmonns0 ip link set nlmon_ns_veth1 up
+    ip netns del nlmonns0
+    ip link del nlmon_ns_veth0
+}
+
+run_all_generators_once() {
+    gen_dummy
+    gen_veth
+    gen_bridge
+    gen_route_rule
+    gen_netns
+}
+
+run_baseline() {
+    log "running baseline scenario"
+    ensure_nlmon_up
+    start_capture baseline
+    run_all_generators_once
+    stop_capture
+    finalize_capture baseline
+    scan_dmesg baseline
+    ip link del nlmon0
+}
+
+run_lifecycle() {
+    log "running lifecycle scenario"
+    i=1
+    while [ "$i" -le "$NLMON_LIFECYCLE_LOOPS" ]; do
+        ensure_nlmon_up
+        if [ $((i % 10)) -eq 0 ]; then
+            run_all_generators_once
+        fi
+        ip link del nlmon0
+        i=$((i + 1))
+    done
+    scan_dmesg lifecycle
+}
+
+run_matrix() {
+    log "running generator matrix"
+    for generator in dummy veth bridge route_rule netns; do
+        ensure_nlmon_up
+        start_capture "matrix.$generator"
+        i=1
+        while [ "$i" -le "$NLMON_GENERATOR_ROUNDS" ]; do
+            "gen_$generator"
+            i=$((i + 1))
+        done
+        stop_capture
+        finalize_capture "matrix.$generator"
+        scan_dmesg "matrix.$generator"
+        ip link del nlmon0
+    done
+}
+
+run_stress() {
+    log "running stress scenario"
+    ensure_nlmon_up
+    start_capture stress
+    start_ts="$(date +%s)"
+    while :; do
+        now="$(date +%s)"
+        if [ $((now - start_ts)) -ge "$NLMON_STRESS_SECONDS" ]; then
+            break
+        fi
+        run_all_generators_once
+    done
+    stop_capture
+    finalize_capture stress
+    scan_dmesg stress
+    ip link del nlmon0
+}
+
+emit "implementation=$NLMON_IMPLEMENTATION"
+emit "scenario=$NLMON_SCENARIO"
+emit "have_ethtool=$NLMON_HAVE_ETHTOOL"
+
+load_modules
+
+case "$NLMON_SCENARIO" in
+    baseline) run_baseline ;;
+    lifecycle) run_lifecycle ;;
+    matrix) run_matrix ;;
+    stress) run_stress ;;
+    all)
+        run_baseline
+        run_lifecycle
+        run_matrix
+        run_stress
+        ;;
+    *)
+        log "unknown scenario: $NLMON_SCENARIO"
+        exit 1
+        ;;
+esac
+
+emit "status=ok"
+
