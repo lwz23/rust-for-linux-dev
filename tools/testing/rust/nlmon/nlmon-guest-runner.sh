@@ -166,10 +166,11 @@ gen_bridge() {
 
 gen_route_rule() {
     log "generator: route_rule"
-    ip route add 198.18.0.0/24 dev lo table 100
-    ip rule add pref 1000 from 192.0.2.0/24 table 100
-    ip rule del pref 1000
-    ip route del 198.18.0.0/24 table 100
+    ip link set lo up || true
+    ip route add 198.18.0.0/24 dev lo table 100 || true
+    ip rule add pref 1000 from 192.0.2.0/24 table 100 || true
+    ip rule del pref 1000 || true
+    ip route del 198.18.0.0/24 table 100 || true
 }
 
 gen_netns() {

@@ -796,3 +796,36 @@
   - 重新执行 ``memory-debug`` / C 版 baseline，确认 baseline 可以完整结束并输出
     足够的主机侧摘要结果；
   - 若通过，再切换到 Rust 版执行同一路径对照。
+
+19. ``route_rule`` 发生器降级为尽力执行
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在再次重跑 ``memory-debug`` / C 版 baseline 后，自动化框架已经不再因为
+  ``init`` 退出而 panic，但新的提前终止点暴露为：
+
+  - ``route_rule`` 发生器中的 ``ip route add ... dev lo table 100``
+  - 当前 guest 环境下该步骤会报 ``RTNETLINK answers: Network is down``
+
+- 这一失败的性质与上一阶段相同：
+
+  - 它属于“为了制造更多 netlink 事件而执行的增强步骤”
+  - 不是验证 ``nlmon`` 创建、启停、抓包与统计主路径是否成立的最小必要条件
+
+- 因此本阶段继续把 ``gen_route_rule()`` 调整为“尽力执行”：
+
+  - 先尝试 ``ip link set lo up || true``
+  - ``route add`` / ``rule add`` / ``rule del`` / ``route del`` 全部改为 ``|| true``
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 本阶段验证结果：
+
+  - guest runner 语法检查继续通过
+  - 后续 baseline 重跑时，``route_rule`` 的增强步骤将不再直接中断整轮采样
+
+- 下一步：
+
+  - 再次重跑 ``memory-debug`` / C 版 baseline，直到基线场景能够完整结束并输出
+    可用于对照的摘要结果。
