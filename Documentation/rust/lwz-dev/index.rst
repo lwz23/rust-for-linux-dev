@@ -16,4 +16,5 @@ LWZ Rust-for-Linux 本地开发文档
    worklog-2026-03-18-zh_CN
    report-2026-03-18-nlmon-rust-zh_CN
    diff-test-report-2026-03-18-nlmon-memory-debug-zh_CN
+   diff-test-report-2026-03-18-nlmon-concurrency-debug-zh_CN
    unsafe-audit-2026-03-18-nlmon-rust-zh_CN

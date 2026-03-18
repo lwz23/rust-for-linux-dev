@@ -1396,3 +1396,100 @@
   - 更新 ``memory-debug`` 强化差分报告，将 ``matrix`` / ``stress`` 结果补为正式文档
   - 以独立提交记录本阶段结果
   - 然后转入 ``concurrency-debug`` 与 ``leak-debug`` 的 ``baseline`` / ``lifecycle``
+
+29. 完成 ``concurrency-debug`` 下的 ``baseline`` / ``lifecycle``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 继续按计划转入第二套调试内核 ``concurrency-debug``，目标是先验证：
+
+  - ``PROVE_LOCKING``
+  - ``PROVE_RCU``
+  - ``DEBUG_ATOMIC_SLEEP``
+  - ``DEBUG_SPINLOCK``
+  - ``DEBUG_NET``
+
+  这些并发/锁语义诊断器开启后，C/Rust 两个 ``nlmon`` 实现是否仍能通过
+  ``baseline`` / ``lifecycle``。
+
+- 本阶段实际执行：
+
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh concurrency-debug``
+
+    - 生成了 ``/home/lwz/rfl-dev/build-nlmon-lockdep/.config``
+    - 由于脚本默认从当前主 ``build/.config`` 复制，且主构建此时带有
+      ``CONFIG_NLMON_RUST=y``，因此先按 Rust 实现完成本轮
+
+  - Rust 版：
+
+    - 编译：
+
+      - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 rustavailable``
+      - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 -j$(nproc) bzImage modules``
+
+    - 测试：
+
+      - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-lockdep-baseline-rust.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-rust-baseline.log --timeout-seconds 900``
+      - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-lockdep-lifecycle-rust.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-rust-lifecycle.log --timeout-seconds 1200``
+
+  - C 版：
+
+    - 切换并重建：
+
+      - ``scripts/config --file /home/lwz/rfl-dev/build-nlmon-lockdep/.config -d NLMON_RUST``
+      - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 olddefconfig``
+      - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 rustavailable``
+      - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 -j$(nproc) bzImage modules``
+
+    - 测试：
+
+      - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-lockdep-baseline-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-c-baseline.log --timeout-seconds 900``
+      - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-lockdep-lifecycle-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-c-lifecycle.log --timeout-seconds 1200``
+
+- 实际结果摘要：
+
+  - Rust ``baseline``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.baseline=0``
+    - ``baseline.pcap.bytes=39488``
+    - ``baseline.decoded.lines=2531``
+    - ``160 packets captured``
+
+  - Rust ``lifecycle``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.lifecycle=0``
+
+  - C ``baseline``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.baseline=0``
+    - ``baseline.pcap.bytes=39488``
+    - ``baseline.decoded.lines=2531``
+    - ``160 packets captured``
+
+  - C ``lifecycle``：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.lifecycle=0``
+
+- 本阶段还注意到一个只出现在 Rust ``baseline`` 串口日志中的调试信息：
+
+  - ``ip (104) used greatest stack depth: 11104 bytes left``
+
+  这条信息没有被 ``dmesg_anomaly`` 规则判为异常，也不属于 lockdep/RCU/atomic-sleep
+  告警，当前先按普通调试统计信息记录，不将其视为 ``nlmon`` 回归。
+
+- 阶段性结论：
+
+  - 在 ``concurrency-debug`` 下，C/Rust 两边的 ``baseline`` / ``lifecycle`` 都已经通过
+  - 当前没有观测到新增的 lockdep、RCU、atomic-sleep、spinlock 或 network debug 异常
+  - ``baseline`` 的关键抓包数量级在两边再次对齐
+
+- 本阶段同时新增正式报告：
+
+  - ``Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-concurrency-debug-zh_CN.rst``
+
+- 下一步：
+
+  - 转入 ``leak-debug``，至少先复跑 C/Rust 的 ``baseline`` / ``lifecycle``
