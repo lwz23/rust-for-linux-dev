@@ -466,6 +466,14 @@ config NLMON
 	  diagnostics, etc. This is mostly intended for developers or support
 	  to debug netlink issues. If unsure, say N.
 
+config NLMON_RUST
+	bool "Rust implementation of nlmon"
+	depends on RUST && NLMON
+	help
+	  Builds the Rust implementation of nlmon (nlmon_rust.ko) instead of the
+	  original C implementation (nlmon.ko). The original drivers/net/nlmon.c
+	  source remains in the tree as the reference implementation.
+
 config NETKIT
 	bool "BPF-programmable network device"
 	depends on BPF_SYSCALL
