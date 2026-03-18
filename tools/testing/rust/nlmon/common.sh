@@ -29,9 +29,12 @@ nlmon_default_rootfs_image() {
 nlmon_copy_path_with_parents() {
     local src="$1"
     local dst="$ROOTFS_DIR$src"
+    local resolved_src
+
+    resolved_src="$(readlink -f "$src")"
 
     mkdir -p "$(dirname "$dst")"
-    cp -a "$src" "$dst"
+    cp -a "$resolved_src" "$dst"
 }
 
 nlmon_install_binary_with_deps() {

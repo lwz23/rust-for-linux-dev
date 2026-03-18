@@ -872,3 +872,73 @@
 
   - 基于修正后的 rootfs 再次重跑 ``memory-debug`` / C 版 baseline，
     观察五类事件发生器是否终于能在完整 ``iproute2`` 下走完主路径。
+
+21. 修正 rootfs 中的 ``iproute2`` 软链接污染
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在继续复盘 ``memory-debug`` / C 版 baseline 的失败根因时，又确认了一个更底层的问题：
+
+  - 宿主机上的 ``/usr/sbin/ip`` 本身是指向 ``/bin/ip`` 的软链接
+  - 但测试 rootfs 内部的 ``/bin`` 是真实目录，不是宿主机那样指向 ``/usr/bin`` 的层级
+  - 旧版 staging 逻辑使用 ``cp -a`` 原样复制软链接，结果 guest 里留下了
+    ``/usr/sbin/ip -> /bin/ip`` 的悬空链接
+  - 同样的问题也会影响 ``ld-linux`` 等动态装载器路径，意味着此前“已经分发了完整二进制”
+    这一前提并不成立
+
+- 这解释了为什么前一阶段虽然调整了 ``PATH``，guest 仍然会落回 BusyBox ``ip`` 或出现能力缺失。
+
+- 因此本阶段对测试基础设施做两点修正：
+
+  - ``tools/testing/rust/nlmon/common.sh``
+
+    - ``nlmon_copy_path_with_parents()`` 改为复制 ``readlink -f`` 解析后的真实文件，
+      不再把宿主机的符号链接原样带进 guest rootfs
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+
+    - ``ip`` 改为直接从 ``/usr/bin/ip`` 分发
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+    - 新增 ``IP_BIN`` / ``ip_cmd()``
+    - 全部 ``ip`` 调用统一走显式的完整 ``iproute2`` 路径
+    - 在测试结果中额外记录 ``ip_binary`` 与 ``ip_version``，用于后续审计基线可信度
+
+- 本阶段预期验证命令：
+
+  - ``bash -n tools/testing/rust/nlmon/common.sh tools/testing/rust/nlmon/prepare-test-rootfs.sh``
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 重新生成 ``memory-debug`` / C 版 rootfs 并重跑 baseline
+
+- 实际验证命令：
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario baseline --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-baseline-c-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-c.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-baseline.log --timeout-seconds 600``
+
+- 实际验证结果：
+
+  - 重新生成后的 rootfs 中：
+
+    - ``/usr/bin/ip`` 已为真实 ELF 二进制
+    - ``/lib64/ld-linux-x86-64.so.2`` 已为真实 ELF 装载器，不再是悬空软链接
+
+  - ``memory-debug`` / C 版 baseline 首次完整收尾：
+
+    - 串口日志记录 ``NLMON_RESULT: ip_binary=/usr/bin/ip``
+    - 串口日志记录 ``NLMON_RESULT: ip_version=ip utility, iproute2-5.15.0, libbpf 0``
+    - ``NLMON_RESULT: observation_mode.dummy=full-iproute2``
+    - ``NLMON_RESULT: observation_mode.baseline.nlmon0=full-iproute2``
+    - ``NLMON_RESULT: status=ok``
+    - ``=== nlmon automated test exit rc=0 ===``
+
+  - 这说明 guest 里的 ``ip`` 路径污染问题已经被修复，C 版 baseline 现在终于具备“可信基线”的前提。
+
+  - 同时也暴露出下一轮需要继续追查的两个剩余问题：
+
+    - ``NLMON_RESULT: baseline.decoded.lines=0``，当前抓包结果仍未形成可解析报文清单
+    - ``NLMON_RESULT: dmesg_anomaly.baseline=1``，仍需继续收集并分类异常来源，不能直接当成 ``nlmon`` 缺陷或通过项
+
+- 下一步：
+
+  - 先把这一轮“测试基础设施修复”作为单独任务提交
+  - 然后继续跑 ``memory-debug`` / C 版 lifecycle，并补强结果采集，使 ``pcap`` 与 ``dmesg`` 的问题能够在主机侧被精确归因

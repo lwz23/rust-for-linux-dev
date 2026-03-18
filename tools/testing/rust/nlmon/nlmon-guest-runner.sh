@@ -9,6 +9,15 @@ mkdir -p "$RESULT_DIR" /run/netns
 
 . /etc/nlmon-test.env
 
+IP_BIN=/usr/bin/ip
+if [ ! -x "$IP_BIN" ]; then
+    IP_BIN=/usr/sbin/ip
+fi
+
+ip_cmd() {
+    "$IP_BIN" "$@"
+}
+
 log() {
     echo "NLMON_TEST: $*"
 }
@@ -27,16 +36,16 @@ emit_file_value() {
 }
 
 cleanup_names() {
-    ip link del nlmon0 2>/dev/null || true
-    ip link del nlmon_dummy0 2>/dev/null || true
-    ip link del nlmon_veth0 2>/dev/null || true
-    ip link del nlmon_bridge0 2>/dev/null || true
-    ip link del nlmon_br_veth0 2>/dev/null || true
-    ip link del nlmon_br_veth1 2>/dev/null || true
-    ip link del nlmon_ns_veth0 2>/dev/null || true
-    ip netns del nlmonns0 2>/dev/null || true
-    ip rule del pref 1000 2>/dev/null || true
-    ip route del 198.18.0.0/24 table 100 2>/dev/null || true
+    ip_cmd link del nlmon0 2>/dev/null || true
+    ip_cmd link del nlmon_dummy0 2>/dev/null || true
+    ip_cmd link del nlmon_veth0 2>/dev/null || true
+    ip_cmd link del nlmon_bridge0 2>/dev/null || true
+    ip_cmd link del nlmon_br_veth0 2>/dev/null || true
+    ip_cmd link del nlmon_br_veth1 2>/dev/null || true
+    ip_cmd link del nlmon_ns_veth0 2>/dev/null || true
+    ip_cmd netns del nlmonns0 2>/dev/null || true
+    ip_cmd rule del pref 1000 2>/dev/null || true
+    ip_cmd route del 198.18.0.0/24 table 100 2>/dev/null || true
 }
 
 finish() {
@@ -56,8 +65,8 @@ load_modules() {
 }
 
 ensure_nlmon_up() {
-    ip link add nlmon0 type nlmon
-    ip link set nlmon0 up
+    ip_cmd link add nlmon0 type nlmon
+    ip_cmd link set nlmon0 up
 }
 
 start_capture() {
@@ -80,17 +89,17 @@ observe_iface() {
     local iface="$1"
     local tag="$2"
 
-    if ip -d link show "$iface" >"$RESULT_DIR/$tag.ip-d.txt" 2>"$RESULT_DIR/$tag.ip-d.err"; then
+    if ip_cmd -d link show "$iface" >"$RESULT_DIR/$tag.ip-d.txt" 2>"$RESULT_DIR/$tag.ip-d.err"; then
         emit "observation_mode.$tag=full-iproute2"
     else
-        ip link show "$iface" >"$RESULT_DIR/$tag.ip.txt" 2>&1 || true
+        ip_cmd link show "$iface" >"$RESULT_DIR/$tag.ip.txt" 2>&1 || true
         for field in type flags mtu; do
             cat "/sys/class/net/$iface/$field" >"$RESULT_DIR/$tag.$field.txt" 2>/dev/null || true
         done
         emit "observation_mode.$tag=sysfs-fallback"
     fi
 
-    if ip -s link show "$iface" >"$RESULT_DIR/$tag.ip-s.txt" 2>"$RESULT_DIR/$tag.ip-s.err"; then
+    if ip_cmd -s link show "$iface" >"$RESULT_DIR/$tag.ip-s.txt" 2>"$RESULT_DIR/$tag.ip-s.err"; then
         :
     else
         for field in rx_packets rx_bytes tx_packets tx_bytes; do
@@ -133,56 +142,56 @@ scan_dmesg() {
 
 gen_dummy() {
     log "generator: dummy"
-    ip link add nlmon_dummy0 type dummy
-    ip link set nlmon_dummy0 up
-    ip addr add 192.0.2.1/24 dev nlmon_dummy0
-    ip -s link show nlmon_dummy0 >/dev/null 2>&1 || true
+    ip_cmd link add nlmon_dummy0 type dummy
+    ip_cmd link set nlmon_dummy0 up
+    ip_cmd addr add 192.0.2.1/24 dev nlmon_dummy0
+    ip_cmd -s link show nlmon_dummy0 >/dev/null 2>&1 || true
     observe_iface nlmon_dummy0 dummy
-    ip link del nlmon_dummy0 || true
+    ip_cmd link del nlmon_dummy0 || true
 }
 
 gen_veth() {
     log "generator: veth"
-    ip link add nlmon_veth0 type veth peer name nlmon_veth1
-    ip link set nlmon_veth0 up || true
-    ip link set nlmon_veth1 up || true
-    ip addr add 198.51.100.1/24 dev nlmon_veth0 || true
-    ip addr add 198.51.100.2/24 dev nlmon_veth1 || true
-    ip -s link show nlmon_veth0 >/dev/null 2>&1 || true
-    ip link del nlmon_veth0 || true
+    ip_cmd link add nlmon_veth0 type veth peer name nlmon_veth1
+    ip_cmd link set nlmon_veth0 up || true
+    ip_cmd link set nlmon_veth1 up || true
+    ip_cmd addr add 198.51.100.1/24 dev nlmon_veth0 || true
+    ip_cmd addr add 198.51.100.2/24 dev nlmon_veth1 || true
+    ip_cmd -s link show nlmon_veth0 >/dev/null 2>&1 || true
+    ip_cmd link del nlmon_veth0 || true
 }
 
 gen_bridge() {
     log "generator: bridge"
-    ip link add nlmon_bridge0 type bridge
-    ip link add nlmon_br_veth0 type veth peer name nlmon_br_veth1
-    ip link set nlmon_bridge0 up || true
-    ip link set nlmon_br_veth0 master nlmon_bridge0 || true
-    ip link set nlmon_br_veth0 up || true
-    ip link set nlmon_br_veth1 up || true
-    ip link del nlmon_br_veth0 || true
-    ip link del nlmon_bridge0 || true
+    ip_cmd link add nlmon_bridge0 type bridge
+    ip_cmd link add nlmon_br_veth0 type veth peer name nlmon_br_veth1
+    ip_cmd link set nlmon_bridge0 up || true
+    ip_cmd link set nlmon_br_veth0 master nlmon_bridge0 || true
+    ip_cmd link set nlmon_br_veth0 up || true
+    ip_cmd link set nlmon_br_veth1 up || true
+    ip_cmd link del nlmon_br_veth0 || true
+    ip_cmd link del nlmon_bridge0 || true
 }
 
 gen_route_rule() {
     log "generator: route_rule"
-    ip link set lo up || true
-    ip route add 198.18.0.0/24 dev lo table 100 || true
-    ip rule add pref 1000 from 192.0.2.0/24 table 100 || true
-    ip rule del pref 1000 || true
-    ip route del 198.18.0.0/24 table 100 || true
+    ip_cmd link set lo up || true
+    ip_cmd route add 198.18.0.0/24 dev lo table 100 || true
+    ip_cmd rule add pref 1000 from 192.0.2.0/24 table 100 || true
+    ip_cmd rule del pref 1000 || true
+    ip_cmd route del 198.18.0.0/24 table 100 || true
 }
 
 gen_netns() {
     log "generator: netns"
-    ip netns add nlmonns0
-    ip link add nlmon_ns_veth0 type veth peer name nlmon_ns_veth1
-    ip link set nlmon_ns_veth1 netns nlmonns0
-    ip link set nlmon_ns_veth0 up || true
-    ip netns exec nlmonns0 ip link set lo up || true
-    ip netns exec nlmonns0 ip link set nlmon_ns_veth1 up || true
-    ip netns del nlmonns0 || true
-    ip link del nlmon_ns_veth0 || true
+    ip_cmd netns add nlmonns0
+    ip_cmd link add nlmon_ns_veth0 type veth peer name nlmon_ns_veth1
+    ip_cmd link set nlmon_ns_veth1 netns nlmonns0
+    ip_cmd link set nlmon_ns_veth0 up || true
+    ip_cmd netns exec nlmonns0 "$IP_BIN" link set lo up || true
+    ip_cmd netns exec nlmonns0 "$IP_BIN" link set nlmon_ns_veth1 up || true
+    ip_cmd netns del nlmonns0 || true
+    ip_cmd link del nlmon_ns_veth0 || true
 }
 
 run_all_generators_once() {
@@ -201,7 +210,7 @@ run_baseline() {
     stop_capture
     finalize_capture baseline
     scan_dmesg baseline
-    ip link del nlmon0
+    ip_cmd link del nlmon0
 }
 
 run_lifecycle() {
@@ -212,7 +221,7 @@ run_lifecycle() {
         if [ $((i % 10)) -eq 0 ]; then
             run_all_generators_once
         fi
-        ip link del nlmon0
+        ip_cmd link del nlmon0
         i=$((i + 1))
     done
     scan_dmesg lifecycle
@@ -231,7 +240,7 @@ run_matrix() {
         stop_capture
         finalize_capture "matrix.$generator"
         scan_dmesg "matrix.$generator"
-        ip link del nlmon0
+        ip_cmd link del nlmon0
     done
 }
 
@@ -250,12 +259,14 @@ run_stress() {
     stop_capture
     finalize_capture stress
     scan_dmesg stress
-    ip link del nlmon0
+    ip_cmd link del nlmon0
 }
 
 emit "implementation=$NLMON_IMPLEMENTATION"
 emit "scenario=$NLMON_SCENARIO"
 emit "have_ethtool=$NLMON_HAVE_ETHTOOL"
+emit "ip_binary=$IP_BIN"
+emit "ip_version=$("$IP_BIN" -V 2>&1 | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/[[:space:]]$//')"
 
 load_modules
 

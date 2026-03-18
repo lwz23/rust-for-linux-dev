@@ -115,7 +115,7 @@ mkdir -p \
 nlmon_stage_busybox_applets
 
 for bin_path in \
-    /usr/sbin/ip \
+    /usr/bin/ip \
     /usr/bin/tcpdump \
     /usr/bin/sha256sum \
     /usr/bin/cmp \
