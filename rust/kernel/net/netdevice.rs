@@ -5,12 +5,14 @@
 //! C headers: [`include/linux/netdevice.h`](srctree/include/linux/netdevice.h),
 //! [`include/linux/netlink.h`](srctree/include/linux/netlink.h).
 
+use super::rtnl::Driver;
 use crate::{
     bindings,
+    build_assert,
     error::{code, to_result, Result},
     types::Opaque,
 };
-use core::ptr::NonNull;
+use core::{marker::PhantomData, ptr::NonNull};
 
 /// Network device hardware types.
 pub mod hardware {
@@ -81,21 +83,188 @@ pub mod link_attrs {
 ///
 /// The inner pointer is non-null and valid for the duration of the wrapper's use.
 #[derive(Copy, Clone)]
-pub struct DeviceRef(NonNull<bindings::net_device>);
+pub struct DeviceRef<T: Driver> {
+    ptr: NonNull<bindings::net_device>,
+    _p: PhantomData<T>,
+}
 
-impl DeviceRef {
+impl<T: Driver> DeviceRef<T> {
     /// Creates a device reference from a raw pointer.
     ///
     /// # Safety
     ///
     /// `ptr` must be non-null and point to a live `struct net_device`.
-    #[allow(dead_code)]
     pub(crate) unsafe fn from_raw(ptr: *mut bindings::net_device) -> Self {
-        Self(NonNull::new(ptr).expect("net_device pointer must be non-null"))
+        Self {
+            ptr: NonNull::new(ptr).expect("net_device pointer must be non-null"),
+            _p: PhantomData,
+        }
     }
 
     pub(crate) fn as_raw(self) -> *mut bindings::net_device {
-        self.0.as_ptr()
+        self.ptr.as_ptr()
+    }
+
+    fn private_ptr(&self) -> *mut T::Private {
+        // SAFETY: The type invariant guarantees that `self.ptr` is valid and that the private
+        // area stores a `T::Private`.
+        unsafe { bindings::netdev_priv(self.ptr.as_ptr()) }.cast::<T::Private>()
+    }
+
+    /// Returns the driver's private data.
+    pub fn private(&self) -> &T::Private {
+        // SAFETY: The type invariant guarantees that the private area contains a valid
+        // `T::Private` for the current device lifetime.
+        unsafe { &*self.private_ptr() }
+    }
+}
+
+/// A mutable network device during serialized callbacks such as `setup`, `open`, or `stop`.
+///
+/// # Invariants
+///
+/// The inner `net_device` pointer is valid for the duration of the callback and its private area
+/// is initialized as `T::Private` before any safe accessors are used.
+#[repr(transparent)]
+pub struct NetDevice<T: Driver> {
+    inner: Opaque<bindings::net_device>,
+    _p: PhantomData<T>,
+}
+
+impl<T: Driver> NetDevice<T> {
+    /// Creates a mutable device wrapper from a raw `net_device` pointer.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a valid `net_device` and the caller must be in a context where unique access
+    /// to the wrapped object is permitted for the returned lifetime.
+    pub(super) unsafe fn from_raw<'a>(ptr: *mut bindings::net_device) -> &'a mut Self {
+        // CAST: `Self` is a `repr(transparent)` wrapper around `bindings::net_device`.
+        unsafe { &mut *ptr.cast::<Self>() }
+    }
+
+    pub(super) const fn as_raw(&self) -> *mut bindings::net_device {
+        self.inner.get()
+    }
+
+    fn as_mut_ref(&mut self) -> &mut bindings::net_device {
+        // SAFETY: The wrapper invariant guarantees unique access.
+        unsafe { &mut *self.as_raw() }
+    }
+
+    fn private_ptr(&self) -> *mut T::Private {
+        // SAFETY: The callback invariants guarantee a valid device pointer. The helper returns the
+        // private allocation associated with this device.
+        unsafe { bindings::netdev_priv(self.as_raw()) }.cast::<T::Private>()
+    }
+
+    pub(super) fn init_private(&mut self) {
+        build_assert!(
+            core::mem::align_of::<T::Private>() <= 32,
+            "net_device private data alignment exceeds NETDEV_ALIGN"
+        );
+
+        // SAFETY: `setup` is the first callback to access the private area for a freshly
+        // allocated device, so the memory is valid for initialization and not yet initialized.
+        unsafe { self.private_ptr().write(T::Private::default()) };
+    }
+
+    pub(super) unsafe fn drop_private(&mut self) {
+        // SAFETY: The caller guarantees the private area was initialized exactly once and this is
+        // the matching teardown path.
+        unsafe { core::ptr::drop_in_place(self.private_ptr()) };
+    }
+
+    pub(super) fn install_ops(
+        &mut self,
+        netdev_ops: &'static bindings::net_device_ops,
+        ethtool_ops: &'static bindings::ethtool_ops,
+        priv_destructor: Option<unsafe extern "C" fn(*mut bindings::net_device)>,
+    ) {
+        let dev = self.as_mut_ref();
+        dev.netdev_ops = netdev_ops;
+        dev.ethtool_ops = ethtool_ops;
+        dev.needs_free_netdev = true;
+        dev.priv_destructor = priv_destructor;
+    }
+
+    /// Returns a copyable device reference.
+    pub fn device_ref(&self) -> DeviceRef<T> {
+        // SAFETY: The wrapper invariant guarantees a valid pointer for the duration of the
+        // surrounding callback.
+        unsafe { DeviceRef::from_raw(self.as_raw()) }
+    }
+
+    /// Returns the driver's private data.
+    pub fn private(&self) -> &T::Private {
+        // SAFETY: The wrapper invariant guarantees that the private area has been initialized.
+        unsafe { &*self.private_ptr() }
+    }
+
+    /// Returns the driver's private data mutably.
+    pub fn private_mut(&mut self) -> &mut T::Private {
+        // SAFETY: The wrapper invariant guarantees that the private area has been initialized and
+        // that `&mut self` gives unique access for the duration of the borrow.
+        unsafe { &mut *self.private_ptr() }
+    }
+}
+
+/// Device setup context.
+pub struct SetupContext<'a, T: Driver> {
+    dev: &'a mut NetDevice<T>,
+}
+
+impl<'a, T: Driver> SetupContext<'a, T> {
+    pub(super) fn new(dev: &'a mut NetDevice<T>) -> Self {
+        Self { dev }
+    }
+
+    /// Returns the device being configured.
+    pub fn device_mut(&mut self) -> &mut NetDevice<T> {
+        self.dev
+    }
+
+    /// Sets the device hardware type.
+    pub fn set_type(&mut self, type_: u16) {
+        self.dev.as_mut_ref().type_ = type_;
+    }
+
+    /// Adds private flags.
+    pub fn add_private_flags(&mut self, flags: u32) {
+        let bits = unsafe { &mut self.dev.as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
+        let current = bits.priv_flags() as u32;
+        bits.set_priv_flags((current | flags) as _);
+    }
+
+    /// Sets the lockless transmit flag.
+    pub fn set_lltx(&mut self, enabled: bool) {
+        let bits = unsafe { &mut self.dev.as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
+        bits.set_lltx(enabled.into());
+    }
+
+    /// Sets the device feature mask.
+    pub fn set_features(&mut self, features: bindings::netdev_features_t) {
+        self.dev.as_mut_ref().features = features;
+    }
+
+    /// Sets the device flags.
+    pub fn set_flags(&mut self, flags: u32) {
+        self.dev.as_mut_ref().flags = flags;
+    }
+
+    /// Sets the per-cpu statistics type.
+    pub fn set_pcpu_stat_type(&mut self, ty: bindings::netdev_stat_type) {
+        self.dev.as_mut_ref().set_pcpu_stat_type(ty);
+    }
+
+    /// Sets the MTU.
+    pub fn set_mtu(&mut self, mtu: u32) {
+        self.dev.as_mut_ref().mtu = mtu;
+    }
+
+    /// Sets the minimum MTU.
+    pub fn set_min_mtu(&mut self, mtu: u32) {
+        self.dev.as_mut_ref().min_mtu = mtu;
     }
 }
 
@@ -122,7 +291,7 @@ impl NetlinkTapHandle {
     }
 
     /// Registers the tap for the given device.
-    pub fn add(&mut self, dev: DeviceRef) -> Result {
+    pub fn add<T: Driver>(&mut self, dev: DeviceRef<T>) -> Result {
         if self.registered {
             return Err(code::EBUSY);
         }
@@ -171,8 +340,7 @@ impl LinkStats64 {
     ///
     /// `ptr` must be a valid pointer supplied by the networking core for the duration of the
     /// callback.
-    #[allow(dead_code)]
-    pub(crate) unsafe fn from_raw<'a>(ptr: *mut bindings::rtnl_link_stats64) -> &'a mut Self {
+    pub(super) unsafe fn from_raw<'a>(ptr: *mut bindings::rtnl_link_stats64) -> &'a mut Self {
         // CAST: `Self` is a `repr(transparent)` wrapper around `bindings::rtnl_link_stats64`.
         unsafe { &mut *ptr.cast::<Self>() }
     }
@@ -197,14 +365,14 @@ pub struct LStats;
 
 impl LStats {
     /// Adds one received packet with the given length.
-    pub fn add(dev: DeviceRef, len: u32) {
+    pub fn add<T: Driver>(dev: DeviceRef<T>, len: u32) {
         // SAFETY: `dev` points to a valid `net_device` and `len` is passed directly to the kernel
         // helper.
         unsafe { bindings::dev_lstats_add(dev.as_raw(), len) };
     }
 
     /// Reads the current receive packet and byte counters.
-    pub fn read(dev: DeviceRef, stats: &mut LinkStats64) {
+    pub fn read<T: Driver>(dev: DeviceRef<T>, stats: &mut LinkStats64) {
         let mut packets = 0;
         let mut bytes = 0;
 

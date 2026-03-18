@@ -175,4 +175,52 @@
   - 在 ``rust/kernel/net/`` 中补齐 ``NetDevice`` / ``SetupContext`` / ``Driver`` /
     ``Registration`` 等 netdev 与 rtnl 桥接抽象，完成纯安全驱动所需的回调边界。
 
+7. netdev / rtnl 桥接抽象
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 新增 ``rust/kernel/net/rtnl.rs``，实现 ``#[vtable]`` 风格的 ``Driver`` trait，
+  以及 ``Registration``、``AttrTable``、``ExtAck``、``TxStatus`` 等桥接对象。
+- 扩展 ``rust/kernel/net/netdevice.rs``，补齐：
+
+  - ``DeviceRef<T>``：与具体驱动类型绑定，并提供安全私有数据读取接口
+  - ``NetDevice<T>``：封装回调上下文中的可变 ``net_device``
+  - ``SetupContext<T>``：限制设备初始化时可设置的字段集合
+  - ``install_ops()`` / ``init_private()`` / ``drop_private()``：把回调表安装、
+    私有数据初始化与析构全部收敛在抽象层
+
+- 特别修正了私有数据借用接口的生命周期：
+
+  - ``DeviceRef<T>::private()`` 现在返回绑定到 ``&self`` 的借用，而不再使用过宽的
+    ``'static`` 返回类型
+  - ``NetDevice<T>::private()`` / ``private_mut()`` 则分别绑定到 ``&self`` /
+    ``&mut self``，避免把原始 ``netdev_priv()`` 指针泄露到驱动层
+
+- ``Registration<T>`` 内部现已负责：
+
+  - 安装 ``net_device_ops`` / ``ethtool_ops`` / ``rtnl_link_ops``
+  - ``setup`` / ``validate`` / ``open`` / ``stop`` / ``start_xmit`` /
+    ``get_stats64`` / ``get_link`` 等 C ABI 回调到安全 Rust trait 的桥接
+  - 注册失败与 ``Drop`` 时的 ``rtnl_link_unregister()`` 回收
+
+- 编译验证命令：
+
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+
+- 编译结果：
+
+  - ``rust/kernel.o`` 编译通过
+  - 全量增量内核构建通过
+  - 当前 Rust ``net`` 抽象已经可以承载后续 ``drivers/net/nlmon_rust.rs`` 的零
+    ``unsafe`` 驱动编写
+
+- 本阶段遇到的问题：
+
+  - 初次编译时 ``build_assert!`` 宏未显式导入，已在抽象模块中补入最小导入修正；
+    之后桥接层编译通过。
+
+- 下一步：
+
+  - 新增 ``drivers/net/nlmon_rust.rs`` 驱动骨架，并通过 ``CONFIG_NLMON_RUST`` 把
+    Rust 实现真正接入 ``drivers/net/`` 的构建路径。
+
 后续阶段会继续在本文件中追加记录。
