@@ -82,13 +82,14 @@ ensure_nlmon_up() {
 start_capture() {
     local tag="$1"
     rm -f "$RESULT_DIR/$tag.pcap"
-    tcpdump -i nlmon0 -w "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.tcpdump.stdout" 2>"$RESULT_DIR/$tag.tcpdump.stderr" &
+    tcpdump -U -i nlmon0 -w "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.tcpdump.stdout" 2>"$RESULT_DIR/$tag.tcpdump.stderr" &
     TCPDUMP_PID=$!
     sleep 1
 }
 
 stop_capture() {
     if [ -n "${TCPDUMP_PID:-}" ]; then
+        sleep 1
         kill -INT "$TCPDUMP_PID" 2>/dev/null || true
         wait "$TCPDUMP_PID" 2>/dev/null || true
         TCPDUMP_PID=

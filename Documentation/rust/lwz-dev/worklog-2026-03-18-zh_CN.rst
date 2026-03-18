@@ -1115,3 +1115,78 @@
 
   - 单独修正 ``tcpdump`` 的缓冲与收尾时序
   - 目标是先让 C/Rust baseline 都稳定产出非空 ``pcap``，再继续 lifecycle 与阶段报告
+
+24. 收敛 ``tcpdump`` 捕获缓冲与收尾时序
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在补齐 ``tcpdump`` 用户身份后，baseline 摘要已经不再报用户错误，但暴露出新的不稳定性：
+
+  - C 版仍然出现 ``0 packets captured / 158 packets received by filter``
+  - Rust 版则出现 ``10 packets captured / 158 packets received by filter``
+
+- 这说明当前更像是测试 harness 的采样时序还不稳定，而不是可以直接据此断言 C/Rust 行为不同。
+
+- 因此本阶段继续只调整 ``tools/testing/rust/nlmon/nlmon-guest-runner.sh`` 的抓包收尾行为：
+
+  - ``start_capture()``
+
+    - 为 ``tcpdump`` 增加 ``-U``，启用 packet-buffered 输出
+
+  - ``stop_capture()``
+
+    - 在发送 ``SIGINT`` 之前增加一个短暂 drain 窗口
+
+- 本阶段预期验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 重新执行 ``memory-debug`` / Rust baseline
+  - 重新切回 C 实现并执行 ``memory-debug`` / C baseline
+
+- 预期目标：
+
+  - C/Rust baseline 都能稳定产出非空 ``pcap``
+  - ``tcpdump.stderr.head`` 中的 captured 计数与 ``pcap``/decoded 结果一致
+
+- 实际验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 重新执行 ``memory-debug`` / Rust baseline
+  - 切回 ``CONFIG_NLMON_RUST=n`` 并重建后，重新执行 ``memory-debug`` / C baseline
+
+- 实际验证结果：
+
+  - 这一轮 capture drain 调整有效收敛了 baseline 抓包链路：
+
+    - Rust 版 ``baseline.pcap.bytes=38596``
+    - Rust 版 ``baseline.decoded.lines=2474``
+    - Rust 版 ``baseline.tcpdump.stderr.head=... 158 packets captured 158 packets received by filter ...``
+
+    - C 版 ``baseline.pcap.bytes=38596``
+    - C 版 ``baseline.decoded.lines=2474``
+    - C 版 ``baseline.tcpdump.stderr.head=... 158 packets captured 158 packets received by filter ...``
+
+  - 同时两边仍然保持：
+
+    - ``dmesg_anomaly.baseline=0``
+    - ``observation_mode.baseline.nlmon0=full-iproute2``
+    - ``status=ok``
+
+  - 当前 C/Rust baseline 还剩下一个待解释差异：
+
+    - 原始 ``pcap`` 的 ``sha256`` 不同
+
+  - 但在现有主机侧证据下，两边已经表现出：
+
+    - 相同的 ``pcap`` 字节数
+    - 相同的 decoded 行数
+    - 相同的 captured/filter 计数
+
+  - 因此更合理的临时判断是：
+
+    - 当前差异更可能来自 ``pcap`` 二进制层面的时间戳或记录细节
+    - 在拿到更强的主机侧内容摘要前，不能仅凭 ``sha256`` 不同就判定功能不等价
+
+- 下一步：
+
+  - 继续补跑 C/Rust lifecycle
+  - 若 lifecycle 也收敛，再把 baseline + lifecycle 的差分结果写入阶段报告
