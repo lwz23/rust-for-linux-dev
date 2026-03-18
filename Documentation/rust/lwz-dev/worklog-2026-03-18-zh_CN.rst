@@ -1275,3 +1275,48 @@
 - 下一步：
 
   - 将当前分支上的文档与代码变更整体推送到 ``origin/feature/nlmon-rust``
+
+27. 修正 ``stress`` 场景的 guest 空间耗尽
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在按计划推进 ``memory-debug`` / Rust ``stress`` 时，首次出现了新的测试基础设施瓶颈：
+
+  - guest 最终以 ``rc=1`` 退出
+  - 串口日志显示：
+
+    - ``tcpdump: ... 1754012 packets captured ...``
+    - ``tcpdump: Unable to write output: No space left on device``
+    - ``sh: write error: No space left on device``
+
+- 关键判断：
+
+  - 这并不是 ``nlmon`` 本体失效
+  - ``tcpdump`` 已经成功抓到大量报文
+  - 真正把 guest 写爆的是 ``finalize_capture()`` 中那一步“把整份 ``pcap`` 再全量解码成文本文件”
+
+- 因此本阶段继续只调整测试 harness：
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+    - 不再把完整 decoded 文本落地到 guest rootfs
+    - 改为“流式统计 decoded 总行数 + 仅保留前 20 行摘要”
+
+- 这样做的理由是：
+
+  - 对差分测试而言，长时 ``stress`` 更重要的是：
+
+    - ``pcap`` 是否存在且大小合理
+    - decoded 总行数
+    - 头部内容摘要
+    - ``dmesg`` 是否异常
+
+  - 没必要在 guest 内保存整份超大 decoded 文本，后续若要深入比对，应改在主机侧对 ``pcap`` 做规范化处理
+
+- 本阶段预期验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 重新执行 ``memory-debug`` / Rust ``stress``
+
+- 下一步：
+
+  - 若 Rust ``stress`` 收敛，再切回 C 实现完成对应 ``matrix`` / ``stress``

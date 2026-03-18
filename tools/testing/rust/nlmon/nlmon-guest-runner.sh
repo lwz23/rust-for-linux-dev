@@ -131,11 +131,20 @@ observe_iface() {
 
 finalize_capture() {
     local tag="$1"
+    local decoded_head="$RESULT_DIR/$tag.decoded.head"
+    local decoded_lines="$RESULT_DIR/$tag.decoded.lines"
 
-    tcpdump -nn -r "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.decoded.txt" 2>"$RESULT_DIR/$tag.decode.err" || true
+    : >"$decoded_head"
+    if ! tcpdump -nn -r "$RESULT_DIR/$tag.pcap" 2>"$RESULT_DIR/$tag.decode.err" \
+        | awk -v head_file="$decoded_head" '
+            NR <= 20 { print > head_file }
+            { count++ }
+            END { print count + 0 }
+        ' >"$decoded_lines"; then
+        echo 0 >"$decoded_lines"
+    fi
     sha256sum "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.sha256" 2>/dev/null || true
     wc -c "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.bytes" 2>/dev/null || true
-    wc -l "$RESULT_DIR/$tag.decoded.txt" >"$RESULT_DIR/$tag.decoded.lines" 2>/dev/null || true
     wc -l "$RESULT_DIR/$tag.tcpdump.stdout" >"$RESULT_DIR/$tag.tcpdump.stdout.lines" 2>/dev/null || true
     wc -l "$RESULT_DIR/$tag.tcpdump.stderr" >"$RESULT_DIR/$tag.tcpdump.stderr.lines" 2>/dev/null || true
     wc -l "$RESULT_DIR/$tag.decode.err" >"$RESULT_DIR/$tag.decode.err.lines" 2>/dev/null || true
@@ -145,6 +154,7 @@ finalize_capture() {
     emit_file_value "$tag.tcpdump.stdout.lines" "$RESULT_DIR/$tag.tcpdump.stdout.lines"
     emit_file_value "$tag.tcpdump.stderr.lines" "$RESULT_DIR/$tag.tcpdump.stderr.lines"
     emit_file_value "$tag.decode.err.lines" "$RESULT_DIR/$tag.decode.err.lines"
+    emit_file_excerpt "$tag.decoded.head" "$decoded_head"
     emit_file_excerpt "$tag.tcpdump.stderr.head" "$RESULT_DIR/$tag.tcpdump.stderr"
     emit_file_excerpt "$tag.decode.err.head" "$RESULT_DIR/$tag.decode.err"
     observe_iface nlmon0 "$tag.nlmon0"
