@@ -394,8 +394,9 @@
 
   - 原 C 版 ``nlmon`` 可正常工作
   - Rust 版 ``nlmon_rust`` 在本轮已实现与 C 版一致的核心外部行为
-  - ``dummy`` 与 ``nlmon`` 都可以作为后续继续验证和差分测试的目标模块
-  - 以本轮观测结果看，``nlmon`` Rust 化后的当前实现已经达到可接受的第一版对齐状态
+  - ``dummy`` 在本轮仅作为制造 rtnetlink/netlink 事件的测试发生器，而不是 Rust 化目标
+  - 以本轮观测结果看，``nlmon`` Rust 化后的当前实现已经达到可接受的第一版功能对齐状态，
+    但还不能据此宣称抽象层已通过工程级安全性验收
 
 11. 总结报告整理
 ~~~~~~~~~~~~~~~~
@@ -412,3 +413,50 @@
 - 更新 ``Documentation/rust/lwz-dev/index.rst``，将该总结文档加入索引，方便后续查阅和回溯。
 
 后续阶段会继续在本文件中追加记录。
+
+12. 工程口径修正与研究级第二阶段启动
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 基于后续复盘与问题澄清，统一修正本项目当前口径：
+
+  - DUT 始终只有 ``nlmon``
+  - ``dummy``、``veth``、``bridge``、``addr/route/rule`` 与 ``netns`` 都只作为
+    事件发生器使用
+  - ``drivers/net/nlmon_rust.rs`` 为零 ``unsafe``，但 ``rust/kernel/net/*`` 仍含
+    ``unsafe``，其健全性仍需研究级审计与收缩
+
+- 因此，本轮截至 ``e6dbe5553`` 的成果应被界定为：
+
+  - 已完成第一版 Rust 原型
+  - 已完成基础 C/Rust 差分测试
+  - 尚未完成 ``unsafe`` 契约审计
+  - 尚未完成调试内核下的强化差分与压力测试
+  - 尚未达到“可以宣称工程级安全”的验收状态
+
+- 从本阶段开始，后续工作固定按照以下顺序推进：
+
+  1. 先对 ``rust/kernel/net/*`` 与 ``rust/helpers/net.c`` 做逐点 ``unsafe`` 审计
+  2. 再收缩 safe API 表面，修正任何需要调用者脑补生命周期或别名约束的接口
+  3. 建立专用调试内核与自动化测试基线
+  4. 执行强化差分测试矩阵与长时压力测试
+  5. 只有在上述证据链闭合后，才输出工程验收结论与完整可复现流程文档
+
+- 本阶段修改文件：
+
+  - ``Documentation/rust/lwz-dev/report-2026-03-18-nlmon-rust-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/worklog-2026-03-18-zh_CN.rst``
+
+- 本阶段验证命令：
+
+  - ``git -C /home/lwz/rfl-dev/linux diff -- Documentation/rust/lwz-dev/report-2026-03-18-nlmon-rust-zh_CN.rst Documentation/rust/lwz-dev/worklog-2026-03-18-zh_CN.rst``
+
+- 本阶段验证结果：
+
+  - 现有文档已不再把 ``dummy`` 表述成与 ``nlmon`` 并列的改写目标
+  - 现有文档已明确当前实现是“第一版原型”，不是“已完成工程级安全验收”的最终版本
+
+- 下一步：
+
+  - 新增正式的 ``unsafe`` 审计文档，逐项记录 ``rust/kernel/net/*`` 与
+    ``rust/helpers/net.c`` 中每一个 ``unsafe`` 点的前置条件、后置条件、
+    生命周期、别名约束与析构配对关系。
