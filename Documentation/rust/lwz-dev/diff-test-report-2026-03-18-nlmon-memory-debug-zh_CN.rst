@@ -18,12 +18,11 @@
 
 - ``baseline`` 场景下，C/Rust 两边都已经稳定抓到非空 ``pcap``。
 - ``lifecycle`` 场景下，C/Rust 两边都能稳定完成 100 轮 add/up/del。
-- ``matrix`` 场景下，``dummy`` / ``veth`` / ``bridge`` / ``route_rule`` 四类发生器的
-  摘要已经对齐，``netns`` 仍有公共噪声与轻微漂移。
-- ``stress`` 场景下，C/Rust 两边都能稳定运行 1800 秒并完成大规模抓包。
-- 当前 ``memory-debug`` 结果支持“强化行为对照已经基本成形”的阶段性判断。
-- 但由于 ``netns`` 发生器尚未收紧、原始 ``pcap`` 的 ``sha256`` 仍不同，且尚未跑完
-  ``concurrency-debug`` / ``leak-debug``，因此还不能把这轮结果写成最终工程验收通过。
+- ``matrix`` 场景下，五类事件发生器都已经在主观测指标上对齐，``netns`` 公共噪声已移除。
+- ``stress`` 场景下，C/Rust 两边都能稳定运行 1800 秒并完成大规模抓包，且不再被
+  ``netns`` 发生器公共噪声污染。
+- 当前 ``memory-debug`` 结果已经能作为更强的一条行为证据链，但仍不能单独替代
+  ``unsafe`` 审计与其他调试 profile 的结论。
 
 范围与前提
 ----------
@@ -150,15 +149,24 @@
 - C/Rust 两边都没有暴露新增的调试内核异常
 - ``nlmon`` 生命周期路径已经通过一轮重复性验证
 
-4. 当前仍存在公共测试噪声
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+4. ``netns`` 公共噪声已被收紧
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-在 C/Rust 两边的 ``baseline`` / ``lifecycle`` 日志中，仍然都会出现：
+本轮早期的 ``matrix`` / ``stress`` 日志里，C/Rust 两边都会出现：
 
 - ``Cannot find device "nlmon_ns_veth0"``
 
-由于该现象在两边完全同型，目前更适合作为“事件发生器实现尚待收紧”的公共噪声，
-而不应归因到 ``nlmon`` C/Rust 实现差异上。
+后续核对脚本后确认，这不是 ``nlmon`` 差异，而是 ``gen_netns()`` 在
+``ip netns del nlmonns0`` 之后又多执行了一次 ``ip link del nlmon_ns_veth0``，
+从而人为制造了额外失败事件。
+
+在删除这条冗余清理命令后，重新补采的 ``memory-debug`` ``matrix`` / ``stress`` 日志中：
+
+- C/Rust 两边都不再出现这条噪声
+- ``dmesg_anomaly`` 计数保持为 ``0``
+- ``netns`` 发生器的摘要也不再继续被这条公共失败路径扰动
+
+因此，从本报告此版本开始，这条现象不再被视为当前 ``memory-debug`` 结果里的保留问题。
 
 5. ``matrix`` 已经完成首轮强化对照
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -183,16 +191,16 @@
 
 - ``netns``：
 
-  - C：``161608`` bytes / ``10464`` decoded lines / ``1004`` captured
-  - Rust：``160716`` bytes / ``10407`` decoded lines / ``1002`` captured
+  - C：``142224`` bytes / ``9200`` decoded lines / ``800`` captured
+  - Rust：``142224`` bytes / ``9200`` decoded lines / ``800`` captured
   - 两边的 ``dmesg_anomaly.matrix.netns`` 都为 ``0``
-  - 两边日志都带有 ``Cannot find device "nlmon_ns_veth0"`` 公共噪声
+  - 两边都不再出现 ``Cannot find device "nlmon_ns_veth0"``
+  - 两边的 ``normalized.head`` 与 ``tcpdump`` captured/filter 计数也再次对齐
 
 这说明：
 
-- 四类较稳定事件发生器已经完成逐类 50 轮后的摘要对齐。
-- 当前 ``matrix`` 里剩余的主要不确定性，已经收敛到 ``netns`` 发生器本身的清理顺序与
-  事件边界上，而不是 ``nlmon`` 整体功能路径都在漂移。
+- 当前五类事件发生器都已经完成逐类 50 轮后的摘要对齐。
+- ``matrix`` 结果不再被 ``netns`` 的公共清理噪声污染。
 
 6. ``stress`` 已经完成长时抓包对照
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -203,28 +211,31 @@
 
   - ``status=ok``
   - ``dmesg_anomaly.stress=0``
-  - ``416143792`` bytes
-  - ``26691293`` decoded lines
-  - ``1703996`` captured
+  - ``419044104`` bytes
+  - ``26872764`` decoded lines
+  - ``1688456`` captured
 
 - C：
 
   - ``status=ok``
   - ``dmesg_anomaly.stress=0``
-  - ``416168736`` bytes
-  - ``26692887`` decoded lines
-  - ``1704052`` captured
+  - ``425312184`` bytes
+  - ``27274728`` decoded lines
+  - ``1713712`` captured
 
 这一轮结果可以支持以下判断：
 
 - 两边都已经通过长时抓包与高频事件发生器混合负载。
 - 上一阶段出现的 ``No space left on device`` 已被确认是测试 harness 问题，而不是
   ``nlmon`` 功能失败。
-- 当前 ``stress`` 里仍存在轻微摘要漂移，因此还不能把它写成“逐字节完全一致”。
-  结合 ``matrix.netns`` 的现象，更合理的解释仍然是：
+- 在收紧 ``netns`` 清理顺序后，``stress`` 日志中也不再出现
+  ``Cannot find device "nlmon_ns_veth0"`` 公共噪声。
+- 当前 ``stress`` 里仍存在摘要差异，因此它更适合被解释为“长时稳定性证据”，而不是
+  “逐字节完全一致”证据。结合规范化 ``pcap`` 报告，更合理的解释仍然是：
 
-  - ``netns`` 发生器存在公共噪声
-  - 原始 ``pcap`` 受时间戳/记录细节影响，不能只看原始哈希
+  - 长时运行里五类事件发生器的交错顺序本身就是运行相关的
+  - 被捕获的 netlink 报文本体中仍包含运行相关的可变字段
+  - 原始 ``pcap`` 或简单去时间戳后的哈希，不能单独充当最终等价判据
 
 阶段性判断
 ----------
@@ -234,8 +245,10 @@
 - 当前 ``memory-debug`` 下的 ``baseline``、``lifecycle``、``matrix``、``stress``
   都已经完成一轮 C/Rust 强化对照。
 - Rust 版 ``nlmon`` 至少没有在这四类场景里引入额外的调试内核异常。
-- 在当前主机侧可见指标下，C/Rust 外部行为已经高度接近，且差异面已被压缩到
-  ``netns`` 发生器与原始 ``pcap`` 口径。
+- 在当前主机侧可见指标下，C/Rust 外部行为已经高度接近，且 ``netns`` 公共噪声
+  已经被清除。
+- ``matrix`` 现在可作为更强的行为等价证据；``stress`` 主要作为稳定性与
+  “无新增调试异常”证据。
 
 当前不能成立的判断是：
 
@@ -246,12 +259,10 @@
 下一步建议
 ----------
 
-建议按照以下顺序继续推进：
+建议将本报告与以下材料合并阅读：
 
-1. 在 ``concurrency-debug`` 与 ``leak-debug`` 内核下，至少先复跑 C/Rust 的
-   ``baseline`` / ``lifecycle``。
-2. 为 ``pcap`` 增加去时间戳/规范化后的比较口径，不再只盯原始 ``sha256``。
-3. 收紧 ``netns`` 发生器的清理顺序，去掉
-   ``Cannot find device "nlmon_ns_veth0"`` 这类公共噪声。
-4. 在完成上述两点后，重跑受影响的 ``matrix`` / ``stress`` 场景。
-5. 在上述步骤全部完成后，再输出最终工程验收结论文档与完整复现流程文档。
+1. ``diff-test-report-2026-03-18-nlmon-concurrency-debug-zh_CN.rst``
+2. ``diff-test-report-2026-03-18-nlmon-leak-debug-zh_CN.rst``
+3. ``diff-test-report-2026-03-18-nlmon-normalized-pcap-zh_CN.rst``
+4. 更新后的 ``unsafe`` 审计文档
+5. 最终工程验收结论文档

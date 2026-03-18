@@ -1652,3 +1652,66 @@
 
   - 收紧 ``netns`` 事件发生器里的公共噪声
   - 然后重跑受影响的 ``matrix`` / ``stress`` 场景
+
+32. 收紧 ``netns`` 公共噪声并重跑受影响场景
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在完成规范化 ``pcap`` 口径后，继续处理当前 ``memory-debug`` 报告里最后一个仍会污染
+  结论的公共噪声：``gen_netns()`` 在 ``ip netns del nlmonns0`` 之后又额外执行了一次
+  ``ip link del nlmon_ns_veth0``。
+
+- 这个额外删除动作的问题有两个：
+
+  - 它会在串口日志中制造 ``Cannot find device "nlmon_ns_veth0"`` 的公共噪声
+  - 它还会额外产生一次失败型 netlink 事件，使 ``netns`` 发生器在 ``matrix`` /
+    ``stress`` 中的摘要继续带着可避免的漂移
+
+- 因此本阶段修改：
+
+  - ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+    - 在 ``gen_netns()`` 中删除多余的
+      ``ip_cmd link del nlmon_ns_veth0 || true``
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 为了确认这不是“隐藏报错”，而是真正收紧事件发生器本身，重新补采了四个受影响场景：
+
+  - Rust ``matrix``：``/home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-matrix-netnsfix.log``
+  - C ``matrix``：``/home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-matrix-netnsfix.log``
+  - Rust ``stress``：``/home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-stress-netnsfix.log``
+  - C ``stress``：``/home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-stress-netnsfix.log``
+
+- 复测结果：
+
+  - ``matrix`` / ``netns``：
+
+    - Rust：``status=ok``、``dmesg_anomaly.matrix.netns=0``、
+      ``142224`` bytes / ``9200`` decoded lines / ``800`` captured
+    - C：``status=ok``、``dmesg_anomaly.matrix.netns=0``、
+      ``142224`` bytes / ``9200`` decoded lines / ``800`` captured
+    - 两边都不再出现 ``Cannot find device "nlmon_ns_veth0"``
+    - 两边的 ``normalized.head`` 与 captured/filter 计数再次对齐
+
+  - ``stress``：
+
+    - Rust：``status=ok``、``dmesg_anomaly.stress=0``、
+      ``419044104`` bytes / ``26872764`` decoded lines / ``1688456`` captured
+    - C：``status=ok``、``dmesg_anomaly.stress=0``、
+      ``425312184`` bytes / ``27274728`` decoded lines / ``1713712`` captured
+    - 两边都不再出现 ``Cannot find device "nlmon_ns_veth0"``
+    - 两边仍然都生成非空 ``pcap``，且 ``tcpdump``/``decode`` 收尾正常
+
+- 阶段性结论：
+
+  - ``netns`` 发生器里的公共噪声已经被真正移除，而不是单纯在报告里忽略
+  - ``memory-debug`` / ``matrix`` 现在五类事件发生器都已经在主观测指标上对齐
+  - ``stress`` 继续作为稳定性证据成立，但由于长时运行中事件交错与报文本体可变字段的影响，
+    仍不适合作为逐字节等价判据
+
+- 下一步：
+
+  - 更新 ``memory-debug`` 强化差分报告，让正式文档反映当前净化后的 ``netns`` 结果
+  - 然后刷新 ``unsafe`` 审计口径，并继续输出最终工程验收与完整复现手册

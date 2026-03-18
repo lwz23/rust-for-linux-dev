@@ -246,7 +246,6 @@ gen_netns() {
     ip_cmd netns exec nlmonns0 "$IP_BIN" link set lo up || true
     ip_cmd netns exec nlmonns0 "$IP_BIN" link set nlmon_ns_veth1 up || true
     ip_cmd netns del nlmonns0 || true
-    ip_cmd link del nlmon_ns_veth0 || true
 }
 
 run_all_generators_once() {
