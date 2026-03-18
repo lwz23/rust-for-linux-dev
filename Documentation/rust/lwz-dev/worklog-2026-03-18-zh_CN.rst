@@ -668,3 +668,41 @@
   - 基于这些脚本继续生成并构建三套调试内核
   - 准备 C / Rust 两轮测试所需的专用 initramfs
   - 先执行功能基线与生命周期循环，再进入行为矩阵和长时压力测试。
+
+16. guest 结果摘要外显化
+~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在准备实际执行 QEMU 差分前，发现上一阶段的 guest runner 虽然会在 guest 内部留下
+  ``pcap``、解码结果和接口观测文件，但这些信息不会自动出现在主机侧串口日志中。
+  如果不先修正，后续即使测试完成，也无法在主机侧自动对比关键指标。
+
+- 因此本阶段先最小修正 ``tools/testing/rust/nlmon/nlmon-guest-runner.sh``：
+
+  - 新增 ``emit_file_value()``，把 guest 内部结果文件压缩成单行结果输出
+  - 在 ``finalize_capture()`` 中追加输出：
+
+    - ``pcap`` 的 ``sha256``
+    - ``tcpdump -nn -r`` 的文本总行数
+
+  - 在 ``observe_iface()`` 中追加输出：
+
+    - ``type``
+    - ``flags``
+    - ``mtu``
+    - ``rx_packets``
+    - ``rx_bytes``
+    - ``tx_packets``
+    - ``tx_bytes``
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 本阶段验证结果：
+
+  - guest runner 语法检查通过
+  - 后续主机侧 QEMU 日志已具备承载关键差分指标的能力，不再只能看到 ``status=ok`` 这种过粗粒度结果
+
+- 下一步：
+
+  - 开始真正构建调试 profile、准备测试 initramfs，并执行 C / Rust 的功能基线和生命周期循环差分。

@@ -17,6 +17,15 @@ emit() {
     echo "NLMON_RESULT: $*"
 }
 
+emit_file_value() {
+    local key="$1"
+    local file="$2"
+
+    if [ -f "$file" ]; then
+        emit "$key=$(tr '\n' ' ' <"$file" | sed 's/[[:space:]]\+/ /g; s/[[:space:]]$//')"
+    fi
+}
+
 cleanup_names() {
     ip link del nlmon0 2>/dev/null || true
     ip link del nlmon_dummy0 2>/dev/null || true
@@ -94,6 +103,10 @@ observe_iface() {
     else
         echo "ethtool unavailable on host; not staged into guest" >"$RESULT_DIR/$tag.ethtool.txt"
     fi
+
+    for field in type flags mtu rx_packets rx_bytes tx_packets tx_bytes; do
+        emit_file_value "$tag.$field" "$RESULT_DIR/$tag.$field.txt"
+    done
 }
 
 finalize_capture() {
@@ -102,6 +115,8 @@ finalize_capture() {
     tcpdump -nn -r "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.decoded.txt" 2>"$RESULT_DIR/$tag.decode.err" || true
     sha256sum "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.sha256" 2>/dev/null || true
     wc -l "$RESULT_DIR/$tag.decoded.txt" >"$RESULT_DIR/$tag.decoded.lines" 2>/dev/null || true
+    emit_file_value "$tag.pcap.sha256" "$RESULT_DIR/$tag.pcap.sha256"
+    emit_file_value "$tag.decoded.lines" "$RESULT_DIR/$tag.decoded.lines"
     observe_iface nlmon0 "$tag.nlmon0"
 }
 
@@ -256,4 +271,3 @@ case "$NLMON_SCENARIO" in
 esac
 
 emit "status=ok"
-
