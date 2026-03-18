@@ -75,6 +75,9 @@ pub mod link_attrs {
 
     /// Interface address attribute.
     pub const ADDRESS: usize = bindings::IFLA_ADDRESS as usize;
+
+    /// Highest valid top-level link attribute index.
+    pub const MAX: usize = bindings::__IFLA_MAX as usize - 1;
 }
 
 /// A shared reference to a network device.
@@ -83,12 +86,12 @@ pub mod link_attrs {
 ///
 /// The inner pointer is non-null and valid for the duration of the wrapper's use.
 #[derive(Copy, Clone)]
-pub struct DeviceRef<T: Driver> {
+pub struct DeviceRef<'a, T: Driver> {
     ptr: NonNull<bindings::net_device>,
-    _p: PhantomData<T>,
+    _p: PhantomData<&'a T>,
 }
 
-impl<T: Driver> DeviceRef<T> {
+impl<'a, T: Driver> DeviceRef<'a, T> {
     /// Creates a device reference from a raw pointer.
     ///
     /// # Safety
@@ -105,17 +108,18 @@ impl<T: Driver> DeviceRef<T> {
         self.ptr.as_ptr()
     }
 
-    fn private_ptr(&self) -> *mut T::Private {
-        // SAFETY: The type invariant guarantees that `self.ptr` is valid and that the private
-        // area stores a `T::Private`.
-        unsafe { bindings::netdev_priv(self.ptr.as_ptr()) }.cast::<T::Private>()
+    fn as_ref(&self) -> &bindings::net_device {
+        // SAFETY: The type invariant guarantees that `self.ptr` remains valid for `'a`.
+        unsafe { self.ptr.as_ref() }
     }
 
-    /// Returns the driver's private data.
-    pub fn private(&self) -> &T::Private {
-        // SAFETY: The type invariant guarantees that the private area contains a valid
-        // `T::Private` for the current device lifetime.
-        unsafe { &*self.private_ptr() }
+    /// Returns the lightweight-statistics capability if the device has been configured for it.
+    pub fn lstats(self) -> Option<LStatsHandle<'a, T>> {
+        if self.as_ref().pcpu_stat_type() == stat_type::LSTATS {
+            Some(LStatsHandle { dev: self })
+        } else {
+            None
+        }
     }
 }
 
@@ -188,11 +192,18 @@ impl<T: Driver> NetDevice<T> {
         dev.priv_destructor = priv_destructor;
     }
 
-    /// Returns a copyable device reference.
-    pub fn device_ref(&self) -> DeviceRef<T> {
-        // SAFETY: The wrapper invariant guarantees a valid pointer for the duration of the
-        // surrounding callback.
-        unsafe { DeviceRef::from_raw(self.as_raw()) }
+    /// Executes a closure with mutable private data and a callback-scoped device reference.
+    pub fn with_private<R>(
+        &mut self,
+        f: impl FnOnce(&mut T::Private, DeviceRef<'_, T>) -> R,
+    ) -> R {
+        let raw = self.as_raw();
+        let private = self.private_mut();
+        // SAFETY: `raw` originates from `self`, which remains valid for the duration of this
+        // method. `DeviceRef` no longer exposes access to private data, so pairing it with
+        // `private` does not create an aliasing hole in safe code.
+        let dev = unsafe { DeviceRef::from_raw(raw) };
+        f(private, dev)
     }
 
     /// Returns the driver's private data.
@@ -217,11 +228,6 @@ pub struct SetupContext<'a, T: Driver> {
 impl<'a, T: Driver> SetupContext<'a, T> {
     pub(super) fn new(dev: &'a mut NetDevice<T>) -> Self {
         Self { dev }
-    }
-
-    /// Returns the device being configured.
-    pub fn device_mut(&mut self) -> &mut NetDevice<T> {
-        self.dev
     }
 
     /// Sets the device hardware type.
@@ -252,9 +258,9 @@ impl<'a, T: Driver> SetupContext<'a, T> {
         self.dev.as_mut_ref().flags = flags;
     }
 
-    /// Sets the per-cpu statistics type.
-    pub fn set_pcpu_stat_type(&mut self, ty: bindings::netdev_stat_type) {
-        self.dev.as_mut_ref().set_pcpu_stat_type(ty);
+    /// Enables per-cpu lightweight statistics.
+    pub fn enable_lstats(&mut self) {
+        self.dev.as_mut_ref().set_pcpu_stat_type(stat_type::LSTATS);
     }
 
     /// Sets the MTU.
@@ -291,7 +297,7 @@ impl NetlinkTapHandle {
     }
 
     /// Registers the tap for the given device.
-    pub fn add<T: Driver>(&mut self, dev: DeviceRef<T>) -> Result {
+    pub fn add<T: Driver>(&mut self, dev: DeviceRef<'_, T>) -> Result {
         if self.registered {
             return Err(code::EBUSY);
         }
@@ -360,24 +366,27 @@ impl LinkStats64 {
     }
 }
 
-/// Helpers for per-cpu lightweight statistics.
-pub struct LStats;
+/// A callback-scoped capability for devices configured with `NETDEV_PCPU_STAT_LSTATS`.
+#[derive(Copy, Clone)]
+pub struct LStatsHandle<'a, T: Driver> {
+    dev: DeviceRef<'a, T>,
+}
 
-impl LStats {
+impl<'a, T: Driver> LStatsHandle<'a, T> {
     /// Adds one received packet with the given length.
-    pub fn add<T: Driver>(dev: DeviceRef<T>, len: u32) {
+    pub fn add(self, len: u32) {
         // SAFETY: `dev` points to a valid `net_device` and `len` is passed directly to the kernel
         // helper.
-        unsafe { bindings::dev_lstats_add(dev.as_raw(), len) };
+        unsafe { bindings::dev_lstats_add(self.dev.as_raw(), len) };
     }
 
     /// Reads the current receive packet and byte counters.
-    pub fn read<T: Driver>(dev: DeviceRef<T>, stats: &mut LinkStats64) {
+    pub fn read(self, stats: &mut LinkStats64) {
         let mut packets = 0;
         let mut bytes = 0;
 
         // SAFETY: `dev` and the output pointers are valid for the duration of the call.
-        unsafe { bindings::dev_lstats_read(dev.as_raw(), &mut packets, &mut bytes) };
+        unsafe { bindings::dev_lstats_read(self.dev.as_raw(), &mut packets, &mut bytes) };
 
         stats.set_rx(packets, bytes);
     }

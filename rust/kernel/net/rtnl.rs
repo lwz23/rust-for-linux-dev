@@ -6,7 +6,7 @@
 //! [`include/linux/ethtool.h`](srctree/include/linux/ethtool.h).
 
 use super::{
-    netdevice::{DeviceRef, LinkStats64, NetDevice, SetupContext},
+    netdevice::{link_attrs, DeviceRef, LinkStats64, NetDevice, SetupContext},
     skbuff::SkBuff,
 };
 use crate::{
@@ -19,6 +19,7 @@ use core::{cell::UnsafeCell, marker::PhantomData, mem::MaybeUninit};
 /// Safe wrapper around RTNL attribute arrays.
 pub struct AttrTable<'a> {
     ptr: *mut *mut bindings::nlattr,
+    max_index: usize,
     _p: PhantomData<&'a *mut bindings::nlattr>,
 }
 
@@ -29,16 +30,17 @@ impl<'a> AttrTable<'a> {
     ///
     /// `ptr` must be the attribute array provided by the RTNL core for the duration of the
     /// callback.
-    unsafe fn from_raw(ptr: *mut *mut bindings::nlattr) -> Self {
+    unsafe fn from_raw(ptr: *mut *mut bindings::nlattr, max_index: usize) -> Self {
         Self {
             ptr,
+            max_index,
             _p: PhantomData,
         }
     }
 
     /// Returns whether the given attribute slot is present.
     pub fn is_present(&self, index: usize) -> bool {
-        if self.ptr.is_null() {
+        if self.ptr.is_null() || index > self.max_index {
             return false;
         }
 
@@ -90,6 +92,9 @@ pub trait Driver: Sized {
     /// RTNL link kind name.
     const KIND: &'static CStr;
 
+    /// Highest valid link-info attribute index for the driver's private netlink data.
+    const DATA_ATTR_MAX: usize = 0;
+
     /// Configures a newly allocated device.
     fn setup(dev: &mut SetupContext<'_, Self>);
 
@@ -100,10 +105,10 @@ pub trait Driver: Sized {
     fn stop(dev: &mut NetDevice<Self>) -> Result;
 
     /// Transmits or consumes an skb.
-    fn start_xmit(skb: SkBuff, dev: DeviceRef<Self>) -> TxStatus;
+    fn start_xmit(skb: SkBuff, dev: DeviceRef<'_, Self>) -> TxStatus;
 
     /// Fills 64-bit link statistics.
-    fn get_stats64(dev: DeviceRef<Self>, stats: &mut LinkStats64);
+    fn get_stats64(dev: DeviceRef<'_, Self>, stats: &mut LinkStats64);
 
     /// Validates link creation parameters.
     fn validate(
@@ -115,7 +120,7 @@ pub trait Driver: Sized {
     }
 
     /// Returns the carrier state for ethtool's `get_link`.
-    fn get_link(_dev: DeviceRef<Self>) -> u32 {
+    fn get_link(_dev: DeviceRef<'_, Self>) -> u32 {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 }
@@ -123,10 +128,14 @@ pub trait Driver: Sized {
 /// Registers a Rust rtnl-link driver.
 pub struct Registration<T: Driver>(KBox<UnsafeCell<bindings::rtnl_link_ops>>, PhantomData<T>);
 
-// SAFETY: Registration only exposes safe construction/destruction; actual registration and
-// unregistration are handled by the networking core.
+// SAFETY: `Registration<T>` stores only the heap-backed `rtnl_link_ops` table plus `PhantomData<T>`
+// and never stores any `T` value. After construction, the inner table is only handed to the
+// networking core and is no longer mutated through shared references; mutation requires `&mut self`
+// during construction and teardown. This is the same invariant relied on by the original version of
+// the abstraction, now documented more explicitly after the stage-two audit.
 unsafe impl<T: Driver> Send for Registration<T> {}
-// SAFETY: Shared references cannot mutate the registration directly.
+// SAFETY: Shared references to `Registration<T>` do not provide mutable access to the registered
+// `rtnl_link_ops`, so sharing the registration object does not create unsynchronised mutation.
 unsafe impl<T: Driver> Sync for Registration<T> {}
 
 impl<T: Driver> Registration<T> {
@@ -152,6 +161,7 @@ impl<T: Driver> Registration<T> {
     const VTABLE: bindings::rtnl_link_ops = bindings::rtnl_link_ops {
         kind: crate::str::as_char_ptr_in_const_context(T::KIND),
         priv_size: core::mem::size_of::<T::Private>(),
+        maxtype: T::DATA_ATTR_MAX as _,
         setup: Some(Self::setup_callback),
         validate: if T::HAS_VALIDATE {
             Some(Self::validate_callback)
@@ -201,8 +211,8 @@ impl<T: Driver> Registration<T> {
         from_result(|| {
             // SAFETY: The RTNL core supplies valid attribute tables and extack pointers for the
             // duration of the callback.
-            let tb = unsafe { AttrTable::from_raw(tb) };
-            let data = unsafe { AttrTable::from_raw(data) };
+            let tb = unsafe { AttrTable::from_raw(tb, link_attrs::MAX) };
+            let data = unsafe { AttrTable::from_raw(data, T::DATA_ATTR_MAX) };
             let extack = unsafe { ExtAck::from_raw(extack) };
             T::validate(tb, data, extack)?;
             Ok(0)

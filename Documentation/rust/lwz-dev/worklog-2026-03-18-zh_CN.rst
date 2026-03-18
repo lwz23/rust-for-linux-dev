@@ -513,3 +513,64 @@
   - 按审计文档给出的 P0/P1 顺序重构 ``rust/kernel/net/*``，
     先收缩 ``DeviceRef`` / ``LStats`` / ``AttrTable`` / ``SetupContext`` 的 safe API 表面，
     再重新编译并进入调试内核与强化差分测试阶段。
+
+14. 抽象层第一轮收缩重构
+~~~~~~~~~~~~~~~~~~~~~~~
+
+- 按上一阶段审计结论，先实现一轮最小但实质性的 safe API 收缩，修改文件如下：
+
+  - ``rust/kernel/net/skbuff.rs``
+  - ``rust/kernel/net/netdevice.rs``
+  - ``rust/kernel/net/rtnl.rs``
+  - ``rust/kernel/net.rs``
+  - ``drivers/net/nlmon_rust.rs``
+
+- 本阶段完成的核心改造：
+
+  - ``DeviceRef`` 现在带有显式生命周期参数，不再暴露 ``private()``，从类型层面阻断
+    了“跨回调缓存设备句柄再读取私有区”的 safe 逃逸路径
+  - ``NetDevice::with_private()`` 取代了驱动层手动拼接设备句柄与私有状态的方式，
+    让 ``open()`` 这类路径可以在受限闭包中同时使用 ``&mut Private`` 和
+    回调期设备引用
+  - ``SetupContext`` 删除 ``device_mut()``，同时把通用 ``set_pcpu_stat_type()``
+    收缩为 ``enable_lstats()``，避免 setup 阶段继续泄漏运行期能力
+  - 原先全局静态的 ``LStats`` safe API 被替换为回调期 ``LStatsHandle`` 能力对象；
+    只有在运行时确认设备已配置 ``NETDEV_PCPU_STAT_LSTATS`` 后，驱动才能拿到该能力
+  - ``AttrTable`` 新增 ``max_index`` 边界信息；``validate`` 回调现在对 top-level attrs
+    使用 ``__IFLA_MAX - 1``，对 driver-private attrs 使用 ``DATA_ATTR_MAX``，
+    不再保留无边界的 safe 越界入口
+  - ``SkBuff::into_raw()`` 从 safe 驱动接口中移除，继续缩小裸指针泄漏面
+  - ``Registration<T>`` 的 ``Send/Sync`` 断言未被简单删除，而是保留并补强说明；
+    实际编译验证表明 ``Module`` / ``InPlaceModule`` 仍要求模块状态满足
+    ``Send + Sync``，因此这组断言目前仍是必要边界
+
+- 驱动层同步调整：
+
+  - ``drivers/net/nlmon_rust.rs`` 继续保持零 ``unsafe``
+  - ``open()`` 改为使用 ``with_private()``
+  - ``start_xmit()`` / ``get_stats64()`` 改为通过 ``dev.lstats()`` 获取受检统计能力
+
+- 本阶段验证命令：
+
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+
+- 本阶段验证结果：
+
+  - ``rust/kernel.o`` 编译通过
+  - ``RUSTC [M] drivers/net/nlmon_rust.o`` 成功
+  - ``LD [M] drivers/net/nlmon_rust.ko`` 成功
+  - ``arch/x86/boot/bzImage`` 重建成功
+
+- 本阶段遇到的问题与修正：
+
+  - 初版 ``with_private()`` 因为同时持有 ``&self`` 与 ``&mut self`` 触发借用冲突，
+    后续改为先提取原始 ``net_device *``，再在受控 ``unsafe`` 边界内构造回调期
+    ``DeviceRef``，并确保该类型已不再暴露私有区访问
+  - 试图直接去掉 ``Registration<T>`` 的 ``Send/Sync`` 断言后，模块编译失败，
+    说明当前内核 Rust 模块基础设施确实要求模块状态满足这两个 trait；因此本阶段
+    选择保留断言，但补强其局部不变式说明，并保留后续继续审查空间
+
+- 下一步：
+
+  - 开始建立专用调试内核输出目录、配置片段、测试 rootfs 与自动化测试脚本，
+    为强化差分测试矩阵做准备。

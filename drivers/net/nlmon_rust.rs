@@ -6,7 +6,7 @@
 
 use kernel::{
     error::code,
-    net::{self, device_flags, features, hardware, link_attrs, netlink, priv_flags, stat_type},
+    net::{self, device_flags, features, hardware, link_attrs, netlink, priv_flags},
     prelude::*,
 };
 
@@ -49,27 +49,26 @@ impl net::Driver for NlmonDriver {
         dev.set_lltx(true);
         dev.set_features(features::SG | features::FRAGLIST | features::HIGHDMA);
         dev.set_flags(device_flags::NOARP);
-        dev.set_pcpu_stat_type(stat_type::LSTATS);
+        dev.enable_lstats();
         dev.set_mtu(netlink::GOODSIZE);
         dev.set_min_mtu(netlink::HEADER_LEN);
     }
 
     fn open(dev: &mut net::NetDevice<Self>) -> Result {
-        let dev_ref = dev.device_ref();
-        dev.private_mut().tap.add(dev_ref)
+        dev.with_private(|private, dev_ref| private.tap.add(dev_ref))
     }
 
     fn stop(dev: &mut net::NetDevice<Self>) -> Result {
         dev.private_mut().tap.remove()
     }
 
-    fn start_xmit(skb: net::SkBuff, dev: net::DeviceRef<Self>) -> net::TxStatus {
-        net::LStats::add(dev, skb.len());
+    fn start_xmit(skb: net::SkBuff, dev: net::DeviceRef<'_, Self>) -> net::TxStatus {
+        dev.lstats().expect("nlmon devices must enable LSTATS").add(skb.len());
         net::TxStatus::OK
     }
 
-    fn get_stats64(dev: net::DeviceRef<Self>, stats: &mut net::LinkStats64) {
-        net::LStats::read(dev, stats);
+    fn get_stats64(dev: net::DeviceRef<'_, Self>, stats: &mut net::LinkStats64) {
+        dev.lstats().expect("nlmon devices must enable LSTATS").read(stats);
     }
 
     fn validate(
@@ -84,7 +83,7 @@ impl net::Driver for NlmonDriver {
         Ok(())
     }
 
-    fn get_link(_dev: net::DeviceRef<Self>) -> u32 {
+    fn get_link(_dev: net::DeviceRef<'_, Self>) -> u32 {
         1
     }
 }

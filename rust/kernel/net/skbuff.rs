@@ -33,12 +33,6 @@ impl SkBuff {
         unsafe { self.0.as_ref().len }
     }
 
-    /// Transfers ownership back to C.
-    pub fn into_raw(self) -> *mut bindings::sk_buff {
-        let ptr = self.0.as_ptr();
-        core::mem::forget(self);
-        ptr
-    }
 }
 
 impl Drop for SkBuff {
