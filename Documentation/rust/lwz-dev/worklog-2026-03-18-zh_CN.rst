@@ -942,3 +942,96 @@
 
   - 先把这一轮“测试基础设施修复”作为单独任务提交
   - 然后继续跑 ``memory-debug`` / C 版 lifecycle，并补强结果采集，使 ``pcap`` 与 ``dmesg`` 的问题能够在主机侧被精确归因
+
+22. 收紧 ``dmesg`` 异常规则并补强 ``tcpdump`` 结果回传
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在完成 ``memory-debug`` 的 C/Rust baseline + lifecycle 对照后，当前主机侧仍有两个盲点：
+
+  - ``baseline.decoded.lines=0``，无法仅凭这一项判断是“没有抓到 netlink 报文”，还是
+    ``tcpdump``/``pcap``/``decode`` 某个环节自身出了问题
+  - ``dmesg_anomaly.*=1`` 的判定规则过宽，尤其旧规则直接匹配裸字符串 ``KASAN``，
+    很可能把 ``KernelAddressSanitizer initialized`` 这类调试内核正常启动横幅误判为异常
+
+- 因此本阶段要对 ``tools/testing/rust/nlmon/nlmon-guest-runner.sh`` 做两类收紧：
+
+  - ``finalize_capture()``
+
+    - 额外回传 ``pcap`` 字节数
+    - 回传 ``tcpdump stdout/stderr`` 行数
+    - 回传 ``decode.err`` 行数
+    - 回传 ``tcpdump.stderr`` 与 ``decode.err`` 的前几行摘要
+
+  - ``scan_dmesg()``
+
+    - 将异常匹配从裸 ``KASAN`` / ``lockdep`` / ``RCU`` 等宽泛关键词，
+      收紧为更像真实缺陷信号的模式，例如：
+
+      - ``BUG:``
+      - ``WARNING:``
+      - ``KASAN:``
+      - ``KFENCE:``
+      - ``UBSAN:``
+      - ``use-after-free``
+      - ``double free`` / ``double-free``
+      - ``lockdep:``
+      - ``possible recursive locking detected``
+      - ``suspicious RCU usage``
+      - ``refcount_t:``
+      - ``kmemleak``
+      - ``DEBUG_OBJECTS``
+
+    - 额外回传 ``dmesg`` 命中的行数与前几行摘要，方便主机侧直接判读
+
+- 本阶段预期验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - 重新执行 ``memory-debug`` 下的 C/Rust baseline
+
+- 预期目标：
+
+  - 主机侧串口日志足以判断 ``pcap`` 为何仍为空
+  - ``dmesg_anomaly`` 不再被调试内核自身的正常启动横幅误报污染
+
+- 实际验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation rust --scenario baseline --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-baseline-rust-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-rust.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-rust.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-baseline.log --timeout-seconds 600``
+  - ``scripts/config --file /home/lwz/rfl-dev/build-nlmon-kasan/.config -d NLMON_RUST`` 后重建 ``memory-debug`` / C 版内核与模块
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario baseline --rootfs-dir /home/lwz/rfl-dev/rootfs/nlmon-baseline-c-stage --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-c.cpio.gz``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image /home/lwz/rfl-dev/rootfs/initramfs-nlmon-baseline-c.cpio.gz --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-baseline.log --timeout-seconds 600``
+
+- 实际验证结果：
+
+  - 新摘要结果已成功回传到主机侧串口日志。
+
+  - ``dmesg`` 误报问题已经被修正：
+
+    - C 版 ``NLMON_RESULT: dmesg_anomaly.baseline=0``
+    - Rust 版 ``NLMON_RESULT: dmesg_anomaly.baseline=0``
+    - C/Rust 两侧 ``dmesg_anomaly_lines.baseline=0``
+
+  - C/Rust baseline 的摘要在去掉 ``implementation=...`` 这一行之后一致，说明当前新增的诊断信号本身没有引入新的实现差异。
+
+  - ``pcap`` 为空的问题也已被精确归因：
+
+    - C/Rust 两侧都记录 ``baseline.pcap.bytes=24``
+    - C/Rust 两侧都记录 ``baseline.decoded.lines=0``
+    - C/Rust 两侧都记录 ``baseline.tcpdump.stderr.head=tcpdump: Couldn't find user 'tcpdump'``
+    - C/Rust 两侧都记录 ``baseline.decode.err.head=... tcpdump: Couldn't find user 'tcpdump'``
+
+  - 这说明当前 ``pcap`` 为空并不是 C/Rust 行为差异，而是测试 rootfs 缺少 ``tcpdump`` 默认降权所需的用户信息，
+    导致 ``tcpdump`` 只留下 24 字节的 ``pcap`` 头后就失败。
+
+  - 另外，这一轮也暴露了一个流程性注意点：
+
+    - 当同一个 ``build-nlmon-kasan`` 目录在 C/Rust 之间切换后，旧实现的 ``.ko`` 可能残留但与新 ``bzImage`` 的
+      ``vermagic`` 不匹配
+    - 已在本轮通过重新切回 C 配置并完整重建修正这一问题
+    - 后续对照时必须明确记录“当前 build 目录对应的是哪一个实现”
+
+- 下一步：
+
+  - 单独修复 guest rootfs 中的 ``tcpdump`` 用户环境
+  - 让 ``pcap`` 能真正落下报文后，再重新执行 baseline / lifecycle 差分并更新阶段报告

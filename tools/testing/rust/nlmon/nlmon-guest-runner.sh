@@ -35,6 +35,16 @@ emit_file_value() {
     fi
 }
 
+emit_file_excerpt() {
+    local key="$1"
+    local file="$2"
+    local lines="${3:-5}"
+
+    if [ -f "$file" ]; then
+        emit "$key=$(head -n "$lines" "$file" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/[[:space:]]$//')"
+    fi
+}
+
 cleanup_names() {
     ip_cmd link del nlmon0 2>/dev/null || true
     ip_cmd link del nlmon_dummy0 2>/dev/null || true
@@ -123,21 +133,36 @@ finalize_capture() {
 
     tcpdump -nn -r "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.decoded.txt" 2>"$RESULT_DIR/$tag.decode.err" || true
     sha256sum "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.sha256" 2>/dev/null || true
+    wc -c "$RESULT_DIR/$tag.pcap" >"$RESULT_DIR/$tag.pcap.bytes" 2>/dev/null || true
     wc -l "$RESULT_DIR/$tag.decoded.txt" >"$RESULT_DIR/$tag.decoded.lines" 2>/dev/null || true
+    wc -l "$RESULT_DIR/$tag.tcpdump.stdout" >"$RESULT_DIR/$tag.tcpdump.stdout.lines" 2>/dev/null || true
+    wc -l "$RESULT_DIR/$tag.tcpdump.stderr" >"$RESULT_DIR/$tag.tcpdump.stderr.lines" 2>/dev/null || true
+    wc -l "$RESULT_DIR/$tag.decode.err" >"$RESULT_DIR/$tag.decode.err.lines" 2>/dev/null || true
     emit_file_value "$tag.pcap.sha256" "$RESULT_DIR/$tag.pcap.sha256"
+    emit_file_value "$tag.pcap.bytes" "$RESULT_DIR/$tag.pcap.bytes"
     emit_file_value "$tag.decoded.lines" "$RESULT_DIR/$tag.decoded.lines"
+    emit_file_value "$tag.tcpdump.stdout.lines" "$RESULT_DIR/$tag.tcpdump.stdout.lines"
+    emit_file_value "$tag.tcpdump.stderr.lines" "$RESULT_DIR/$tag.tcpdump.stderr.lines"
+    emit_file_value "$tag.decode.err.lines" "$RESULT_DIR/$tag.decode.err.lines"
+    emit_file_excerpt "$tag.tcpdump.stderr.head" "$RESULT_DIR/$tag.tcpdump.stderr"
+    emit_file_excerpt "$tag.decode.err.head" "$RESULT_DIR/$tag.decode.err"
     observe_iface nlmon0 "$tag.nlmon0"
 }
 
 scan_dmesg() {
     local tag="$1"
+    local anomaly_pattern
+
+    anomaly_pattern="BUG:|WARNING:|Oops:|KASAN:|KFENCE:|KCSAN:|UBSAN:|use-after-free|double[- ]free|lockdep:|possible recursive locking detected|suspicious RCU usage|refcount_t:|kmemleak|DEBUG_OBJECTS|bad unlock balance"
     dmesg >"$RESULT_DIR/$tag.dmesg.txt" 2>&1 || true
-    if grep -E "BUG:|WARNING:|Oops:|KASAN|KFENCE|KCSAN|UBSAN|use-after-free|double free|lockdep|RCU|refcount|kmemleak|DEBUG_OBJECTS" \
-        "$RESULT_DIR/$tag.dmesg.txt" >"$RESULT_DIR/$tag.dmesg.anomalies.txt"; then
+    if grep -E "$anomaly_pattern" "$RESULT_DIR/$tag.dmesg.txt" >"$RESULT_DIR/$tag.dmesg.anomalies.txt"; then
         emit "dmesg_anomaly.$tag=1"
     else
         emit "dmesg_anomaly.$tag=0"
     fi
+    wc -l "$RESULT_DIR/$tag.dmesg.anomalies.txt" >"$RESULT_DIR/$tag.dmesg.anomaly.lines" 2>/dev/null || true
+    emit_file_value "dmesg_anomaly_lines.$tag" "$RESULT_DIR/$tag.dmesg.anomaly.lines"
+    emit_file_excerpt "dmesg_anomaly_head.$tag" "$RESULT_DIR/$tag.dmesg.anomalies.txt"
 }
 
 gen_dummy() {
