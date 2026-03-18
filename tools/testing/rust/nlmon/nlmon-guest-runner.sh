@@ -144,10 +144,10 @@ gen_dummy() {
 gen_veth() {
     log "generator: veth"
     ip link add nlmon_veth0 type veth peer name nlmon_veth1
-    ip link set nlmon_veth0 up
-    ip link set nlmon_veth1 up
-    ip addr add 198.51.100.1/24 dev nlmon_veth0
-    ip addr add 198.51.100.2/24 dev nlmon_veth1
+    ip link set nlmon_veth0 up || true
+    ip link set nlmon_veth1 up || true
+    ip addr add 198.51.100.1/24 dev nlmon_veth0 || true
+    ip addr add 198.51.100.2/24 dev nlmon_veth1 || true
     ip -s link show nlmon_veth0 >/dev/null 2>&1 || true
     ip link del nlmon_veth0 || true
 }
@@ -156,10 +156,10 @@ gen_bridge() {
     log "generator: bridge"
     ip link add nlmon_bridge0 type bridge
     ip link add nlmon_br_veth0 type veth peer name nlmon_br_veth1
-    ip link set nlmon_bridge0 up
-    ip link set nlmon_br_veth0 master nlmon_bridge0
-    ip link set nlmon_br_veth0 up
-    ip link set nlmon_br_veth1 up
+    ip link set nlmon_bridge0 up || true
+    ip link set nlmon_br_veth0 master nlmon_bridge0 || true
+    ip link set nlmon_br_veth0 up || true
+    ip link set nlmon_br_veth1 up || true
     ip link del nlmon_br_veth0 || true
     ip link del nlmon_bridge0 || true
 }
@@ -177,9 +177,9 @@ gen_netns() {
     ip netns add nlmonns0
     ip link add nlmon_ns_veth0 type veth peer name nlmon_ns_veth1
     ip link set nlmon_ns_veth1 netns nlmonns0
-    ip link set nlmon_ns_veth0 up
-    ip netns exec nlmonns0 ip link set lo up
-    ip netns exec nlmonns0 ip link set nlmon_ns_veth1 up
+    ip link set nlmon_ns_veth0 up || true
+    ip netns exec nlmonns0 ip link set lo up || true
+    ip netns exec nlmonns0 ip link set nlmon_ns_veth1 up || true
     ip netns del nlmonns0 || true
     ip link del nlmon_ns_veth0 || true
 }

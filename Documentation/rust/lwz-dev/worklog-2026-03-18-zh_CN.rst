@@ -752,3 +752,47 @@
 
   - 基于修正后的脚本重新执行 ``memory-debug`` 下的 C / Rust baseline，
     再进入生命周期循环差分。
+
+18. 事件发生器“尽力执行”策略
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 在修正 ``init`` / 清理路径之后重新观察 baseline 日志，发现失败点进一步收缩为：
+
+  - ``veth`` 事件发生器中的附加配置步骤（``ip link set ... up`` /
+    ``ip addr add ...``）会在当前 guest 环境里触发 ``No such device``
+  - 这些步骤的失败会提前终止整轮 baseline，但它们本身并不是
+    “是否能够产生 netlink 事件”的最小必要条件
+
+- 因此本阶段对 ``tools/testing/rust/nlmon/nlmon-guest-runner.sh`` 做第二轮稳健性调整：
+
+  - ``gen_veth()``
+  - ``gen_bridge()``
+  - ``gen_netns()``
+
+  中那些用于“增加事件丰富度”的附加步骤统一改为 ``|| true``：
+
+  - 接口 ``up``
+  - 地址配置
+  - bridge 挂载
+  - netns 内部接口启用
+
+- 调整后的原则是：
+
+  - 设备/namespace 的创建本身仍然必须成功，否则该发生器确实无效
+  - 但创建成功后那些额外增强步骤若失败，不应直接把整轮差分测试打断；
+    测试应优先完成主线采样并把失败上下文保留在日志中
+
+- 本阶段验证命令：
+
+  - ``busybox sh -n tools/testing/rust/nlmon/nlmon-guest-runner.sh``
+
+- 本阶段验证结果：
+
+  - guest runner 语法检查继续通过
+  - baseline 后续重跑时，``veth/bridge/netns`` 的附加动作将不再把整个场景提前打断
+
+- 下一步：
+
+  - 重新执行 ``memory-debug`` / C 版 baseline，确认 baseline 可以完整结束并输出
+    足够的主机侧摘要结果；
+  - 若通过，再切换到 Rust 版执行同一路径对照。
