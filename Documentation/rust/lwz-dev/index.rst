@@ -13,6 +13,7 @@ LWZ Rust-for-Linux 本地开发文档
    development-guide-zh_CN
    driver-rustification-playbook-zh_CN
    flow-revision-after-rnull-validation-2026-03-19-zh_CN
+   nlmon-hardening-ledger-2026-03-19-zh_CN
    worklog-2026-03-17-zh_CN
    worklog-2026-03-18-zh_CN
    report-2026-03-18-nlmon-rust-zh_CN

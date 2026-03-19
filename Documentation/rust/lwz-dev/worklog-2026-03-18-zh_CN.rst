@@ -1941,3 +1941,141 @@
 
   - 如继续推进，应开始把这些术语映射进更细的工具原型设计
   - 例如静态前端输入/输出格式、规则库表示方式和验证器接口
+
+38. 对 ``nlmon`` 执行 pinned-private hardening 并回灌新硬规则
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 本阶段目标：
+
+  - 按 ``soundness`` 与功能等价优先重回 ``nlmon``；
+  - 检查此前 blind-first 版本里，``rust/kernel/net/*`` 是否仍残留
+    原型期 safe API 过宽问题；
+  - 尤其审查：
+
+    - 已注册对象是否仍可被 safe code 移动
+    - ``Private`` 是否仍暴露过宽 ``&mut``
+    - ``NetlinkTapHandle`` / ``Registration<T>`` 是否仍带原型期聚合器痕迹
+
+- 本阶段核心代码修改：
+
+  - ``rust/kernel/net/netdevice.rs``
+  - ``rust/kernel/net/rtnl.rs``
+  - ``rust/kernel/net.rs``
+  - ``drivers/net/nlmon_rust.rs``
+
+- 本阶段最终落地的对象模型调整：
+
+  - ``NetDevice::from_raw()`` 改为 ``Pin<&mut NetDevice<T>>``
+  - ``init_private()`` 改为在 ``netdev_priv()`` 上执行 ``PinInit<T::Private>``
+  - ``private_mut()`` 被移除
+  - ``with_private()`` 改为只给驱动：
+
+    - ``Pin<&mut T::Private>``
+    - ``CurrentDevice<'_, T>``
+
+  - ``NetlinkTapHandle`` 改为 ``#[pin_data(PinnedDrop)] + Opaque<bindings::netlink_tap>``
+  - ``Registration<T>`` 改为 ``#[pin_data(PinnedDrop)] + Opaque<bindings::rtnl_link_ops>``
+  - ``NlmonPrivate`` 改为 pinned private object，``tap`` 是 pinned 字段
+  - ``open()/stop()`` 通过 pinned projection 操作 ``tap``
+
+- 本阶段同时核对并固定了两条容易误判的口径：
+
+  - ``include/linux/skbuff.h`` 当前明确把 ``dev_kfree_skb(a)`` 宏定义为
+    ``consume_skb(a)``，因此这不是本轮功能差异点
+  - ``rust/helpers/net.c`` 仍然是当前树 helper 绑定的实际来源，应当归类为
+    ``旧树约束``，而不是在本轮 hardening 中直接删除
+
+- 本阶段构建与检查命令：
+
+  - ``git diff --check``
+  - ``/home/lwz/rfl-dev/scripts/build-kernel.sh``
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh memory-debug``
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh concurrency-debug``
+  - ``tools/testing/rust/nlmon/configure-debug-kernel.sh leak-debug``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 olddefconfig``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 rustavailable``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kasan LLVM=1 -j"$(nproc)" bzImage modules``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 olddefconfig``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 rustavailable``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-lockdep LLVM=1 -j"$(nproc)" bzImage modules``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kmem LLVM=1 olddefconfig``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kmem LLVM=1 rustavailable``
+  - ``make -C /home/lwz/rfl-dev/linux O=/home/lwz/rfl-dev/build-nlmon-kmem LLVM=1 -j"$(nproc)" bzImage modules``
+
+- 本阶段验证命令（Rust）：
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation rust --scenario baseline ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-baseline-20260319.log --timeout-seconds 900``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation rust --scenario lifecycle ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-lifecycle-20260319.log --timeout-seconds 1200``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation rust --scenario matrix ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-rust-matrix-20260319.log --timeout-seconds 1200``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --implementation rust --scenario baseline ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-rust-baseline-20260319.log --timeout-seconds 900``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --implementation rust --scenario lifecycle ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-lockdep --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/concurrency-debug-rust-lifecycle-20260319.log --timeout-seconds 1200``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kmem --implementation rust --scenario baseline ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kmem --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/leak-debug-rust-baseline-20260319.log --timeout-seconds 900``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kmem --implementation rust --scenario lifecycle ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kmem --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/leak-debug-rust-lifecycle-20260319.log --timeout-seconds 1200``
+
+- 因为 ``2026-03-19`` 的 ``memory-debug rust baseline`` 相比 ``2026-03-18`` 历史日志
+  出现了摘要变化，本阶段按计划补跑 C 对照：
+
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario baseline ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-baseline-20260319.log --timeout-seconds 900``
+  - ``tools/testing/rust/nlmon/prepare-test-rootfs.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --implementation c --scenario matrix ...``
+  - ``tools/testing/rust/nlmon/run-qemu-test.sh --build-dir /home/lwz/rfl-dev/build-nlmon-kasan --rootfs-image ... --log-file /home/lwz/rfl-dev/test-results/nlmon/memory-debug-c-matrix-20260319.log --timeout-seconds 1200``
+
+- 本阶段验证结果：
+
+  - ``drivers/net/nlmon_rust.rs`` 仍然零 ``unsafe``
+  - 所有本轮 Rust 场景都给出：
+
+    - ``status=ok``
+    - ``dmesg_anomaly.*=0``
+
+  - ``2026-03-19`` 同日基线摘要统一收敛为：
+
+    - ``38244`` bytes
+    - ``2451`` decoded lines
+    - ``154`` captured
+
+  - ``memory-debug`` 的同日 C baseline 也完全收敛到同一组摘要
+  - ``memory-debug`` 的同日 C/Rust matrix 在五个 generator 上都继续保持
+    ``pcap.bytes`` / ``decoded.lines`` / captured 计数对齐
+
+- 本阶段额外学到的一个流程细节：
+
+  - ``run-qemu-test.sh`` 这种已经自行重定向日志的自动化脚本，不要放进带 PTY 的交互会话里跑；
+  - 否则 QEMU 可能被 job-control 暂停成 ``T`` 状态；
+  - 应使用非交互方式执行，让 timeout、日志重定向和自动关机保持原始语义。
+
+- 本阶段新增/刷新文档：
+
+  - ``Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/engineering-acceptance-2026-03-18-nlmon-rust-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/driver-rustification-playbook-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/development-guide-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/flow-revision-after-rnull-validation-2026-03-19-zh_CN.rst``
+
+- 本阶段最终回灌成共享手册硬规则的一条结论：
+
+  - 只要 ``Private`` 里可能包含 registered / intrusive / callback-owned pinned 对象，
+    就不能再向 safe 驱动暴露宽泛 ``&mut Private``；
+  - 必须改成：
+
+    - ``in-place pinned init``
+    - ``Pin<&mut Private>`` 访问
+    - 必要时补 current-device capability
+
+- 下一步：
+
+  - 按 ``Why / What / Verification`` 拆四组提交
+  - 分别提交：
+
+    - ``rust: pin and harden nlmon private netlink tap state``
+    - ``rust: refactor rtnl registration to mainline-style pinned opaque state``
+    - ``net: rework nlmon Rust driver to use pinned private accessors``
+    - ``Documentation: record nlmon hardening, audit refresh, and new pinned-private rule``

@@ -316,6 +316,9 @@ helper 设计规则：
 - 所有 ``unsafe`` 都必须封在这些抽象里
 - 每个 ``unsafe`` 点都要写局部不变式注释
 - 驱动层只拿能力型接口，不拿近似裸 ``net_device`` 访问权
+- 只要 ``Private`` 里会放 registered / intrusive / callback-owned pinned 对象，
+  就禁止再给 safe 驱动公开宽泛 ``&mut Private``；必须改成
+  ``in-place pinned init + pinned access``
 
 阶段 6：先做 ``unsafe`` 审计，再写最终结论
 ------------------------------------------
@@ -384,6 +387,13 @@ helper 设计规则：
 
 3. ``blind-first`` 阶段允许存在临时聚合对象；进入 ``hardening`` 阶段后，必须检查这些
    对象是否把多个生命周期揉得过宽，并在必要时拆解。
+
+4. 只要驱动私有区里承载 registered / intrusive / callback-owned pinned 对象，就不能再
+   保留宽泛 ``&mut Private`` 出口；必须：
+
+   - 把私有区初始化改成 ``in-place pinned init``
+   - 把可变私有访问改成 ``Pin<&mut Private>``
+   - 必要时补 current-device capability，把“只能绑定当前设备自身”编码进 API
 
 阶段 8：构建三套调试内核
 ------------------------

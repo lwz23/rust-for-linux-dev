@@ -150,6 +150,10 @@ Rust-for-Linux 本地开发说明
   - 显式状态机
   - builder 前置校验
 
+- 只要驱动 ``Private`` 里可能包含 registered / intrusive / callback-owned pinned 对象，
+  safe API 就不能继续公开宽泛 ``&mut Private``；必须改成
+  ``in-place pinned init + pinned access``。
+
 - ``unsafe impl Send/Sync`` 默认禁止，除非有结构性证明。
 - helper 只能在主 bindings 缺口审计确认后生成。
 - hardening 阶段必须做 helper 退役审计，防止过渡桥接长期残留。

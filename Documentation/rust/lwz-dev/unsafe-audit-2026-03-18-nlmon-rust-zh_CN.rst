@@ -1,19 +1,20 @@
 .. SPDX-License-Identifier: GPL-2.0
 
-2026-03-18 nlmon Rust 抽象层 ``unsafe`` 审计（更新版）
-======================================================
+2026-03-18 nlmon Rust 抽象层 ``unsafe`` 审计（2026-03-19 hardening 刷新版）
+==========================================================================
 
 摘要
 ----
 
-本文档是在 ``rust: tighten nlmon net abstraction lifetimes`` 之后，对当前
-``nlmon`` Rust 实现所依赖 ``unsafe`` 边界做的一次刷新审计。它的目的不是夸大为
+本文档在 ``rust: tighten nlmon net abstraction lifetimes`` 之后首次生成，
+并在 ``2026-03-19`` 的 ``nlmon`` hardening 完成后再次刷新。它的目的不是夸大为
 “已经被形式化证明安全”，而是把现在这棵树上真正存在的事实说清楚：
 
 - ``drivers/net/nlmon_rust.rs`` 仍保持零 ``unsafe``；
 - 所有 ``unsafe``、裸指针、FFI 回调桥接、结构体字段写入都被限制在
   ``rust/kernel/net/*`` 与极小的 ``rust/helpers/net.c``；
 - 早期审计里指出的几处明显 safe API 过宽问题，已经在当前代码中被收紧；
+- safe API 已不再允许驱动通过宽泛 ``&mut Private`` 移动已注册 ``netlink_tap``；
 - 目前没有再发现“驱动层不写 ``unsafe`` 也能轻易破坏抽象不变式”的明显洞；
 - 但这并不等于抽象已经可以直接作为通用 ``netdev/rtnl`` 子系统抽象上游化，
   仍存在几处需要继续收紧或继续积累证据的点。
@@ -92,11 +93,12 @@
 当前仍需保留的注意点
 ~~~~~~~~~~~~~~~~~~~~
 
-1. ``NetlinkTapHandle::add()`` 还没有在类型层面编码“必须绑定当前设备自身”这一关系。
-2. ``Registration<T>`` 的 ``Send/Sync`` 仍然依赖内核注册对象生命周期契约，而不是更强的
+1. ``Registration<T>`` 的 ``Send/Sync`` 仍然依赖内核注册对象生命周期契约，而不是更强的
    类型约束。
-3. 三个 vtable 仍使用 ``MaybeUninit::zeroed().assume_init()`` 构造尾部，这一写法与现有
+2. 三个 vtable 仍使用 ``MaybeUninit::zeroed().assume_init()`` 构造尾部，这一写法与现有
    Rust-for-Linux 风格一致，但本质上仍依赖 C 侧“未填字段全 0 即 None/默认值”的 ABI 约定。
+3. ``rust/helpers/net.c`` 仍然是当前树这两个入口的实际绑定来源，应在后续单独做 helper
+   退役审计，但不应在本轮 hardening 里误删。
 
 逐项审计
 --------
@@ -172,9 +174,10 @@ safe 破坏面：
 当前形态：
 
 - 仅在 ``setup/open/stop`` 等串行化回调中，通过 ``from_raw()`` 得到短生命周期
-  ``&mut NetDevice<T>``；
-- ``with_private()`` 把“可变私有数据 + 回调期设备引用”一并交给闭包；
-- ``private()/private_mut()`` 只在 ``&self`` / ``&mut self`` 约束下访问已初始化私有区。
+  ``Pin<&mut NetDevice<T>>``；
+- ``init_private()`` 在 ``netdev_priv()`` 的稳定内存上执行 ``PinInit<T::Private>``；
+- ``with_private()`` 把 ``Pin<&mut T::Private>`` 与 ``CurrentDevice<'_, T>`` 一并交给闭包；
+- ``private_mut()`` 已被移除，只保留共享只读 ``private()``。
 
 前置条件：
 
@@ -186,11 +189,11 @@ safe 破坏面：
 
 - ``setup`` 完成后私有区进入已初始化状态；
 - ``priv_destructor`` 路径负责与之匹配的析构；
-- ``with_private()`` 不会向 safe 驱动暴露可长期保存的私有区别名。
+- ``with_private()`` 不会再向 safe 驱动暴露可移动的已注册私有子对象。
 
 safe 破坏面：
 
-- 当前最关键的风险面已经从 safe API 中移除；
+- safe 驱动不再能通过普通 ``&mut Private`` 把已注册 tap safe 地移出私有区；
 - 仍需依赖注册/销毁回调配对这一内核契约，但这已经属于抽象内部受控边界。
 
 结论：
@@ -260,16 +263,18 @@ safe 破坏面：
 - ``current_module_ptr()``
 - ``add()``
 - ``remove()``
-- ``Drop``
+- ``PinnedDrop``
 
 原始指针来源：
 
-- ``__this_module`` 与 ``DeviceRef`` 内的 ``net_device *``。
+- ``__this_module``、``CurrentDevice`` 内的 ``net_device *``，以及 pinned
+  ``Opaque<bindings::netlink_tap>`` 存储。
 
 前置条件：
 
 - ``add()`` 只能对未注册状态调用；
 - 传入设备在 tap 注册期间必须持续存活；
+- tap 自身在注册期间必须保持 pinned；
 - ``remove()`` 只对已注册状态生效。
 
 后置条件：
@@ -280,27 +285,19 @@ safe 破坏面：
 
 当前优点：
 
+- ``inner`` 已收缩成 pinned ``Opaque<bindings::netlink_tap>``；
 - 已显式维护 ``registered`` 状态机；
-- ``Drop`` 只在已注册时做 best-effort 卸载；
+- ``add()`` 现在只接受 ``CurrentDevice``，已经把“只能绑定当前设备自身”编码进类型边界；
+- ``PinnedDrop`` 只在已注册时做 best-effort 卸载；
 - ``nlmon_rust`` 的实际使用路径是：
 
   - ``open()`` 中把自身设备注册为 tap
   - ``stop()`` 中移除
-  - 若设备销毁前仍处于注册状态，则 ``Drop`` 兜底清理
-
-当前保留问题：
-
-- ``add()`` 仍然接受任意 ``DeviceRef<'_, T>``，类型系统尚未表达“只能绑定当前设备自身”；
-- 这意味着它更像“为 ``nlmon`` 当前用例写的最小抽象”，而不是已经完全通用化的安全 API。
+  - 若设备销毁前仍处于注册状态，则 ``PinnedDrop`` 兜底清理
 
 结论：
 
-- ``可接受，但保留后续优化项``
-
-后续建议：
-
-- 若继续上游化/通用化，优先把 ``add()`` 收紧成只能接受由当前 ``NetDevice<T>`` 派生的
-  更窄 capability，进一步把“自身设备”关系编码进类型边界。
+- ``可接受``
 
 4. ``rtnl.rs``: ``AttrTable`` / ``ExtAck`` / ``Registration<T>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -334,8 +331,8 @@ safe 破坏面：
 
 当前形态：
 
-- ``new()`` 负责分配并注册 ``rtnl_link_ops``；
-- ``Drop`` 负责注销；
+- ``new()`` 通过 pinned ``Opaque<bindings::rtnl_link_ops>`` 完成原位初始化与注册；
+- ``PinnedDrop`` 负责注销；
 - ``setup/open/stop/start_xmit/get_stats64/get_link`` 都在桥接层内部把原始回调参数包装成
   窄化后的 Rust 对象。
 
@@ -343,7 +340,7 @@ safe 破坏面：
 
 - 当前已经补充了更明确的局部不变式说明：
 
-  - ``Registration<T>`` 仅持有堆上 ``rtnl_link_ops`` 表和 ``PhantomData<T>``
+  - ``Registration<T>`` 仅持有 pinned ``Opaque<rtnl_link_ops>`` 和 ``PhantomData<T>``
   - 真正的回调状态由网络核心管理
   - 注册成功后不再通过共享引用去并发修改表项
 

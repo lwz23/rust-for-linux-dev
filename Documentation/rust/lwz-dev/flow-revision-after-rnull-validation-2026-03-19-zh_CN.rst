@@ -129,6 +129,27 @@
 - ``blind-first`` 阶段允许为跑通路径引入临时聚合器。
 - 但在 hardening 阶段，必须把它们拆回更细粒度、生命周期更清楚的对象流。
 
+8. private data 一旦承载 pinned registered 对象，就禁止继续暴露宽泛 ``&mut Private``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``nlmon`` hardening 进一步坐实了另一个此前还只是“方向判断”的点：如果驱动私有区里已经
+出现 tap、registration、intrusive node、callback-owned state 这类注册后不可移动的对象，
+那么继续向 safe 驱动公开宽泛 ``&mut Private``，几乎一定会把“注册后不可移动”的证明责任
+重新外推给调用者。
+
+新规则：
+
+- 只要 ``Private`` 可能包含 registered / intrusive / callback-owned pinned 对象，
+  就不能再向 safe 驱动公开宽泛 ``&mut Private``。
+- 必须改成：
+
+  - ``in-place pinned init``
+  - ``Pin<&mut Private>`` 访问
+  - 如有必要，再补 current-device 之类的能力型约束
+
+- 如果某个 safe API 仍然允许调用者通过普通 ``&mut`` 把已注册子对象 safe 地移走，
+  那它就还没有完成 hardening。
+
 对手册的直接影响
 ----------------
 
@@ -142,6 +163,7 @@
   - ``Pin``
   - 状态机
   - builder 校验
+  - private data 是否仍暴露过宽 ``&mut`` 出口
   - ``Send/Sync`` 断言
   - helper 是否仍必要
 
