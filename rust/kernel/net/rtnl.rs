@@ -13,8 +13,9 @@ use crate::{
     bindings,
     error::{from_result, to_result, Result, VTABLE_DEFAULT_ERROR},
     prelude::*,
+    types::Opaque,
 };
-use core::{cell::UnsafeCell, marker::PhantomData, mem::MaybeUninit};
+use core::{marker::PhantomData, mem::MaybeUninit};
 
 /// Safe wrapper around RTNL attribute arrays.
 pub struct AttrTable<'a> {
@@ -83,11 +84,27 @@ impl TxStatus {
     }
 }
 
+/// Returns an infallible pinned initializer that constructs a value from `Default`.
+///
+/// This is the fallback helper for drivers whose private data does not need a custom pinned
+/// construction sequence.
+pub fn default_pinned_init<T: Default>() -> impl PinInit<T> {
+    // SAFETY:
+    // - `slot` points to uninitialized memory supplied by the pin-init infrastructure.
+    // - `T::default()` fully initializes the value in place.
+    unsafe {
+        pin_init::pin_init_from_closure(|slot: *mut T| {
+            slot.write(T::default());
+            Ok(())
+        })
+    }
+}
+
 /// Driver callbacks for a Rust rtnl-link implementation.
 #[vtable]
 pub trait Driver: Sized {
     /// Driver private state stored in `netdev_priv()`.
-    type Private: Default;
+    type Private;
 
     /// RTNL link kind name.
     const KIND: &'static CStr;
@@ -98,11 +115,16 @@ pub trait Driver: Sized {
     /// Configures a newly allocated device.
     fn setup(dev: &mut SetupContext<'_, Self>);
 
+    /// Returns the infallible pinned initializer for the driver's private state.
+    ///
+    /// This runs from the RTNL `setup` callback, so it must not allocate or otherwise fail.
+    fn private_init() -> impl PinInit<Self::Private>;
+
     /// Opens the device.
-    fn open(dev: &mut NetDevice<Self>) -> Result;
+    fn open(dev: Pin<&mut NetDevice<Self>>) -> Result;
 
     /// Stops the device.
-    fn stop(dev: &mut NetDevice<Self>) -> Result;
+    fn stop(dev: Pin<&mut NetDevice<Self>>) -> Result;
 
     /// Transmits or consumes an skb.
     fn start_xmit(skb: SkBuff, dev: DeviceRef<'_, Self>) -> TxStatus;
@@ -126,7 +148,12 @@ pub trait Driver: Sized {
 }
 
 /// Registers a Rust rtnl-link driver.
-pub struct Registration<T: Driver>(KBox<UnsafeCell<bindings::rtnl_link_ops>>, PhantomData<T>);
+#[pin_data(PinnedDrop)]
+pub struct Registration<T: Driver> {
+    #[pin]
+    ops: Opaque<bindings::rtnl_link_ops>,
+    _p: PhantomData<T>,
+}
 
 // SAFETY: `Registration<T>` stores only the heap-backed `rtnl_link_ops` table plus `PhantomData<T>`
 // and never stores any `T` value. After construction, the inner table is only handed to the
@@ -173,13 +200,16 @@ impl<T: Driver> Registration<T> {
     };
 
     /// Registers the driver with the RTNL core.
-    pub fn new(_module: &'static ThisModule) -> Result<Self> {
-        let mut ops = KBox::new(UnsafeCell::new(Self::VTABLE), GFP_KERNEL)?;
-
-        // SAFETY: `ops` is heap allocated and remains valid for the lifetime of the registration.
-        to_result(unsafe { bindings::rtnl_link_register(ops.get_mut()) })?;
-
-        Ok(Self(ops, PhantomData))
+    pub fn new(_module: &'static ThisModule) -> impl PinInit<Self, Error> {
+        try_pin_init!(Self {
+            ops <- Opaque::try_ffi_init(|ptr: *mut bindings::rtnl_link_ops| {
+                // SAFETY: `ptr` is the pinned storage owned by this registration object.
+                unsafe { ptr.write(Self::VTABLE) };
+                // SAFETY: `ptr` remains valid for the lifetime of the registration object.
+                to_result(unsafe { bindings::rtnl_link_register(ptr) })
+            }),
+            _p: PhantomData,
+        })
     }
 
     unsafe extern "C" fn priv_destructor_callback(dev: *mut bindings::net_device) {
@@ -193,13 +223,13 @@ impl<T: Driver> Registration<T> {
     unsafe extern "C" fn setup_callback(dev: *mut bindings::net_device) {
         // SAFETY: The RTNL core invokes `setup` for a freshly allocated device and grants unique
         // access during the callback.
-        let dev = unsafe { NetDevice::<T>::from_raw(dev) };
-        dev.install_ops(
+        let mut dev = unsafe { NetDevice::<T>::from_raw(dev) };
+        dev.as_mut().install_ops(
             &Self::NET_DEVICE_OPS,
             &Self::ETHTOOL_OPS,
             Some(Self::priv_destructor_callback),
         );
-        dev.init_private();
+        dev.as_mut().init_private(T::private_init());
         T::setup(&mut SetupContext::new(dev));
     }
 
@@ -267,10 +297,11 @@ impl<T: Driver> Registration<T> {
     }
 }
 
-impl<T: Driver> Drop for Registration<T> {
-    fn drop(&mut self) {
+#[pinned_drop]
+impl<T: Driver> PinnedDrop for Registration<T> {
+    fn drop(self: Pin<&mut Self>) {
         // SAFETY: The existence of `self` guarantees that the registration previously succeeded
-        // and that the backing `rtnl_link_ops` storage remains valid.
-        unsafe { bindings::rtnl_link_unregister(self.0.get_mut()) };
+        // and that the backing `rtnl_link_ops` storage remains valid and pinned.
+        unsafe { bindings::rtnl_link_unregister(self.ops.get()) };
     }
 }
