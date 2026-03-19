@@ -8,8 +8,8 @@
 use super::rtnl::Driver;
 use crate::{
     bindings,
-    build_assert,
     error::{code, to_result, Result},
+    prelude::*,
     types::Opaque,
 };
 use core::{marker::PhantomData, ptr::NonNull};
@@ -123,6 +123,34 @@ impl<'a, T: Driver> DeviceRef<'a, T> {
     }
 }
 
+/// A callback-scoped capability that refers to the current device instance.
+///
+/// Unlike [`DeviceRef`], this capability can only be created from the mutable callback context of
+/// the current device, so it is suitable for APIs that must not accept arbitrary devices.
+pub struct CurrentDevice<'a, T: Driver> {
+    ptr: NonNull<bindings::net_device>,
+    _p: PhantomData<Pin<&'a mut NetDevice<T>>>,
+}
+
+impl<'a, T: Driver> CurrentDevice<'a, T> {
+    /// Creates a current-device capability from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must point to the exact `net_device` currently borrowed mutably for the callback
+    /// lifetime `'a`.
+    pub(crate) unsafe fn from_raw(ptr: *mut bindings::net_device) -> Self {
+        Self {
+            ptr: NonNull::new(ptr).expect("net_device pointer must be non-null"),
+            _p: PhantomData,
+        }
+    }
+
+    fn as_raw(&self) -> *mut bindings::net_device {
+        self.ptr.as_ptr()
+    }
+}
+
 /// A mutable network device during serialized callbacks such as `setup`, `open`, or `stop`.
 ///
 /// # Invariants
@@ -142,45 +170,53 @@ impl<T: Driver> NetDevice<T> {
     ///
     /// `ptr` must be a valid `net_device` and the caller must be in a context where unique access
     /// to the wrapped object is permitted for the returned lifetime.
-    pub(super) unsafe fn from_raw<'a>(ptr: *mut bindings::net_device) -> &'a mut Self {
+    pub(super) unsafe fn from_raw<'a>(ptr: *mut bindings::net_device) -> Pin<&'a mut Self> {
         // CAST: `Self` is a `repr(transparent)` wrapper around `bindings::net_device`.
-        unsafe { &mut *ptr.cast::<Self>() }
+        unsafe { Pin::new_unchecked(&mut *ptr.cast::<Self>()) }
     }
 
     pub(super) const fn as_raw(&self) -> *mut bindings::net_device {
         self.inner.get()
     }
 
-    fn as_mut_ref(&mut self) -> &mut bindings::net_device {
+    fn as_mut_ref(self: Pin<&mut Self>) -> &mut bindings::net_device {
         // SAFETY: The wrapper invariant guarantees unique access.
-        unsafe { &mut *self.as_raw() }
+        unsafe { &mut *self.get_unchecked_mut().as_raw() }
     }
 
-    fn private_ptr(&self) -> *mut T::Private {
+    fn private_ptr(self: Pin<&Self>) -> *mut T::Private {
         // SAFETY: The callback invariants guarantee a valid device pointer. The helper returns the
         // private allocation associated with this device.
         unsafe { bindings::netdev_priv(self.as_raw()) }.cast::<T::Private>()
     }
 
-    pub(super) fn init_private(&mut self) {
+    pub(super) fn init_private(self: Pin<&mut Self>, init: impl PinInit<T::Private>) {
         build_assert!(
             core::mem::align_of::<T::Private>() <= 32,
             "net_device private data alignment exceeds NETDEV_ALIGN"
         );
 
-        // SAFETY: `setup` is the first callback to access the private area for a freshly
-        // allocated device, so the memory is valid for initialization and not yet initialized.
-        unsafe { self.private_ptr().write(T::Private::default()) };
+        let private_ptr = self.as_ref().private_ptr();
+
+        // SAFETY:
+        // - `setup` is the first callback to access the private area for a freshly allocated
+        //   device, so the slot is uninitialized and valid for write.
+        // - `netdev_priv()` returns storage inside the allocated `net_device`, so the private
+        //   object occupies a stable memory location for the lifetime of the device.
+        match unsafe { init.__pinned_init(private_ptr) } {
+            Ok(()) => {}
+            Err(e) => match e {},
+        }
     }
 
-    pub(super) unsafe fn drop_private(&mut self) {
+    pub(super) unsafe fn drop_private(self: Pin<&mut Self>) {
         // SAFETY: The caller guarantees the private area was initialized exactly once and this is
         // the matching teardown path.
-        unsafe { core::ptr::drop_in_place(self.private_ptr()) };
+        unsafe { core::ptr::drop_in_place(self.as_ref().private_ptr()) };
     }
 
     pub(super) fn install_ops(
-        &mut self,
+        self: Pin<&mut Self>,
         netdev_ops: &'static bindings::net_device_ops,
         ethtool_ops: &'static bindings::ethtool_ops,
         priv_destructor: Option<unsafe extern "C" fn(*mut bindings::net_device)>,
@@ -192,96 +228,102 @@ impl<T: Driver> NetDevice<T> {
         dev.priv_destructor = priv_destructor;
     }
 
-    /// Executes a closure with mutable private data and a callback-scoped device reference.
+    /// Executes a closure with pinned private data and a capability for the current device.
     pub fn with_private<R>(
-        &mut self,
-        f: impl FnOnce(&mut T::Private, DeviceRef<'_, T>) -> R,
+        self: Pin<&mut Self>,
+        f: impl FnOnce(Pin<&mut T::Private>, CurrentDevice<'_, T>) -> R,
     ) -> R {
-        let raw = self.as_raw();
-        let private = self.private_mut();
-        // SAFETY: `raw` originates from `self`, which remains valid for the duration of this
-        // method. `DeviceRef` no longer exposes access to private data, so pairing it with
-        // `private` does not create an aliasing hole in safe code.
-        let dev = unsafe { DeviceRef::from_raw(raw) };
+        let raw = self.as_ref().get_ref().as_raw();
+        let private_ptr = self.as_ref().private_ptr();
+
+        // SAFETY:
+        // - `private_ptr` refers to the already initialized private area of the current device.
+        // - The private storage lives inside the `net_device`, which is pinned for the duration of
+        //   the callback, so the pointee is stable.
+        let private = unsafe { Pin::new_unchecked(&mut *private_ptr) };
+        // SAFETY: `raw` comes from the current mutable callback borrow of `self`.
+        let dev = unsafe { CurrentDevice::from_raw(raw) };
         f(private, dev)
     }
 
-    /// Returns the driver's private data.
-    pub fn private(&self) -> &T::Private {
+    /// Returns a shared reference to the driver's private state.
+    pub fn private(self: Pin<&Self>) -> &T::Private {
         // SAFETY: The wrapper invariant guarantees that the private area has been initialized.
         unsafe { &*self.private_ptr() }
-    }
-
-    /// Returns the driver's private data mutably.
-    pub fn private_mut(&mut self) -> &mut T::Private {
-        // SAFETY: The wrapper invariant guarantees that the private area has been initialized and
-        // that `&mut self` gives unique access for the duration of the borrow.
-        unsafe { &mut *self.private_ptr() }
     }
 }
 
 /// Device setup context.
 pub struct SetupContext<'a, T: Driver> {
-    dev: &'a mut NetDevice<T>,
+    dev: Pin<&'a mut NetDevice<T>>,
 }
 
 impl<'a, T: Driver> SetupContext<'a, T> {
-    pub(super) fn new(dev: &'a mut NetDevice<T>) -> Self {
+    pub(super) fn new(dev: Pin<&'a mut NetDevice<T>>) -> Self {
         Self { dev }
     }
 
     /// Sets the device hardware type.
     pub fn set_type(&mut self, type_: u16) {
-        self.dev.as_mut_ref().type_ = type_;
+        self.dev.as_mut().as_mut_ref().type_ = type_;
     }
 
     /// Adds private flags.
     pub fn add_private_flags(&mut self, flags: u32) {
-        let bits = unsafe { &mut self.dev.as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
+        let bits = unsafe { &mut self.dev.as_mut().as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
         let current = bits.priv_flags() as u32;
         bits.set_priv_flags((current | flags) as _);
     }
 
     /// Sets the lockless transmit flag.
     pub fn set_lltx(&mut self, enabled: bool) {
-        let bits = unsafe { &mut self.dev.as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
+        let bits = unsafe { &mut self.dev.as_mut().as_mut_ref().__bindgen_anon_1.__bindgen_anon_1 };
         bits.set_lltx(enabled.into());
     }
 
     /// Sets the device feature mask.
     pub fn set_features(&mut self, features: bindings::netdev_features_t) {
-        self.dev.as_mut_ref().features = features;
+        self.dev.as_mut().as_mut_ref().features = features;
     }
 
     /// Sets the device flags.
     pub fn set_flags(&mut self, flags: u32) {
-        self.dev.as_mut_ref().flags = flags;
+        self.dev.as_mut().as_mut_ref().flags = flags;
     }
 
     /// Enables per-cpu lightweight statistics.
     pub fn enable_lstats(&mut self) {
-        self.dev.as_mut_ref().set_pcpu_stat_type(stat_type::LSTATS);
+        self.dev.as_mut().as_mut_ref().set_pcpu_stat_type(stat_type::LSTATS);
     }
 
     /// Sets the MTU.
     pub fn set_mtu(&mut self, mtu: u32) {
-        self.dev.as_mut_ref().mtu = mtu;
+        self.dev.as_mut().as_mut_ref().mtu = mtu;
     }
 
     /// Sets the minimum MTU.
     pub fn set_min_mtu(&mut self, mtu: u32) {
-        self.dev.as_mut_ref().min_mtu = mtu;
+        self.dev.as_mut().as_mut_ref().min_mtu = mtu;
     }
 }
 
 /// Safe wrapper for `struct netlink_tap`.
-#[derive(Default)]
+#[pin_data(PinnedDrop)]
 pub struct NetlinkTapHandle {
-    inner: bindings::netlink_tap,
+    #[pin]
+    inner: Opaque<bindings::netlink_tap>,
     registered: bool,
 }
 
 impl NetlinkTapHandle {
+    /// Creates a new unregistered tap handle.
+    pub fn new() -> impl PinInit<Self> {
+        pin_init!(Self {
+            inner <- Opaque::ffi_init(|slot| unsafe { core::ptr::write_bytes(slot, 0, 1) }),
+            registered: false,
+        })
+    }
+
     fn current_module_ptr() -> *mut bindings::module {
         #[cfg(MODULE)]
         {
@@ -297,40 +339,53 @@ impl NetlinkTapHandle {
     }
 
     /// Registers the tap for the given device.
-    pub fn add<T: Driver>(&mut self, dev: DeviceRef<'_, T>) -> Result {
-        if self.registered {
+    pub fn add<T: Driver>(mut self: Pin<&mut Self>, dev: CurrentDevice<'_, T>) -> Result {
+        let raw = self.as_ref().get_ref().inner.get();
+        let this = self.as_mut().project();
+
+        if *this.registered {
             return Err(code::EBUSY);
         }
 
-        self.inner.dev = dev.as_raw();
-        self.inner.module = Self::current_module_ptr();
+        // SAFETY: `raw` points to the pinned tap object managed by `self`.
+        unsafe {
+            (*raw).dev = dev.as_raw();
+            (*raw).module = Self::current_module_ptr();
+        }
 
-        // SAFETY: `self.inner` is a valid tap object and the device/module pointers stored above
+        // SAFETY: `raw` is a valid tap object and the device/module pointers stored above
         // remain valid for the duration of the registration.
-        to_result(unsafe { bindings::netlink_add_tap(&mut self.inner) })?;
-        self.registered = true;
+        to_result(unsafe { bindings::netlink_add_tap(raw) })?;
+        *this.registered = true;
         Ok(())
     }
 
     /// Unregisters the tap if it is currently active.
-    pub fn remove(&mut self) -> Result {
-        if !self.registered {
+    pub fn remove(mut self: Pin<&mut Self>) -> Result {
+        let raw = self.as_ref().get_ref().inner.get();
+        let this = self.as_mut().project();
+
+        if !*this.registered {
             return Ok(());
         }
 
-        // SAFETY: `self.inner` is currently registered, so removing it is valid.
-        to_result(unsafe { bindings::netlink_remove_tap(&mut self.inner) })?;
-        self.registered = false;
+        // SAFETY: `raw` is currently registered, so removing it is valid.
+        to_result(unsafe { bindings::netlink_remove_tap(raw) })?;
+        *this.registered = false;
         Ok(())
     }
 }
 
-impl Drop for NetlinkTapHandle {
-    fn drop(&mut self) {
-        if self.registered {
+#[pinned_drop]
+impl PinnedDrop for NetlinkTapHandle {
+    fn drop(mut self: Pin<&mut Self>) {
+        let raw = self.as_ref().get_ref().inner.get();
+        let this = self.as_mut().project();
+
+        if *this.registered {
             // SAFETY: Best-effort cleanup of a tap that was previously registered by this object.
-            let _ = unsafe { bindings::netlink_remove_tap(&mut self.inner) };
-            self.registered = false;
+            let _ = unsafe { bindings::netlink_remove_tap(raw) };
+            *this.registered = false;
         }
     }
 }

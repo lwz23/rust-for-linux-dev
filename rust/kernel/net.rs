@@ -9,8 +9,8 @@ pub mod rtnl;
 pub mod skbuff;
 
 pub use netdevice::{
-    device_flags, features, hardware, link_attrs, netlink, priv_flags, stat_type, DeviceRef,
-    LStatsHandle, LinkStats64, NetDevice, NetlinkTapHandle, SetupContext,
+    device_flags, features, hardware, link_attrs, netlink, priv_flags, stat_type, CurrentDevice,
+    DeviceRef, LStatsHandle, LinkStats64, NetDevice, NetlinkTapHandle, SetupContext,
 };
 pub use rtnl::{AttrTable, Driver, ExtAck, Registration, TxStatus};
 pub use skbuff::SkBuff;
