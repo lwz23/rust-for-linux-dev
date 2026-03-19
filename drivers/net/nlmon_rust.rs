@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 
-//! Rust implementation scaffold for the nlmon rtnl-link driver.
+//! Rust implementation of the `nlmon` rtnl-link driver.
 //!
 //! Reference C implementation: [`drivers/net/nlmon.c`](./nlmon.c)
 
@@ -20,20 +20,29 @@ module! {
 }
 
 struct NlmonModule {
-    _registration: net::Registration<NlmonDriver>,
+    _registration: Pin<KBox<net::Registration<NlmonDriver>>>,
 }
 
 impl kernel::Module for NlmonModule {
     fn init(module: &'static ThisModule) -> Result<Self> {
         Ok(Self {
-            _registration: net::Registration::<NlmonDriver>::new(module)?,
+            _registration: KBox::pin_init(net::Registration::<NlmonDriver>::new(module), GFP_KERNEL)?,
         })
     }
 }
 
-#[derive(Default)]
+#[pin_data]
 struct NlmonPrivate {
+    #[pin]
     tap: net::NetlinkTapHandle,
+}
+
+impl NlmonPrivate {
+    fn new() -> impl PinInit<Self> {
+        pin_init!(Self {
+            tap <- net::NetlinkTapHandle::new(),
+        })
+    }
 }
 
 struct NlmonDriver;
@@ -42,6 +51,10 @@ struct NlmonDriver;
 impl net::Driver for NlmonDriver {
     type Private = NlmonPrivate;
     const KIND: &'static CStr = c"nlmon";
+
+    fn private_init() -> impl PinInit<Self::Private> {
+        NlmonPrivate::new()
+    }
 
     fn setup(dev: &mut net::SetupContext<'_, Self>) {
         dev.set_type(hardware::NETLINK);
@@ -54,12 +67,12 @@ impl net::Driver for NlmonDriver {
         dev.set_min_mtu(netlink::HEADER_LEN);
     }
 
-    fn open(dev: &mut net::NetDevice<Self>) -> Result {
-        dev.with_private(|private, dev_ref| private.tap.add(dev_ref))
+    fn open(dev: Pin<&mut net::NetDevice<Self>>) -> Result {
+        dev.with_private(|mut private, current_dev| private.as_mut().project().tap.add(current_dev))
     }
 
-    fn stop(dev: &mut net::NetDevice<Self>) -> Result {
-        dev.private_mut().tap.remove()
+    fn stop(dev: Pin<&mut net::NetDevice<Self>>) -> Result {
+        dev.with_private(|mut private, _| private.as_mut().project().tap.remove())
     }
 
     fn start_xmit(skb: net::SkBuff, dev: net::DeviceRef<'_, Self>) -> net::TxStatus {
