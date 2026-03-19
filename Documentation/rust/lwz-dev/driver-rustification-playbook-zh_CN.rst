@@ -25,10 +25,15 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 3. 所有 ``unsafe`` 下沉到 ``rust/kernel/*`` 与极小 ``rust/helpers/*``。
 4. 用调试内核和差分测试证明 Rust 版不是玩具，而是当前阶段可运行、可验证、可回退的实现。
 
+经过 ``rnull@v6.10`` 对官方初始 upstream 的二次验证后，本手册新增一个更严格的总目标：
+
+5. ``blind-first`` 只算 ``prototype-grade``，后续还必须经过
+   ``upstream alignment & abstraction hardening``，才能接近主线工程要求。
+
 先读结论
 --------
 
-以 ``nlmon`` 为例，当前已经验证过的顺序是：
+以 ``nlmon`` 为例，当前已经验证过、并经 ``rnull`` 复盘修订后的顺序是：
 
 1. 先建立 Kbuild/Kconfig 切换，不碰原 C 文件。
 2. 先扩主 bindgen，再做缺口审计。
@@ -37,7 +42,41 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 5. 驱动层 ``drivers/net/nlmon_rust.rs`` 保持零 ``unsafe``。
 6. 先在 ``memory-debug`` 下跑强行为对照，再用 ``concurrency-debug`` /
    ``leak-debug`` 补并发与泄漏证据。
-7. 每一步单独提交；每次提交前先更新工作日志。
+7. 如果存在官方初始 upstream Rust 实现，必须继续做对象模型与 API 形态对齐。
+8. 只有完成 ``hardening`` 后，才允许写工程验收与“接近主线级”的结论。
+9. 每一步单独提交；每次提交前先更新工作日志。
+
+先明确流程等级
+--------------
+
+从 ``rnull`` 开始，任何新模块 Rust 化都必须固定分成两个阶段：
+
+1. ``blind-first bootstrap``
+
+- 目标是先在旧树上独立跑通：
+
+  - Kbuild/Kconfig
+  - 主 bindings
+  - 缺口审计
+  - 最小 helper
+  - 最小抽象
+  - 零 ``unsafe`` 驱动
+  - 第一轮功能验证
+
+- 这一阶段通过后，只能说明“这条路径在当前旧树上可行”。
+
+2. ``upstream alignment & abstraction hardening``
+
+- 如果目标模块存在官方初始 upstream Rust 实现，这一步是强制阶段。
+- 目标不是补更多功能，而是把原型期 safe API 收紧到更主线化的对象模型：
+
+  - 默认优先 ``Pin + Opaque``
+  - 显式状态机
+  - builder 前置校验
+  - 收缩 ``unsafe impl Send/Sync``
+  - helper 退役审计
+
+- 只有这一步完成后，才允许宣称“接近主线工程要求”。
 
 不要做的事
 ----------
@@ -47,6 +86,9 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 3. 不要把大量 raw bindings 直接暴露给驱动层。
 4. 不要为了省事把 ``unsafe`` 留在驱动层。
 5. 不要跳过工作日志、差分测试、调试内核验证。
+6. 不要把 ``blind-first`` 版本直接写成“主线级实现”。
+7. 不要默认生成 ``unsafe impl Send/Sync``。
+8. 不要在主 bindings 缺口还没审计清楚前先写 helper。
 
 阶段 0：准备环境
 ----------------
@@ -297,6 +339,23 @@ helper 设计规则：
 
 预期为空。
 
+抽象层附加硬规则
+~~~~~~~~~~~~~~~~
+
+经过 ``rnull`` 验证后，新增三条跨子系统默认约束：
+
+1. 对 intrusive / registered / callback-owned C 对象，默认优先：
+
+   - ``Pin + Opaque``
+   - 显式状态机
+   - builder 前置校验
+
+2. 如果某个 safe API 仍然要求驱动自己记住生命周期、唯一可变性或析构配对，它就还只是
+   原型 API，不应直接进入最终抽象。
+
+3. ``blind-first`` 阶段允许存在临时聚合对象；进入 ``hardening`` 阶段后，必须检查这些
+   对象是否把多个生命周期揉得过宽，并在必要时拆解。
+
 阶段 8：构建三套调试内核
 ------------------------
 
@@ -393,6 +452,12 @@ helper 设计规则：
 - ``concurrency-debug`` 用来补锁/RCU/atomic-sleep 证据
 - ``leak-debug`` 用来补 ``kmemleak`` 口径
 
+注意：
+
+- 上面这组测试顺序主要服务于 ``blind-first`` 的可运行验证与调试内核证据。
+- 如果目标模块存在官方初始 upstream Rust 实现，测试通过后还必须回到抽象层做
+  ``upstream alignment & abstraction hardening``，然后刷新审计和关键测试结论。
+
 阶段 11：差分测试判读规则
 ------------------------
 
@@ -451,6 +516,11 @@ helper 设计规则：
 
 这种写法既不保守到否认成果，也不夸大到越过证据边界。
 
+``rnull`` 之后新增一条强制前提：
+
+- 如果还没有完成官方初始 upstream 对齐与 hardening，就不要写工程验收。
+- 在那之前，最准确的表述只能是“原型已跑通并完成基础验证”。
+
 阶段 14：提交与 push 规则
 ------------------------
 
@@ -468,6 +538,11 @@ helper 设计规则：
 10. 差分测试增强
 11. 工程验收文档
 12. 完整复现手册
+
+如果存在官方初始 upstream Rust 参考实现，还要再插入两步：
+
+13. 官方初始 upstream 对齐与差异总账
+14. 抽象 hardening 与审计刷新
 
 每次提交前必须：
 
@@ -493,6 +568,7 @@ helper 设计规则：
 - ``unsafe`` 审计文档存在且与当前源码一致
 - 三套调试 profile 至少有基础对照结果
 - ``memory-debug`` 下有更强的行为/稳定性证据
+- 如果存在官方初始 upstream Rust 实现，已经完成对象模型对齐与 hardening
 - 差分报告存在
 - 工程验收文档存在
 - 完整复现手册存在

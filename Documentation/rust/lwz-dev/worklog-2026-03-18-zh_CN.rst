@@ -1845,3 +1845,59 @@
 
   - 检查当前分支状态
   - 将本轮新增提交统一 push 到 ``origin/feature/nlmon-rust``
+
+36. 根据 ``rnull`` 复盘结果修订 ``nlmon``/通用流程手册
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 本阶段目标：
+
+  - 不再把现有 ``nlmon`` 手册只当作 ``nlmon`` 的项目文档
+  - 而是把 ``rnull@v6.10`` 对官方初始 upstream 的复盘结论反向灌入本仓库文档
+  - 让手册从“某个 DUT 的经验总结”升级成“经过第二个模块验证后的通用流程”
+
+- 本阶段更新/新增文档：
+
+  - 更新：
+
+    - ``Documentation/rust/lwz-dev/driver-rustification-playbook-zh_CN.rst``
+    - ``Documentation/rust/lwz-dev/development-guide-zh_CN.rst``
+    - ``Documentation/rust/lwz-dev/index.rst``
+
+  - 新增：
+
+    - ``Documentation/rust/lwz-dev/flow-revision-after-rnull-validation-2026-03-19-zh_CN.rst``
+
+- 本阶段修订的关键规则：
+
+  - ``blind-first`` 只算 ``prototype-grade``
+  - 新模块 Rust 化必须固定分成：
+
+    - ``blind-first bootstrap``
+    - ``upstream alignment & abstraction hardening``
+
+  - 如果存在官方初始 upstream Rust 实现，对齐它是强制阶段
+  - 对 intrusive / registered / callback-owned 对象默认优先：
+
+    - ``Pin + Opaque``
+    - 显式状态机
+    - builder 前置校验
+
+  - ``unsafe`` 审计必须覆盖后置条件、所有权转移、生命周期边界和析构配对
+  - ``unsafe impl Send/Sync`` 默认禁止
+  - helper 不仅要做引入审计，还要做退役审计
+
+- 本阶段用于回灌结论的参考输入：
+
+  - ``/home/lwz/rfl-dev/linux-mainline/Documentation/rust/lwz-dev/initial-upstream-difference-ledger-2026-03-19-rnull-v6.10-zh_CN.rst``
+  - ``/home/lwz/rfl-dev/linux-mainline/Documentation/rust/lwz-dev/compare-initial-upstream-rnull-2026-03-19-zh_CN.rst``
+  - ``/home/lwz/rfl-dev/linux-mainline/Documentation/rust/lwz-dev/mainline-grade-rustification-methodology-2026-03-19-zh_CN.rst``
+
+- 本阶段预期结果：
+
+  - 以后即使不直接阅读 ``rnull`` 仓库，也能在本仓库手册里看到经过第二轮验证后的硬规则
+  - ``nlmon`` 不再被误用成“只要跑通就算主线级”的例子
+
+- 下一步：
+
+  - 在 ``linux-mainline`` 中整理自动化/半自动化 Rust 化工具研究计划
+  - 明确哪些阶段可以静态规则化，哪些必须依赖受约束的 LLM 和强制验证器
