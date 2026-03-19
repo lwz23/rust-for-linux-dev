@@ -114,6 +114,10 @@ Rust-for-Linux 本地开发说明
 
 从 ``nlmon`` 与 ``rnull`` 两轮实验开始，本地开发约定新增下面几条流程纪律：
 
+- 真实工具流程统一称为 ``reference-free production pipeline``。
+- 若为了校准流程而选择一个已有官方 Rust 版本的驱动做 benchmark，则属于
+  ``reference-based research calibration pipeline``。
+
 1. 新模块 Rust 化固定分成两段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -121,21 +125,21 @@ Rust-for-Linux 本地开发说明
 
   - 先在目标旧树上做出一个可构建、可装载、驱动层零 ``unsafe`` 的原型
 
-- ``upstream alignment & abstraction hardening``：
+- ``mainline-grade conformance hardening``：
 
-  - 如果目标模块存在官方初始 upstream Rust 实现，这一步是强制阶段
-  - 目标是对齐对象模型和 API 边界，而不仅仅是跑出相同功能
+  - 这是未来真实工具流程中的标准第二阶段
+  - 目标是按主线规则收紧对象模型和 API 边界，而不仅仅是跑出相同功能
 
-2. 官方初始 upstream 是强制参考点
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. 研究校准是额外分支，不是生产流程硬步骤
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- 比较优先级固定为：
+- 如果当前任务是研究型 benchmark，可以额外采用：
 
   1. 原始 C 实现
   2. 官方初始 upstream Rust 实现
   3. 如有需要，再看当前最新主线成熟版
 
-- 在第 2 步完成前，不要把结果写成“接近主线级工程实现”。
+- 这条比较链只服务于规则校准，不属于未来真实工具的标准运行步骤。
 
 3. 抽象设计默认约束
 ~~~~~~~~~~~~~~~~~~~
@@ -155,6 +159,7 @@ Rust-for-Linux 本地开发说明
 
 - ``blind-first`` 完成后，只能写“原型已跑通”。
 - 只有 hardening、``unsafe`` 审计刷新和关键验证都完成后，才允许写工程验收结论。
+- 如果当前任务是研究型 benchmark，再在 hardening 之后追加 ``reference-based evaluation``。
 - 未完成定性的工具链/``objtool`` warning 必须单列为后续事项，不能被并入“测试通过”。
 
 常用命令

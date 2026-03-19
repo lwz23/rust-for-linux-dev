@@ -1873,9 +1873,9 @@
   - 新模块 Rust 化必须固定分成：
 
     - ``blind-first bootstrap``
-    - ``upstream alignment & abstraction hardening``
+    - ``mainline-grade conformance hardening``
 
-  - 如果存在官方初始 upstream Rust 实现，对齐它是强制阶段
+  - 如果当前任务是研究型 benchmark，才额外做 ``reference-based evaluation``
   - 对 intrusive / registered / callback-owned 对象默认优先：
 
     - ``Pin + Opaque``
@@ -1901,3 +1901,43 @@
 
   - 在 ``linux-mainline`` 中整理自动化/半自动化 Rust 化工具研究计划
   - 明确哪些阶段可以静态规则化，哪些必须依赖受约束的 LLM 和强制验证器
+
+37. 修正“研究校准流程”被误写成“真实工具流程”的问题
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- 本阶段目标：
+
+  - 修正此前文档里把 ``upstream alignment`` 误写成未来真实工具必经步骤的问题
+  - 明确区分：
+
+    - ``reference-free production pipeline``
+    - ``reference-based research calibration pipeline``
+
+- 本阶段更新文档：
+
+  - ``Documentation/rust/lwz-dev/driver-rustification-playbook-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/development-guide-zh_CN.rst``
+  - ``Documentation/rust/lwz-dev/flow-revision-after-rnull-validation-2026-03-19-zh_CN.rst``
+
+- 本阶段修正后的统一口径：
+
+  - 真实工具面对的是只有 C 版本、没有现成 Rust 版本的驱动
+  - 因此真实流程的标准阶段应为：
+
+    - ``blind-first bootstrap``
+    - ``mainline-grade conformance hardening``
+
+  - 若为了研究流程缺陷而选择一个已有官方 Rust 版本的驱动做 benchmark，才额外进入：
+
+    - ``reference-based evaluation``
+
+- 本阶段结论：
+
+  - ``rnull`` 里的官方初始 upstream 对比属于研究校准方法
+  - 它的价值是提炼规则、约束和验证器
+  - 它不是未来工具运行时必须执行的外部步骤
+
+- 下一步：
+
+  - 如继续推进，应开始把这些术语映射进更细的工具原型设计
+  - 例如静态前端输入/输出格式、规则库表示方式和验证器接口

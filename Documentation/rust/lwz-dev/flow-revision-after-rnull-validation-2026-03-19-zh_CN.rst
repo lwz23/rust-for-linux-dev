@@ -10,7 +10,7 @@
 硬规则。它的用途不是替代完整手册，而是明确回答：
 
 - 原来的 ``nlmon`` 流程哪些部分仍然成立
-- 哪些地方必须升级，才能更接近官方初始 upstream 的工程标准
+- 哪些地方必须升级，才能更接近主线工程标准
 
 哪些规则保持不变
 ----------------
@@ -41,28 +41,27 @@
 - 任何新模块 Rust 化都必须先明确：
 
   - ``blind-first bootstrap``
-  - ``upstream alignment & abstraction hardening``
+  - ``mainline-grade conformance hardening``
 
 - 第一阶段通过，只能说明“这条路走得通”。
 - 只有第二阶段完成，才允许写“工程验收”或“接近主线级”结论。
 
-2. 官方初始 upstream 对比变成强制阶段
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. 研究校准流程必须和真实工具流程拆开
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-此前 ``nlmon`` 手册把官方实现对比更多看作经验性参考。``rnull`` 证明这不够。
+此前 ``nlmon`` 手册把官方实现对比直接写进了通用流程。``rnull`` 证明这会误导后续工具设计。
 
 新规则：
 
-- 如果目标模块已经有官方初始 upstream Rust 实现，那么：
+- 真实工具流程是 ``reference-free production pipeline``：
 
-  - 对齐它的对象模型和 API 形态是强制阶段
-  - 不能只对齐功能而忽略抽象边界
+  - 面向只有 C 驱动、没有现成 Rust 版本的场景
+  - 标准第二阶段是 ``mainline-grade conformance hardening``
 
-- 对比基线优先级固定为：
+- 研究校准流程是 ``reference-based research calibration pipeline``：
 
-  1. 原始 C 实现
-  2. 官方初始 upstream Rust 实现
-  3. 之后才视需要看最新主线成熟版
+  - 只在研究 benchmark 任务里使用
+  - 才会额外引入官方初始 upstream Rust 实现做对照
 
 3. intrusive / registered / callback-owned 对象默认优先主线式建模
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -112,7 +111,7 @@
 新规则：
 
 - helper 只能在主 bindings 缺口已经审计确认后生成。
-- 进入官方初始 upstream 对齐阶段后，必须再检查：
+- 进入 hardening 阶段后，必须再检查：
 
   - helper 现在是否仍然必要
   - 是否已经有更主线化的绑定/抽象路径
@@ -136,7 +135,8 @@
 基于以上修订，后续手册和开发说明必须统一采用下面口径：
 
 - ``blind-first`` 只算原型，不算主线级。
-- 官方初始 upstream 对比是强制阶段，不再是“可选参考”。
+- 真实工具流程使用 ``reference-free production pipeline``。
+- 官方初始 upstream 对比只属于 ``reference-based research calibration``。
 - 对象模型不仅要看功能，还要看：
 
   - ``Pin``
@@ -156,4 +156,5 @@
 因此，后续更合适的流程标准应当是：
 
 - **先用 ``blind-first`` 证明旧树上能独立跑通**
-- **再用官方初始 upstream 对齐与抽象 hardening 把原型收缩成更主线化的实现**
+- **再用 ``mainline-grade conformance hardening`` 把原型收缩成更主线化的实现**
+- **如果要研究流程缺陷，再额外做 ``reference-based evaluation``**

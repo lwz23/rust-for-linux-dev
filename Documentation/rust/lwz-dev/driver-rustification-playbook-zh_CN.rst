@@ -25,10 +25,10 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 3. 所有 ``unsafe`` 下沉到 ``rust/kernel/*`` 与极小 ``rust/helpers/*``。
 4. 用调试内核和差分测试证明 Rust 版不是玩具，而是当前阶段可运行、可验证、可回退的实现。
 
-经过 ``rnull@v6.10`` 对官方初始 upstream 的二次验证后，本手册新增一个更严格的总目标：
+经过 ``rnull@v6.10`` 的研究校准后，本手册新增一个更严格的总目标：
 
 5. ``blind-first`` 只算 ``prototype-grade``，后续还必须经过
-   ``upstream alignment & abstraction hardening``，才能接近主线工程要求。
+   ``mainline-grade conformance hardening``，才能接近主线工程要求。
 
 先读结论
 --------
@@ -42,9 +42,30 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 5. 驱动层 ``drivers/net/nlmon_rust.rs`` 保持零 ``unsafe``。
 6. 先在 ``memory-debug`` 下跑强行为对照，再用 ``concurrency-debug`` /
    ``leak-debug`` 补并发与泄漏证据。
-7. 如果存在官方初始 upstream Rust 实现，必须继续做对象模型与 API 形态对齐。
+7. 再进入 ``mainline-grade conformance hardening``，按主线规则收缩对象模型与 safe API。
 8. 只有完成 ``hardening`` 后，才允许写工程验收与“接近主线级”的结论。
-9. 每一步单独提交；每次提交前先更新工作日志。
+9. 如果当前任务是研究型 benchmark，再额外做 ``reference-based evaluation``。
+10. 每一步单独提交；每次提交前先更新工作日志。
+
+先区分两条流程
+--------------
+
+从 ``rnull`` 之后，本文统一区分两类流程：
+
+1. ``reference-free production pipeline``
+
+- 面向真实工具场景
+- 输入是只有 C 版本、没有现成 Rust 版本的驱动
+- 这是未来工具真正要执行的标准流程
+
+2. ``reference-based research calibration pipeline``
+
+- 只在研究阶段使用
+- 目标是拿一个已有官方 Rust 版本的驱动做 benchmark
+- 用来校准规则、约束和验证器
+
+因此，真实生产流程里不存在“必须和官方 Rust 版本对齐”这一步。
+``rnull`` 里的 upstream 对比，属于研究校准而不是生产流程。
 
 先明确流程等级
 --------------
@@ -65,9 +86,9 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
 
 - 这一阶段通过后，只能说明“这条路径在当前旧树上可行”。
 
-2. ``upstream alignment & abstraction hardening``
+2. ``mainline-grade conformance hardening``
 
-- 如果目标模块存在官方初始 upstream Rust 实现，这一步是强制阶段。
+- 这是未来真实工具流程中的标准第二阶段。
 - 目标不是补更多功能，而是把原型期 safe API 收紧到更主线化的对象模型：
 
   - 默认优先 ``Pin + Opaque``
@@ -77,6 +98,14 @@ Rust-for-Linux 仓库里一条可执行、可回滚、可验证的工程路线�
   - helper 退役审计
 
 - 只有这一步完成后，才允许宣称“接近主线工程要求”。
+
+如果当前任务是研究型 benchmark，再额外追加：
+
+3. ``reference-based evaluation``
+
+- 只在目标模块已经有官方 Rust 版本时使用
+- 用于对照官方初始 upstream 的对象模型和 API 形态
+- 它的产物是新规则、新约束和新验证器，而不是未来生产流程的新步骤
 
 不要做的事
 ----------
@@ -455,8 +484,10 @@ helper 设计规则：
 注意：
 
 - 上面这组测试顺序主要服务于 ``blind-first`` 的可运行验证与调试内核证据。
-- 如果目标模块存在官方初始 upstream Rust 实现，测试通过后还必须回到抽象层做
-  ``upstream alignment & abstraction hardening``，然后刷新审计和关键测试结论。
+- 对真实生产流程而言，测试通过后还必须回到抽象层做
+  ``mainline-grade conformance hardening``，然后刷新审计和关键测试结论。
+- 如果当前任务是研究型 benchmark，再在 hardening 之后追加
+  ``reference-based evaluation``。
 
 阶段 11：差分测试判读规则
 ------------------------
@@ -518,7 +549,7 @@ helper 设计规则：
 
 ``rnull`` 之后新增一条强制前提：
 
-- 如果还没有完成官方初始 upstream 对齐与 hardening，就不要写工程验收。
+- 如果还没有完成 ``mainline-grade conformance hardening``，就不要写工程验收。
 - 在那之前，最准确的表述只能是“原型已跑通并完成基础验证”。
 
 阶段 14：提交与 push 规则
@@ -539,10 +570,11 @@ helper 设计规则：
 11. 工程验收文档
 12. 完整复现手册
 
-如果存在官方初始 upstream Rust 参考实现，还要再插入两步：
+如果当前任务属于研究型 benchmark，且存在官方初始 upstream Rust 参考实现，
+还要再插入两步：
 
-13. 官方初始 upstream 对齐与差异总账
-14. 抽象 hardening 与审计刷新
+13. ``reference-based evaluation`` 与差异总账
+14. 基于对比结论刷新规则与审计
 
 每次提交前必须：
 
@@ -568,7 +600,8 @@ helper 设计规则：
 - ``unsafe`` 审计文档存在且与当前源码一致
 - 三套调试 profile 至少有基础对照结果
 - ``memory-debug`` 下有更强的行为/稳定性证据
-- 如果存在官方初始 upstream Rust 实现，已经完成对象模型对齐与 hardening
+- 已经完成 ``mainline-grade conformance hardening``
+- 如果当前任务属于研究型 benchmark，已经完成 ``reference-based evaluation``
 - 差分报告存在
 - 工程验收文档存在
 - 完整复现手册存在
