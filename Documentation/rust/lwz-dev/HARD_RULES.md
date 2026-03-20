@@ -48,3 +48,16 @@ Rust PHY driver in the isolated worktree.
 - If runtime diffing exposes stale field-layout assumptions, fix the
   abstraction first by deleting duplicated layout knowledge before changing
   driver logic.
+
+## Reference compare classification
+
+- After hardening, and again after any runtime-driven abstraction fix, classify
+  differences versus the official Rust implementation into `功能差异` and
+  `安全性差异` before deciding whether a delta is acceptable.
+- A broader official safe API is not automatically better; the benchmark branch
+  must explain whether that breadth buys real reuse or merely leaks extra
+  invariants into the safe surface.
+- If the benchmark branch keeps a stricter abstraction, the acceptance record
+  must state both sides clearly:
+  - what the official abstraction makes easier
+  - what extra safety or soundness argument the stricter abstraction preserves
