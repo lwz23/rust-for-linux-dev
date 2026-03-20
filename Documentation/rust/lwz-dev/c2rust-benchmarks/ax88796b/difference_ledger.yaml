@@ -57,3 +57,23 @@ items:
       The local reference checkout cannot resolve 79e25710e...^, so commit-level
       ancestry diffing was unavailable. The benchmark therefore used the current
       read-only reference files for the mandatory post-hardening compare.
+
+  - id: ax88796b-005
+    category: 安全修复
+    subsystem: rust/kernel/net/phy.rs
+    summary: handwritten phy_device bit offsets were replaced with bindgen-generated accessors
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/rust/kernel/net/phy.rs
+      - /home/lwz/rfl-dev/linux/rust/kernel/net/phy.rs
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/runtime-c.yaml
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/runtime-rust.yaml
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/runtime_diff.yaml
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/worklog.md
+    note: >
+      Runtime diffing first exposed that the earlier handwritten bit offsets for
+      link, autoneg, and autoneg_complete no longer matched the current-tree
+      `struct phy_device` layout. The benchmark branch now uses bindgen
+      accessors and has restored exact C/Rust observation parity across the
+      runtime matrix. The current reference `phy.rs` still carries the older
+      handwritten offsets.
