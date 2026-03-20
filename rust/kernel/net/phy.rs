@@ -50,6 +50,18 @@ pub enum DuplexMode {
     Unknown,
 }
 
+/// A 10/100 link speed reported by a basic PHY.
+///
+/// This intentionally models only the rates currently needed by the safe PHY
+/// drivers in this tree. Add broader variants only when a concrete user needs
+/// them.
+pub enum BasicSpeed {
+    /// PHY is in 10Mbps mode.
+    Ten,
+    /// PHY is in 100Mbps mode.
+    Hundred,
+}
+
 /// An instance of a PHY device.
 ///
 /// Wraps the kernel's [`struct phy_device`].
@@ -158,12 +170,16 @@ impl Device {
         bit_field.get(15, 1) == AUTONEG_COMPLETED
     }
 
-    /// Sets the speed of the PHY.
-    pub fn set_speed(&mut self, speed: u32) {
+    /// Sets the speed of a 10/100 PHY.
+    pub fn set_basic_speed(&mut self, speed: BasicSpeed) {
         let phydev = self.0.get();
+        let v = match speed {
+            BasicSpeed::Ten => bindings::SPEED_10,
+            BasicSpeed::Hundred => bindings::SPEED_100,
+        };
         // SAFETY: The struct invariant ensures that we may access
         // this field without additional synchronization.
-        unsafe { (*phydev).speed = speed as c_int };
+        unsafe { (*phydev).speed = v as c_int };
     }
 
     /// Sets duplex mode.
@@ -482,10 +498,6 @@ impl<T: Driver> Adapter<T> {
 #[repr(transparent)]
 pub struct DriverVTable(Opaque<bindings::phy_driver>);
 
-// SAFETY: `DriverVTable` doesn't expose any &self method to access internal data, so it's safe to
-// share `&DriverVTable` across execution context boundaries.
-unsafe impl Sync for DriverVTable {}
-
 /// Creates a [`DriverVTable`] instance from [`Driver`].
 ///
 /// This is used by [`module_phy_driver`] macro to create a static array of `phy_driver`.
@@ -642,9 +654,13 @@ pub struct Registration {
     drivers: Pin<&'static mut [DriverVTable]>,
 }
 
-// SAFETY: The only action allowed in a `Registration` instance is dropping it, which is safe to do
-// from any thread because `phy_drivers_unregister` can be called from any thread context.
+// SAFETY: Moving `Registration` to another thread does not move the pinned
+// driver table. `Drop` only unregisters the already-registered static table.
 unsafe impl Send for Registration {}
+
+// SAFETY: `Registration` does not expose any access to the registered driver
+// table through shared references.
+unsafe impl Sync for Registration {}
 
 impl Registration {
     /// Registers a PHY driver.

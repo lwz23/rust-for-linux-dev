@@ -44,9 +44,9 @@ fn asix_ax88772a_read_status(dev: &mut phy::Device) -> Result<u16> {
 
     let val = dev.read(C22::BMCR)?;
     if (val & bindings::BMCR_SPEED100 as u16) != 0 {
-        dev.set_speed(bindings::SPEED_100);
+        dev.set_basic_speed(phy::BasicSpeed::Hundred);
     } else {
-        dev.set_speed(bindings::SPEED_10);
+        dev.set_basic_speed(phy::BasicSpeed::Ten);
     }
 
     if (val & bindings::BMCR_FULLDPLX as u16) != 0 {
@@ -74,7 +74,7 @@ fn asix_ax88772a_link_change_notify(dev: &mut phy::Device) {
 impl Driver for AsixAx88772a {
     const NAME: &'static CStr = c"Asix Electronics AX88772A";
     const PHY_DEVICE_ID: phy::DeviceId = phy::DeviceId::new_with_exact_mask(PHY_ID_ASIX_AX88772A);
-    const FLAGS: u32 = bindings::PHY_IS_INTERNAL;
+    const FLAGS: u32 = phy::flags::IS_INTERNAL;
 
     fn soft_reset(dev: &mut phy::Device) -> Result {
         asix_soft_reset(dev)
@@ -101,7 +101,7 @@ impl Driver for AsixAx88772a {
 impl Driver for AsixAx88772c {
     const NAME: &'static CStr = c"Asix Electronics AX88772C";
     const PHY_DEVICE_ID: phy::DeviceId = phy::DeviceId::new_with_exact_mask(PHY_ID_ASIX_AX88772C);
-    const FLAGS: u32 = bindings::PHY_IS_INTERNAL;
+    const FLAGS: u32 = phy::flags::IS_INTERNAL;
 
     fn soft_reset(dev: &mut phy::Device) -> Result {
         asix_soft_reset(dev)

@@ -5,7 +5,7 @@
 - 分支：`feature/ax88796b-blind-rust`
 - C 金标准：`drivers/net/phy/ax88796b.c`
 - 只读参考树：`/home/lwz/rfl-dev/linux`
-- 当前阶段：stage 0 / stage 1 bootstrap
+- 当前阶段：stage 2 hardening
 
 ## 冻结记录
 
@@ -43,3 +43,22 @@
   - `scripts/lwz-dev/ax88796b-build.sh rust drivers/net/phy/ax88796b_rust.o`
 - 下一阶段将重点审查 phylib callback object model、safe API 宽度、
   `Send/Sync` 与生命周期边界。
+- hardening 审计结论：
+  - callback object model 继续采用 `Adapter` 回调桥接 +
+    `Device::from_raw()` 的短生命周期借用；驱动未持有跨回调状态。
+  - `Registration` 仍作为注册状态机边界：只接受已 pin 的 `'static`
+    驱动表，注册成功后由 `Drop` 配对 `phy_drivers_unregister()`。
+  - safe API 从 `set_speed(u32)` 收紧为
+    `set_basic_speed(BasicSpeed)`，避免驱动层任意写入 `phydev->speed`。
+  - 驱动切换到 `phy::flags::IS_INTERNAL`，不再直接依赖原始绑定常量。
+  - 试验性移除 `unsafe impl Send/Sync` 后，`Module: Send + Sync`
+    约束触发编译失败；因此保留最小必要的
+    `unsafe impl Send/Sync for Registration`，并移除
+    `unsafe impl Sync for DriverVTable`，把跨线程证明收敛到注册句柄。
+  - blind-first 和 hardening 均未新增 helper；当前判断仍为 helper 不需要。
+- hardening 后验证：
+  - `scripts/lwz-dev/ax88796b-build.sh rust drivers/net/phy/ax88796b_rust.o`
+  - `rg -n '\\bunsafe\\b' drivers/net/phy/ax88796b_rust.rs`
+  - 一次将 C/Rust 定向构建并行投递到同一 build dir 的尝试触发了
+    `fixdep` 竞争失败；随后已改为串行重跑并通过，后续验证遵循同一 build
+    目录串行构建。
