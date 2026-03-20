@@ -1,0 +1,77 @@
+# `cpufreq-dt` worklog
+
+- 日期：2026-03-20
+- worktree：`/home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust`
+- 分支：`feature/cpufreq-dt-blind-rust`
+
+## 1. 基线校准
+
+- 用户给定的 `ebbed9d02...` 和 `79e25710...` 在
+  `/home/lwz/rfl-dev/linux` 里可以解析，但这是 grafted 历史，不是
+  `cpufreq-dt` Rust 真正引入点的可追溯祖先。
+- 在 `/home/lwz/rfl-dev/linux-mainline` 中重新校准后，确认：
+  - true Rust 引入提交：`06149d8f2216894cee86106c701d13141948f159`
+  - true blind base：`14f47156cf390606eb719da9ad1058f87af0a291`
+- 只有在这一步完成后才开始 blind-write。
+
+## 2. blind-first 关键转向
+
+- 最早的 blind-first 设计更像冻结 C 实现：
+  - 倾向 probe 期提早聚合 domain；
+  - 倾向全局 registry；
+  - 倾向用自定义 module init 把全局状态串起来。
+- 在能编译后，这一设计被标记为仅 `prototype-grade`，没有直接当成最终抽象。
+
+## 3. hardening 关键转向
+
+- 将对象模型改为每个 policy 私有持有：
+  - `opp_table`
+  - `freq_table`
+  - `cpumask`
+  - `config_token`
+  - `clk`
+- 将 probe 侧收敛为平台驱动注册 cpufreq driver，而不是长期持有域级全局表。
+- 去掉驱动层手工资源附着，改由 `PolicyResources` 自动配对 policy 字段。
+- 将 CPU 设备查找收敛到 callback-scoped `cpu::with_device()`。
+- 去掉泛型 `platform_data<T>()`，只保留 `cpufreq-dt` 自己可用的窄解释路径。
+
+## 4. compare 之后的再收敛
+
+- 参考当前树官方实现后，确认我们 blind-first 早期过度模仿了 C 的全局结构。
+- 对齐动作：
+  - 将平台注册对象改成 devres 托管；
+  - 将 policy 私有状态改成 `Arc`；
+  - 清理早期全局 registry 方案残留的 helper 和不必要的 `Send/Sync`。
+- 保留动作：
+  - 保留 `cpufreq-dt.h` 平台数据扩展；
+  - 保留 `set_boost = cpufreq_boost_set_sw`；
+  - 保留 `CPUFREQ_ETERNAL` fallback。
+
+## 5. 主线风格差距总结
+
+### 模块实现层面
+
+- 我们已经对齐了每 policy 对象模型、资源归属和平台注册生命周期。
+- 我们仍未完全对齐官方当前树的 OF-match / API 形状。
+- 我们的本地 cpufreq API 在一些点上更窄更安全，但还只是单 benchmark 接口，
+  不能直接当成“官方已经会接受的抽象样子”。
+
+### 工作流程层面
+
+- 流程之前没有强制先问“能否用 per-policy + devres/platform 直接表达”，
+  结果 blind-first 很容易先走向全局 registry。
+- 流程之前没有强制 official-style delta review，导致 compare 很容易退化成
+  “差不多”式结论。
+- 流程之前没有把“safe API 是否比官方更宽”写成显式检查项。
+
+## 6. 回写到手册的规则来源
+
+- true blind base 校准规则：来自 grafted 历史造成的 SHA 歧义。
+- official-style delta review 强制化：来自 compare 暴露出的“功能对了但风格仍远离官方”。
+- per-policy/devres 优先问题：来自 cpufreq/OPP/platform 这一类非 netdev 对象模型。
+- runtime gap 封顶规则：来自本次缺少可信 DT-backed harness，不能越级给 grade。
+
+## 7. 当前未完成项
+
+- 没有可信 DT-backed runtime harness。
+- 因此当前不宣称 `engineering-grade`、`mainline-grade` 或更高。

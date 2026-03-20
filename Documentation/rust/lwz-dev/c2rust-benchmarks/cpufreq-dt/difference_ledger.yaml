@@ -1,0 +1,129 @@
+schema_version: 1
+module_id: cpufreq-dt
+generated_on: 2026-03-20
+items:
+  - id: cpufreq-dt-001
+    category: 旧树约束
+    subsystem: history-calibration
+    summary: user-provided SHAs resolved in a grafted tree and did not identify the true cpufreq-dt Rust introduction
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/module_manifest.yaml
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/worklog
+    note: >
+      Blind-first work started only after calibrating the real pre-Rust base in
+      /home/lwz/rfl-dev/linux-mainline.
+
+  - id: cpufreq-dt-002
+    category: 安全修复
+    subsystem: rust/kernel/platform.rs
+    summary: generic safe platform_data<T>() access was removed and narrowed to module-specific dt_platform_data()
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/unsafe_audit.md
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/worklog
+    note: >
+      Safe code no longer gets an unconstrained typed cast over arbitrary
+      platform data.
+
+  - id: cpufreq-dt-003
+    category: 安全修复
+    subsystem: rust/kernel/cpufreq.rs
+    summary: policy resource attachment is now paired with driver_data install and removal, eliminating driver-side unsafe attachment
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/unsafe_audit.md
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+    note: >
+      The driver no longer calls unsafe set_freq_table or set_clk directly.
+
+  - id: cpufreq-dt-004
+    category: 安全修复
+    subsystem: rust/kernel/cpu.rs
+    summary: CPU device lookup is constrained to a callback-scoped safe helper instead of escaping a borrowed device into long-lived state
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/unsafe_audit.md
+    note: >
+      This keeps the only safe CPU-device acquisition path narrow and setup-only.
+
+  - id: cpufreq-dt-005
+    category: 安全修复
+    subsystem: hardening-cleanup
+    summary: compare-driven cleanup removed global-registry-era helper residue and unnecessary Send/Sync additions
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/worklog
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/unsafe_audit.md
+    note: >
+      Present-CPU iteration helpers, global-lock init_once support, and
+      FreqTable Send/Sync additions were all artifacts of an abandoned earlier
+      design and were removed before finalization.
+
+  - id: cpufreq-dt-006
+    category: 可接受工程差异
+    subsystem: drivers/cpufreq/rcpufreq_dt.rs
+    summary: Rust driver preserves cpufreq-dt platform-data callbacks through RegistrationConfig while official current-tree Rust driver omits them
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/worklog
+    note: >
+      This difference is deliberate C-gold fidelity, not an accidental mismatch.
+
+  - id: cpufreq-dt-007
+    category: 可接受工程差异
+    subsystem: drivers/cpufreq/rcpufreq_dt.rs
+    summary: BOOST_ENABLED remains false while set_boost delegates to cpufreq_boost_set_sw to match the frozen C driver
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+    note: >
+      The official current-tree Rust driver currently differs here; this port
+      follows the C gold standard.
+
+  - id: cpufreq-dt-008
+    category: 可接受工程差异
+    subsystem: drivers/cpufreq/rcpufreq_dt.rs
+    summary: platform-device registration shape is retained instead of switching fully to the official OF-match style
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+    note: >
+      This keeps the port closer to the frozen C baseline while still adopting
+      the official per-policy ownership model.
+
+  - id: cpufreq-dt-009
+    category: 旧树约束
+    subsystem: rust/kernel/cpufreq.rs
+    summary: blind base lacks the current-tree CpuId-centric cpufreq API shape, so local APIs still use u32 CPU identifiers
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+    note: >
+      This is a style and ergonomics gap relative to the official current tree,
+      not a known functional mismatch.
+
+  - id: cpufreq-dt-010
+    category: 可接受工程差异
+    subsystem: rust/kernel/cpufreq.rs
+    summary: local cpufreq abstractions are narrower and safer than the current official tree in some spots, but they are still single-benchmark APIs
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/evaluation_report.md
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/unsafe_audit.md
+    note: >
+      Safer-than-official does not automatically mean official-style; the API
+      still needs more than one module before it can be treated as stable.
+
+  - id: cpufreq-dt-011
+    category: 旧树约束
+    subsystem: validation
+    summary: there is still no trustworthy DT-backed runtime harness for cpufreq-dt in this benchmark environment
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/module_manifest.yaml
+      - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt/acceptance_checklist.md
+    note: >
+      This blocks engineering-grade and any stronger conclusion about runtime
+      equivalence.

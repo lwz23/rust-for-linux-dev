@@ -1,0 +1,115 @@
+schema_version: 1
+module_id: cpufreq-dt
+module_title: cpufreq-dt blind Rust benchmark
+benchmark_track: blind-write
+sample_tier: medium
+scope: full_driver
+status: completed_with_runtime_gap
+generated_on: 2026-03-20
+current_grade: prototype-grade
+target_grade: engineering-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  reference_tree: /home/lwz/rfl-dev/linux
+  blind_history_tree: /home/lwz/rfl-dev/linux-mainline
+  isolated_worktree: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust
+  branch: feature/cpufreq-dt-blind-rust
+  build_dir: /home/lwz/rfl-dev/build-cpufreq-dt-blind
+blind_base:
+  requested_pre_rust_commit: ebbed9d02ece592c3e693db72197afad8de70af8
+  requested_rust_intro_commit: 79e25710e7227228902d672417b552dd1d7e5d3b
+  calibrated_pre_rust_commit: 14f47156cf390606eb719da9ad1058f87af0a291
+  calibrated_rust_intro_commit: 06149d8f2216894cee86106c701d13141948f159
+  note: >
+    The local /home/lwz/rfl-dev/linux history is grafted: the user-provided SHAs
+    resolve there, but they do not identify the true cpufreq-dt Rust introduction.
+    Blind-write development started only after calibrating the real history in
+    /home/lwz/rfl-dev/linux-mainline.
+dut:
+  subsystem: cpufreq
+  c_gold_standard: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/drivers/cpufreq/cpufreq-dt.c
+  rust_output: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/drivers/cpufreq/rcpufreq_dt.rs
+  official_rust_reference: /home/lwz/rfl-dev/linux/drivers/cpufreq/rcpufreq_dt.rs
+  official_kernel_abstraction: /home/lwz/rfl-dev/linux/rust/kernel/cpufreq.rs
+  platform_data_header: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/drivers/cpufreq/cpufreq-dt.h
+  frozen_behaviors:
+    - platform probe/remove registration path
+    - cpufreq policy init/online/offline/exit path
+    - OPP table, cpumask, clock, and regulator-token ownership
+    - cpufreq-dt platform-data callbacks from cpufreq-dt.h
+build:
+  config_symbols:
+    - CONFIG_RUST
+    - CONFIG_CPU_FREQ
+    - CONFIG_CPUFREQ_DT
+    - CONFIG_CPUFREQ_DT_RUST
+    - CONFIG_CPUFREQ_DT_PLATDEV
+    - CONFIG_PM_OPP
+    - CONFIG_OF
+    - CONFIG_COMMON_CLK
+  c_mode:
+    - CONFIG_CPUFREQ_DT=m
+    - CONFIG_CPUFREQ_DT_RUST=n
+  rust_mode:
+    - CONFIG_CPUFREQ_DT=m
+    - CONFIG_CPUFREQ_DT_RUST=y
+  build_command: >
+    source /home/lwz/rfl-dev/env.sh &&
+    make -C /home/lwz/rfl-dev/build-cpufreq-dt-blind V=1
+    drivers/cpufreq/rcpufreq_dt.o
+blind_first:
+  status: completed
+  driver_zero_unsafe: true
+  note: >
+    Blind-first completed without reading the official Rust cpufreq-dt driver or
+    rust/kernel/cpufreq.rs. The first working design mirrored the C gold more
+    closely and was later tightened during hardening.
+hardening:
+  status: completed
+  key_focus:
+    - probe/remove registration ownership
+    - policy init/online/offline/exit lifecycle
+    - OPP table, cpumask, clock, and token drop pairing
+    - safe API width
+    - helper retirement
+    - Send/Sync re-check
+compare_protocol:
+  reference_compare_performed_after_hardening: true
+  compared_files:
+    - /home/lwz/rfl-dev/linux/drivers/cpufreq/rcpufreq_dt.rs
+    - /home/lwz/rfl-dev/linux/rust/kernel/cpufreq.rs
+  focus_points:
+    - per-policy ownership versus probe-scoped ownership
+    - registered/devres boundary style
+    - safe API width versus official current tree
+    - platform-data fidelity versus official simplifications
+validation:
+  build_status: pass
+  diff_check: pass
+  driver_unsafe_scan: pass
+  runtime_status: gap
+  runtime_gap: >
+    No trustworthy DT-backed runtime harness was established in this task, so
+    policy init/online/offline, OPP transitions, and probe-failure rollback were
+    not validated on hardware or a reproducible emulated DT environment.
+  grade_ceiling_reason: >
+    Without trusted runtime evidence this benchmark may not claim
+    engineering-grade or higher, even though hardening and official-style delta
+    review were completed.
+outputs:
+  directory: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt
+  files:
+    - module_manifest.yaml
+    - evaluation_report.md
+    - difference_ledger.yaml
+    - unsafe_audit.md
+    - acceptance_checklist.md
+    - worklog
+methodology_feedback:
+  updated_docs:
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/AGENT_PLAYBOOK.md
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/HARD_RULES.md
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/ACCEPTANCE_CHECKLIST.md
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/EVALUATION_LADDER.md
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/BENCHMARK_PORTFOLIO.md
+    - /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rust/Documentation/rust/lwz-dev/PROMPT_TEMPLATE.md
