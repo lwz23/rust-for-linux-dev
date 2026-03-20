@@ -1,0 +1,10 @@
+{
+  "c_runtime": "/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/runtime-c.yaml",
+  "differences": [],
+  "generated_on": "2026-03-20",
+  "module_id": "ax88796b",
+  "rust_runtime": "/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/runtime-rust.yaml",
+  "scenario_count": 18,
+  "schema_version": 1,
+  "status": "match"
+}
