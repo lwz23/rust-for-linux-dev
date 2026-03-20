@@ -152,6 +152,15 @@ config AX88796B_RUST_PHY
 	  Uses the blind-write Rust driver for Asix PHYs (ax88796b_rust.ko)
 	  inside the isolated benchmark worktree.
 
+config AX88796B_BENCH_KUNIT
+	bool "Benchmark-only KUnit tests for ax88796b"
+	depends on KUNIT=y
+	depends on AX88796B_PHY=y
+	default n
+	help
+	  Builds the benchmark-only runtime equivalence harness used to compare
+	  the C and Rust ax88796b drivers through phylib entry points.
+
 config BROADCOM_PHY
 	tristate "Broadcom 54XX PHYs"
 	select BCM_NET_PHYLIB

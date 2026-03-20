@@ -11,8 +11,10 @@ target="${2:-}"
 
 source /home/lwz/rfl-dev/env.sh
 
-KERNEL_SRC=/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust
-KERNEL_BUILD=/home/lwz/rfl-dev/build-ax88796b-blind
+DEFAULT_KERNEL_SRC=/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust
+DEFAULT_KERNEL_BUILD=/home/lwz/rfl-dev/build-ax88796b-blind
+KERNEL_SRC="${AX88796B_KERNEL_SRC:-$DEFAULT_KERNEL_SRC}"
+KERNEL_BUILD="${AX88796B_KERNEL_BUILD:-$DEFAULT_KERNEL_BUILD}"
 CONFIGURE="$KERNEL_SRC/scripts/lwz-dev/ax88796b-configure.sh"
 
 "$CONFIGURE" "$mode"

@@ -18,8 +18,10 @@ esac
 
 source /home/lwz/rfl-dev/env.sh
 
-KERNEL_SRC=/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust
-KERNEL_BUILD=/home/lwz/rfl-dev/build-ax88796b-blind
+DEFAULT_KERNEL_SRC=/home/lwz/rfl-dev/worktrees/ax88796b-blind-rust
+DEFAULT_KERNEL_BUILD=/home/lwz/rfl-dev/build-ax88796b-blind
+KERNEL_SRC="${AX88796B_KERNEL_SRC:-$DEFAULT_KERNEL_SRC}"
+KERNEL_BUILD="${AX88796B_KERNEL_BUILD:-$DEFAULT_KERNEL_BUILD}"
 
 mkdir -p "$KERNEL_BUILD"
 
@@ -40,6 +42,27 @@ if [[ "$mode" == "rust" ]]; then
 else
     "$KERNEL_SRC/scripts/config" --file "$KERNEL_BUILD/.config" \
         -d AX88796B_RUST_PHY
+fi
+
+if [[ "${AX88796B_DEBUG:-0}" == "1" ]]; then
+    "$KERNEL_SRC/scripts/config" --file "$KERNEL_BUILD/.config" \
+        -e DEBUG_KERNEL \
+        -e PROVE_LOCKING \
+        -e DEBUG_MUTEXES \
+        -e REFCOUNT_FULL \
+        -e UBSAN \
+        -e KASAN \
+        -e KASAN_INLINE \
+        -d RANDOMIZE_BASE
+fi
+
+if [[ -n "${AX88796B_CONFIG_FRAGMENTS:-}" ]]; then
+    IFS=':' read -r -a fragments <<< "${AX88796B_CONFIG_FRAGMENTS}"
+    for fragment in "${fragments[@]}"; do
+        if [[ -n "$fragment" ]]; then
+            cat "$fragment" >> "$KERNEL_BUILD/.config"
+        fi
+    done
 fi
 
 make -C "$KERNEL_SRC" O="$KERNEL_BUILD" LLVM=1 olddefconfig
