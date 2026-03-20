@@ -4,7 +4,12 @@
 //!
 //! C header: [`include/linux/cpu.h`](srctree/include/linux/cpu.h)
 
-use crate::{bindings, device::Device, error::Result, prelude::ENODEV};
+use crate::{
+    bindings,
+    device::Device,
+    error::Result,
+    prelude::ENODEV,
+};
 
 /// Creates a new instance of CPU's device.
 ///
@@ -27,4 +32,16 @@ pub unsafe fn from_cpu(cpu: u32) -> Result<&'static Device> {
     // SAFETY: The pointer returned by `get_cpu_device()`, if not `NULL`, is a valid pointer to
     // a `struct device` and is never freed by the C code.
     Ok(unsafe { Device::as_ref(ptr) })
+}
+
+/// Calls `f` with the device backing `cpu`.
+///
+/// This is a narrow safe wrapper for CPU-device lookups that keeps the borrowed device reference
+/// scoped to the callback instead of letting it escape into long-lived state.
+#[inline]
+pub fn with_device<T>(cpu: u32, f: impl for<'a> FnOnce(&'a Device) -> Result<T>) -> Result<T> {
+    // SAFETY: The reference does not escape the callback and `get_cpu_device()` never returns
+    // freed memory; this is suitable for short-lived setup operations.
+    let dev = unsafe { from_cpu(cpu)? };
+    f(dev)
 }

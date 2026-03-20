@@ -187,6 +187,13 @@ impl<Ctx: device::DeviceContext> Device<Ctx> {
     fn as_raw(&self) -> *mut bindings::platform_device {
         self.0.get()
     }
+
+    pub(crate) fn platform_data_ptr(&self) -> *const crate::ffi::c_void {
+        // SAFETY: By the type invariant of `Self`, `self.as_raw()` points to a valid
+        // `struct platform_device`, and its embedded `struct device` stays alive for the duration
+        // of `&self`.
+        unsafe { (*self.as_ref().as_raw()).platform_data.cast() }
+    }
 }
 
 // SAFETY: `Device` is a transparent wrapper of a type that doesn't depend on `Device`'s generic

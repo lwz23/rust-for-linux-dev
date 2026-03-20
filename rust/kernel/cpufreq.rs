@@ -9,13 +9,16 @@
 //! Reference: <https://docs.kernel.org/admin-guide/pm/cpufreq.html>
 
 use crate::{
+    alloc::{Allocator, Box},
     clk::Hertz,
     cpumask,
     device::{Bound, Device},
     devres::Devres,
-    error::{code::*, from_err_ptr, from_result, to_result, Result, VTABLE_DEFAULT_ERROR},
-    ffi::{c_char, c_ulong},
+    error::{code::*, from_err_ptr, from_result, to_result, Error, Result, VTABLE_DEFAULT_ERROR},
+    ffi::{c_char, c_int, c_uint, c_ulong},
+    platform,
     prelude::*,
+    sync::Arc,
     types::ForeignOwnable,
     types::Opaque,
 };
@@ -536,6 +539,13 @@ impl Policy {
         unsafe { bindings::cpufreq_register_em_with_opp(self.as_mut_ref()) };
     }
 
+    /// Provides a wrapper to the software boost helper.
+    #[inline]
+    pub fn boost_set_sw(&mut self, state: i32) -> Result {
+        // SAFETY: By the type invariant, the pointer stored in `self` is valid.
+        to_result(unsafe { bindings::cpufreq_boost_set_sw(self.as_mut_ref(), state) })
+    }
+
     /// Gets [`cpumask::Cpumask`] for a cpufreq [`Policy`].
     #[inline]
     pub fn cpus(&mut self) -> &mut cpumask::Cpumask {
@@ -644,13 +654,13 @@ impl Policy {
     /// # Errors
     ///
     /// Returns `EBUSY` if private data is already set.
-    fn set_data<T: ForeignOwnable>(&mut self, data: T) -> Result {
+    fn set_data<T: ForeignOwnable>(&mut self, data: T) -> core::result::Result<(), (Error, T)> {
         if self.as_ref().driver_data.is_null() {
             // Transfer the ownership of the data to the foreign interface.
             self.as_mut_ref().driver_data = <T as ForeignOwnable>::into_foreign(data) as _;
             Ok(())
         } else {
-            Err(EBUSY)
+            Err((EBUSY, data))
         }
     }
 
@@ -667,6 +677,76 @@ impl Policy {
             self.as_mut_ref().driver_data = ptr::null_mut();
             data
         }
+    }
+
+    fn attach_resources<T: PolicyResources>(&mut self, data: &T) {
+        if let Some(table) = data.freq_table() {
+            self.as_mut_ref().freq_table = table.as_raw();
+        }
+
+        #[cfg(CONFIG_COMMON_CLK)]
+        if let Some(clk) = data.clk() {
+            self.as_mut_ref().clk = clk.as_raw();
+        }
+    }
+
+    fn clear_attached_resources(&mut self) {
+        self.as_mut_ref().freq_table = ptr::null_mut();
+
+        #[cfg(CONFIG_COMMON_CLK)]
+        {
+            self.as_mut_ref().clk = ptr::null_mut();
+        }
+    }
+}
+
+/// Policy resources that should be attached to the C `struct cpufreq_policy`.
+///
+/// This trait lets drivers describe long-lived resources that must stay attached to the policy for
+/// as long as the driver's private data is installed.
+pub trait PolicyResources {
+    /// Returns the frequency table that must remain attached to the policy, if any.
+    fn freq_table(&self) -> Option<&Table> {
+        None
+    }
+
+    /// Returns the clock that must remain attached to the policy, if any.
+    #[cfg(CONFIG_COMMON_CLK)]
+    fn clk(&self) -> Option<&Clk> {
+        None
+    }
+}
+
+impl<T: PolicyResources, A: Allocator> PolicyResources for Box<T, A> {
+    fn freq_table(&self) -> Option<&Table> {
+        self.deref().freq_table()
+    }
+
+    #[cfg(CONFIG_COMMON_CLK)]
+    fn clk(&self) -> Option<&Clk> {
+        self.deref().clk()
+    }
+}
+
+impl<T: PolicyResources, A: Allocator> PolicyResources for Pin<Box<T, A>> {
+    fn freq_table(&self) -> Option<&Table> {
+        self.as_ref().get_ref().freq_table()
+    }
+
+    #[cfg(CONFIG_COMMON_CLK)]
+    fn clk(&self) -> Option<&Clk> {
+        self.as_ref().get_ref().clk()
+    }
+}
+
+impl<T: PolicyResources> PolicyResources for Arc<T> {
+    fn freq_table(&self) -> Option<&Table> {
+        self.deref().freq_table()
+    }
+
+    #[cfg(CONFIG_COMMON_CLK)]
+    fn clk(&self) -> Option<&Clk> {
+        self.deref().clk()
     }
 }
 
@@ -711,6 +791,152 @@ impl<'a> Drop for PolicyCpu<'a> {
     }
 }
 
+/// Raw cpufreq policy callback used when a platform provides pre-existing C callbacks.
+pub type RawPolicyCallback = unsafe extern "C" fn(*mut bindings::cpufreq_policy) -> c_int;
+
+/// Raw `get_intermediate` callback provided by platform data.
+pub type RawGetIntermediateCallback =
+    unsafe extern "C" fn(*mut bindings::cpufreq_policy, u32) -> c_uint;
+
+/// Raw `target_intermediate` callback provided by platform data.
+pub type RawTargetIntermediateCallback =
+    unsafe extern "C" fn(*mut bindings::cpufreq_policy, u32) -> c_int;
+
+/// Immutable platform data understood by the generic DT-backed cpufreq driver.
+///
+/// This mirrors `struct cpufreq_dt_platform_data` from `drivers/cpufreq/cpufreq-dt.h`.
+#[repr(C)]
+pub struct DtPlatformData {
+    have_governor_per_policy: bool,
+    get_intermediate: Option<RawGetIntermediateCallback>,
+    target_intermediate: Option<RawTargetIntermediateCallback>,
+    suspend: Option<RawPolicyCallback>,
+    resume: Option<RawPolicyCallback>,
+}
+
+impl DtPlatformData {
+    /// Whether the platform expects governors to be managed per policy.
+    #[inline]
+    pub fn have_governor_per_policy(&self) -> bool {
+        self.have_governor_per_policy
+    }
+
+    /// Optional raw suspend callback supplied by platform data.
+    #[inline]
+    pub fn suspend_raw(&self) -> Option<RawPolicyCallback> {
+        self.suspend
+    }
+
+    /// Optional raw resume callback supplied by platform data.
+    #[inline]
+    pub fn resume_raw(&self) -> Option<RawPolicyCallback> {
+        self.resume
+    }
+
+    /// Optional raw `get_intermediate` callback supplied by platform data.
+    #[inline]
+    pub fn get_intermediate_raw(&self) -> Option<RawGetIntermediateCallback> {
+        self.get_intermediate
+    }
+
+    /// Optional raw `target_intermediate` callback supplied by platform data.
+    #[inline]
+    pub fn target_intermediate_raw(&self) -> Option<RawTargetIntermediateCallback> {
+        self.target_intermediate
+    }
+}
+
+/// Returns cpufreq-dt platform data, if any, associated with `dev`.
+pub fn dt_platform_data(dev: &platform::Device<crate::device::Core>) -> Option<&DtPlatformData> {
+    let ptr = dev.platform_data_ptr().cast::<DtPlatformData>();
+    if ptr.is_null() {
+        None
+    } else {
+        // SAFETY: `platform_data_ptr` is tied to the platform-device lifetime, and this helper
+        // narrows the cast to the single layout this module supports.
+        Some(unsafe { &*ptr })
+    }
+}
+
+/// Runtime configuration applied to a cpufreq driver registration.
+#[derive(Clone, Copy, Default)]
+pub struct RegistrationConfig {
+    extra_flags: u16,
+    suspend: Option<RawPolicyCallback>,
+    resume: Option<RawPolicyCallback>,
+    get_intermediate: Option<RawGetIntermediateCallback>,
+    target_intermediate: Option<RawTargetIntermediateCallback>,
+}
+
+impl RegistrationConfig {
+    /// Creates an empty registration configuration.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds driver flags on top of the statically declared ones.
+    #[inline]
+    pub fn add_flags(&mut self, flags: u16) -> &mut Self {
+        self.extra_flags |= flags;
+        self
+    }
+
+    /// Overrides the suspend callback with a raw platform callback.
+    #[inline]
+    pub fn set_suspend_raw(&mut self, callback: RawPolicyCallback) -> &mut Self {
+        self.suspend = Some(callback);
+        self
+    }
+
+    /// Overrides the resume callback with a raw platform callback.
+    #[inline]
+    pub fn set_resume_raw(&mut self, callback: RawPolicyCallback) -> &mut Self {
+        self.resume = Some(callback);
+        self
+    }
+
+    /// Overrides the `get_intermediate` callback with a raw platform callback.
+    #[inline]
+    pub fn set_get_intermediate_raw(
+        &mut self,
+        callback: RawGetIntermediateCallback,
+    ) -> &mut Self {
+        self.get_intermediate = Some(callback);
+        self
+    }
+
+    /// Overrides the `target_intermediate` callback with a raw platform callback.
+    #[inline]
+    pub fn set_target_intermediate_raw(
+        &mut self,
+        callback: RawTargetIntermediateCallback,
+    ) -> &mut Self {
+        self.target_intermediate = Some(callback);
+        self
+    }
+
+    fn apply(&self, drv: &mut bindings::cpufreq_driver) {
+        drv.flags |= self.extra_flags;
+
+        if let Some(callback) = self.suspend {
+            drv.suspend = Some(callback);
+        }
+
+        if let Some(callback) = self.resume {
+            drv.resume = Some(callback);
+        }
+
+        if let Some(callback) = self.get_intermediate {
+            drv.get_intermediate = Some(callback);
+        }
+
+        if let Some(callback) = self.target_intermediate {
+            drv.target_intermediate = Some(callback);
+        }
+    }
+}
+
 /// CPU frequency driver.
 ///
 /// Implement this trait to provide a CPU frequency driver and its callbacks.
@@ -731,7 +957,7 @@ pub trait Driver {
     ///
     /// Require that `PData` implements `ForeignOwnable`. We guarantee to never move the underlying
     /// wrapped data structure.
-    type PData: ForeignOwnable;
+    type PData: ForeignOwnable + PolicyResources;
 
     /// Driver's `init` callback.
     fn init(policy: &mut Policy) -> Result<Self::PData>;
@@ -849,6 +1075,8 @@ pub trait Driver {
 ///
 /// #[derive(Default)]
 /// struct SampleDriver;
+///
+/// impl cpufreq::PolicyResources for SampleDevice {}
 ///
 /// #[vtable]
 /// impl cpufreq::Driver for SampleDriver {
@@ -1030,11 +1258,22 @@ impl<T: Driver> Registration<T> {
         dst
     }
 
+    fn vtable(config: &RegistrationConfig) -> bindings::cpufreq_driver {
+        let mut drv = Self::VTABLE;
+        config.apply(&mut drv);
+        drv
+    }
+
     /// Registers a CPU frequency driver with the cpufreq core.
     pub fn new() -> Result<Self> {
+        Self::new_with(&RegistrationConfig::new())
+    }
+
+    /// Registers a CPU frequency driver with runtime configuration overrides.
+    pub fn new_with(config: &RegistrationConfig) -> Result<Self> {
         // We can't use `&Self::VTABLE` directly because the cpufreq core modifies some fields in
         // the C `struct cpufreq_driver`, which requires a mutable reference.
-        let mut drv = KBox::new(UnsafeCell::new(Self::VTABLE), GFP_KERNEL)?;
+        let mut drv = KBox::new(UnsafeCell::new(Self::vtable(config)), GFP_KERNEL)?;
 
         // SAFETY: `drv` is guaranteed to be valid for the lifetime of `Registration`.
         to_result(unsafe { bindings::cpufreq_register_driver(drv.get_mut()) })?;
@@ -1048,6 +1287,13 @@ impl<T: Driver> Registration<T> {
     /// device is detached.
     pub fn new_foreign_owned(dev: &Device<Bound>) -> Result {
         Devres::new_foreign_owned(dev, Self::new()?, GFP_KERNEL)
+    }
+
+    /// Same as [`Registration::new_with`], but lets devres own the registration.
+    ///
+    /// The driver is unregistered automatically when the bound device is detached.
+    pub fn new_foreign_owned_with(dev: &Device<Bound>, config: &RegistrationConfig) -> Result {
+        Devres::new_foreign_owned(dev, Self::new_with(config)?, GFP_KERNEL)
     }
 }
 
@@ -1063,7 +1309,12 @@ impl<T: Driver> Registration<T> {
             let policy = unsafe { Policy::from_raw_mut(ptr) };
 
             let data = T::init(policy)?;
-            policy.set_data(data)?;
+            policy.attach_resources(&data);
+            if let Err((err, data)) = policy.set_data(data) {
+                drop(data);
+                policy.clear_attached_resources();
+                return Err(err);
+            }
             Ok(0)
         })
     }
@@ -1076,6 +1327,7 @@ impl<T: Driver> Registration<T> {
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
 
+        policy.clear_attached_resources();
         let data = policy.clear_data();
         let _ = T::exit(policy, data);
     }
