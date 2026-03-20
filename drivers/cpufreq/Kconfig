@@ -217,6 +217,15 @@ config CPUFREQ_DT
 
 	  If in doubt, say N.
 
+config CPUFREQ_DT_RUST
+	bool "Rust reference driver for Generic DT based cpufreq driver"
+	depends on RUST && CPUFREQ_DT
+	help
+	  Use the Rust reference implementation of the generic DT based cpufreq
+	  driver (rcpufreq_dt.ko) instead of the C version.
+
+	  If in doubt, say N.
+
 config CPUFREQ_VIRT
 	tristate "Virtual cpufreq driver"
 	depends on GENERIC_ARCH_TOPOLOGY

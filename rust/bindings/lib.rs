@@ -20,6 +20,7 @@
     non_upper_case_globals,
     non_snake_case,
     improper_ctypes,
+    unnecessary_transmutes,
     unreachable_pub,
     unsafe_op_in_unsafe_fn
 )]

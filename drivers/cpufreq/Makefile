@@ -14,7 +14,11 @@ obj-$(CONFIG_CPU_FREQ_GOV_CONSERVATIVE)	+= cpufreq_conservative.o
 obj-$(CONFIG_CPU_FREQ_GOV_COMMON)		+= cpufreq_governor.o
 obj-$(CONFIG_CPU_FREQ_GOV_ATTR_SET)	+= cpufreq_governor_attr_set.o
 
+ifdef CONFIG_CPUFREQ_DT_RUST
+obj-$(CONFIG_CPUFREQ_DT)		+= rcpufreq_dt.o
+else
 obj-$(CONFIG_CPUFREQ_DT)		+= cpufreq-dt.o
+endif
 obj-$(CONFIG_CPUFREQ_DT_PLATDEV)	+= cpufreq-dt-platdev.o
 obj-$(CONFIG_CPUFREQ_VIRT)		+= virtual-cpufreq.o
 
