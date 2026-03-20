@@ -1,15 +1,16 @@
 schema_version: 1
 module_id: ax88796b
-module_title: Rust Asix PHY current-tree benchmark
+module_title: Rust Asix PHY current-tree blind-write benchmark
 benchmark_track: current-tree
 sample_tier: small
 scope: full_driver
-status: in_progress
-current_grade: unassessed
+status: completed
+current_grade: prototype-grade
 target_grade: mainline-grade
 source_tree:
   workspace_root: /home/lwz/rfl-dev
   kernel_tree: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust
+  reference_tree: /home/lwz/rfl-dev/linux
   upstream_branch: upstream/rust-next
   working_branch: feature/ax88796b-blind-rust
 dut:
@@ -34,12 +35,38 @@ build:
     - CONFIG_AX88796B_RUST_PHY=y
     - CONFIG_RUST_PHYLIB_ABSTRACTIONS=y
   build_script: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/scripts/lwz-dev/ax88796b-build.sh
+  full_builds:
+    - c: bzImage modules
+    - rust: bzImage modules
 validation:
+  build_status: passed
+  build_checks:
+    - git diff --check
+    - scripts/lwz-dev/ax88796b-build.sh c drivers/net/phy/ax88796b.o
+    - scripts/lwz-dev/ax88796b-build.sh rust drivers/net/phy/ax88796b_rust.o
+    - scripts/lwz-dev/ax88796b-build.sh c
+    - scripts/lwz-dev/ax88796b-build.sh rust
+    - rg -n '\\bunsafe\\b' drivers/net/phy/ax88796b_rust.rs
   runtime_status: gap
   current_gap: >
     No trusted runtime harness has been frozen for this PHY benchmark. Build,
     bindgen, hardening, and reference compare can proceed, but this run must
     not claim engineering-grade or higher without new runtime evidence.
+  reference_compare_note: >
+    The supplied commit 79e25710e7227228902d672417b552dd1d7e5d3b is grafted in
+    the local reference tree, so parent diff reconstruction was unavailable.
+    Final compare used the current reference files after hardening.
+compare_protocol:
+  required:
+    - freeze DUT and phylib callback surface
+    - perform blind-first bootstrap
+    - perform hardening
+    - compare with current-tree Rust reference
+  focus_points:
+    - read_status equivalence
+    - soft_reset ownership and side effects
+    - phylib callback table shape
+    - unnecessary Send/Sync or helper usage
 artifacts:
   directory: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b
   module_manifest: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/module_manifest.yaml
@@ -48,3 +75,18 @@ artifacts:
   unsafe_audit: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/unsafe_audit.md
   acceptance_checklist: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/acceptance_checklist.md
   worklog: /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/worklog.md
+  detailed_supporting_docs:
+    - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/HARD_RULES.md
+conclusions:
+  achieved:
+    - Completed blind-first, hardening, and post-hardening reference compare
+    - Kept the driver layer at zero unsafe
+    - Completed isolated C and Rust full-kernel builds
+  not_yet_claimed:
+    - engineering-grade
+    - mainline-grade
+    - generic upstream-ready phylib abstractions
+next_actions:
+  - add a credible runtime harness for PHY bring-up and link-state validation
+  - decide whether the narrowed safe speed API should replace the broader current-tree reference API
+  - revisit the grafted reference history if commit-level provenance becomes required

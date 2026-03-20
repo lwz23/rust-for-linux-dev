@@ -5,7 +5,7 @@
 - 分支：`feature/ax88796b-blind-rust`
 - C 金标准：`drivers/net/phy/ax88796b.c`
 - 只读参考树：`/home/lwz/rfl-dev/linux`
-- 当前阶段：stage 2 hardening
+- 当前阶段：stage 3 completed
 
 ## 冻结记录
 
@@ -62,3 +62,22 @@
   - 一次将 C/Rust 定向构建并行投递到同一 build dir 的尝试触发了
     `fixdep` 竞争失败；随后已改为串行重跑并通过，后续验证遵循同一 build
     目录串行构建。
+- hardening 提交：
+  - `57b35a2c6` `ax88796b: harden blind rust phy abstractions`
+- hardening 完成后已读取只读参考实现：
+  - `/home/lwz/rfl-dev/linux/drivers/net/phy/ax88796b_rust.rs`
+  - `/home/lwz/rfl-dev/linux/rust/kernel/net/phy.rs`
+- reference compare 结论：
+  - callback table 形状、`soft_reset` / `read_status` / `link_change_notify`
+    语义路径与参考实现一致。
+  - benchmark 分支的主要差异集中在 safe API 收紧、`Send/Sync` 证明边界收缩，
+    以及 benchmark 专用模块元数据与 Kconfig 文案。
+- 本地参考树中的提交 `79e25710e7227228902d672417b552dd1d7e5d3b`
+  以 grafted 形式出现，父提交不可解析；因此最终对照采用“hardening 后读取当前
+  参考文件 + 文件级 diff”的方式，而不是恢复该提交父子 diff。
+- 收尾验证已通过：
+  - `git diff --check`
+  - `scripts/lwz-dev/ax88796b-build.sh c drivers/net/phy/ax88796b.o`
+  - `scripts/lwz-dev/ax88796b-build.sh rust drivers/net/phy/ax88796b_rust.o`
+  - `scripts/lwz-dev/ax88796b-build.sh c`
+  - `scripts/lwz-dev/ax88796b-build.sh rust`

@@ -1,0 +1,59 @@
+schema_version: 1
+module_id: ax88796b
+generated_on: 2026-03-20
+items:
+  - id: ax88796b-001
+    category: 安全修复
+    subsystem: rust/kernel/net/phy.rs
+    summary: safe PHY speed update path was narrowed from set_speed(u32) to set_basic_speed(BasicSpeed)
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/rust/kernel/net/phy.rs
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/unsafe_audit.md
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/worklog.md
+    note: >
+      The reference tree exposes a broader safe integer setter. The benchmark
+      branch constrains the safe surface to the 10/100 speeds actually needed
+      by this driver, while preserving read_status behavior.
+
+  - id: ax88796b-002
+    category: 安全修复
+    subsystem: rust/kernel/net/phy.rs
+    summary: thread-safety proof moved off DriverVTable and onto Registration
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/rust/kernel/net/phy.rs
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/HARD_RULES.md
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/unsafe_audit.md
+    note: >
+      Compile testing showed Module still needs Send + Sync, but the raw driver
+      vtable did not need its own unsafe Sync impl. The benchmark keeps the
+      unsafe proof on the registration object that actually crosses the module
+      boundary.
+
+  - id: ax88796b-003
+    category: 可接受工程差异
+    subsystem: drivers/net/phy/ax88796b_rust.rs
+    summary: blind benchmark keeps benchmark-specific module metadata and local helper factoring
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/drivers/net/phy/ax88796b_rust.rs
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/drivers/net/phy/Kconfig
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/worklog.md
+    note: >
+      Module name, author strings, Kconfig help text, and local helper layout
+      differ from the reference tree to make the benchmark branch explicitly
+      blind-written. Callback coverage and driver behavior remain equivalent.
+
+  - id: ax88796b-004
+    category: 旧树约束
+    subsystem: reference-history
+    summary: supplied Rust introduction commit is grafted in the local reference tree
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/worklog.md
+      - /home/lwz/rfl-dev/worktrees/ax88796b-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b/evaluation_report.md
+    note: >
+      The local reference checkout cannot resolve 79e25710e...^, so commit-level
+      ancestry diffing was unavailable. The benchmark therefore used the current
+      read-only reference files for the mandatory post-hardening compare.
