@@ -1,0 +1,58 @@
+schema_version: 1
+module_id: cpufreq-dt
+module_title: Rust cpufreq-dt current-tree benchmark
+benchmark_track: current-tree
+sample_tier: medium
+scope: full_driver
+status: planned
+current_grade: unassessed
+target_grade: mainline-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/linux
+  upstream_branch: upstream/rust-next
+dut:
+  subsystem: cpufreq
+  c_gold_standard: /home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt.c
+  rust_reference: /home/lwz/rfl-dev/linux/drivers/cpufreq/rcpufreq_dt.rs
+  planned_blind_first_output: pending
+  rationale: >
+    This is the first non-net full-driver benchmark in the current-tree pool.
+    It expands the methodology toward platform-style registration, policy init,
+    CPU masks, OPP tables, and device tree driven setup.
+build:
+  config_symbols:
+    - CONFIG_CPUFREQ_DT_RUST
+    - CONFIG_CPUFREQ_DT_PLATDEV
+    - CONFIG_PM_OPP
+  c_mode:
+    - CONFIG_CPUFREQ_DT=y
+    - CONFIG_CPUFREQ_DT_RUST=n
+  rust_mode:
+    - CONFIG_CPUFREQ_DT_RUST=y
+  build_script: /home/lwz/rfl-dev/scripts/build-kernel.sh
+validation:
+  runtime_status: gap
+  current_gap: >
+    The benchmark still needs a reproducible DT-backed runtime environment and
+    a stable way to observe policy init, online/offline, and OPP transitions in
+    a current-tree test harness.
+compare_protocol:
+  required:
+    - freeze DUT and cpufreq policy boundary
+    - perform blind-first bootstrap
+    - perform hardening
+    - compare with current-tree Rust reference
+  focus_points:
+    - platform probe and teardown ownership
+    - cpumask and OPP lifetime modeling
+    - config token and clock ownership
+    - policy init / online equivalence
+planned_outputs:
+  directory: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt
+  files:
+    - module_manifest.yaml
+    - evaluation_report.md
+    - difference_ledger.yaml
+    - unsafe_audit.md
+    - acceptance_checklist.md

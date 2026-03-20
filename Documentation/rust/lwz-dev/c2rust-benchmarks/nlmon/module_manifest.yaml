@@ -1,0 +1,74 @@
+schema_version: 1
+module_id: nlmon
+module_title: Rust nlmon current-tree benchmark
+benchmark_track: current-tree
+sample_tier: small
+scope: full_driver
+status: completed
+current_grade: mainline-grade
+target_grade: upstreamable-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/linux
+  upstream_branch: upstream/rust-next
+  working_branch: feature/nlmon-rust
+dut:
+  subsystem: net
+  c_gold_standard: /home/lwz/rfl-dev/linux/drivers/net/nlmon.c
+  rust_candidate: /home/lwz/rfl-dev/linux/drivers/net/nlmon_rust.rs
+  rust_reference: none
+  rationale: >
+    nlmon is the first completed current-tree benchmark in this workspace.
+    It remains the small-sample baseline for the C2Rust methodology because
+    it already went through blind-first bootstrap, hardening, runtime diff
+    validation, and documentation refresh.
+build:
+  config_symbols:
+    - CONFIG_NLMON
+    - CONFIG_NLMON_RUST
+  c_mode:
+    - CONFIG_NLMON=y
+    - CONFIG_NLMON_RUST=n
+  rust_mode:
+    - CONFIG_NLMON=y
+    - CONFIG_NLMON_RUST=y
+  build_script: /home/lwz/rfl-dev/scripts/build-kernel.sh
+validation:
+  runtime_status: available
+  runtime_profiles:
+    - memory-debug
+    - concurrency-debug
+    - leak-debug
+  runtime_reports:
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-memory-debug-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-concurrency-debug-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-leak-debug-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/diff-test-report-2026-03-18-nlmon-normalized-pcap-zh_CN.rst
+  guest_runner_note: >
+    The existing runtime flow uses the nlmon-specific guest runner generated
+    under /home/lwz/rfl-dev/rootfs. This runner is real evidence for nlmon,
+    but it is not a generic test harness for other benchmarks.
+artifacts:
+  directory: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon
+  module_manifest: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon/module_manifest.yaml
+  evaluation_report: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon/evaluation_report.md
+  difference_ledger: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon/difference_ledger.yaml
+  unsafe_audit: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon/unsafe_audit.md
+  acceptance_checklist: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/nlmon/acceptance_checklist.md
+  detailed_supporting_docs:
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/report-2026-03-18-nlmon-rust-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/engineering-acceptance-2026-03-18-nlmon-rust-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/worklog-2026-03-18-zh_CN.rst
+conclusions:
+  achieved:
+    - Completed current-tree small-sample benchmark baseline
+    - Hardened private-data and registration object model
+    - Reached mainline-grade for the specific nlmon DUT
+  not_yet_claimed:
+    - Generic upstreamable netdev abstraction
+    - Full semantic diff of netlink payload contents
+next_actions:
+  - Keep nlmon as the schema example for future benchmark directories
+  - Reuse its artifact structure when executing ax88796b, cpufreq-dt, and drm-panic-qr

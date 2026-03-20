@@ -11,6 +11,7 @@ LWZ Rust-for-Linux 本地开发文档
    :maxdepth: 1
 
    development-guide-zh_CN
+   c2rust-research-kit-2026-03-20-zh_CN
    driver-rustification-playbook-zh_CN
    flow-revision-after-rnull-validation-2026-03-19-zh_CN
    nlmon-hardening-ledger-2026-03-19-zh_CN

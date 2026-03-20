@@ -1,0 +1,72 @@
+schema_version: 1
+module_id: nlmon
+generated_on: 2026-03-20
+items:
+  - id: nlmon-001
+    category: 安全修复
+    subsystem: rust/kernel/net/netdevice.rs
+    summary: private data access changed from broad mutable access to pinned private access
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    note: >
+      Safe drivers can no longer obtain a broad &mut Private path once private
+      data may contain registered or intrusive pinned state.
+
+  - id: nlmon-002
+    category: 安全修复
+    subsystem: rust/kernel/net/netdevice.rs
+    summary: NetlinkTapHandle became a pinned registered object
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    note: >
+      Registration state is now encoded in the type boundary instead of being
+      left to documentation and caller discipline.
+
+  - id: nlmon-003
+    category: 安全修复
+    subsystem: rust/kernel/net/rtnl.rs
+    summary: Registration<T> was refactored to a mainline-style pinned opaque registration object
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    note: >
+      This removes the prototype-style KBox<UnsafeCell<...>> aggregation model
+      from the final registered object boundary.
+
+  - id: nlmon-004
+    category: 可接受工程差异
+    subsystem: drivers/net/nlmon_rust.rs
+    summary: Rust transmit path uses consume_skb instead of spelling dev_kfree_skb
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    note: >
+      In this tree dev_kfree_skb(a) is a macro path to consume_skb(a), so this
+      does not count as a functional difference.
+
+  - id: nlmon-005
+    category: 旧树约束
+    subsystem: rust/helpers/net.c
+    summary: helper-backed entry points are still retained
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/unsafe-audit-2026-03-18-nlmon-rust-zh_CN.rst
+    note: >
+      The helper remains the actual binding source for selected entry points in
+      this tree and must be handled via a later helper retirement audit.
+
+  - id: nlmon-006
+    category: 可接受工程差异
+    subsystem: validation
+    summary: same-day baseline capture summaries drifted compared with older logs
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/engineering-acceptance-2026-03-18-nlmon-rust-zh_CN.rst
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/nlmon-hardening-ledger-2026-03-19-zh_CN.rst
+    note: >
+      Same-day C and Rust reruns converged on the new summary values, so the
+      drift is treated as environment/runtime variation rather than a Rust-only
+      functional regression.

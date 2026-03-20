@@ -1,0 +1,58 @@
+schema_version: 1
+module_id: ax88796b
+module_title: Rust Asix PHY current-tree benchmark
+benchmark_track: current-tree
+sample_tier: small
+scope: full_driver
+status: planned
+current_grade: unassessed
+target_grade: mainline-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/linux
+  upstream_branch: upstream/rust-next
+dut:
+  subsystem: net/phy
+  c_gold_standard: /home/lwz/rfl-dev/linux/drivers/net/phy/ax88796b.c
+  rust_reference: /home/lwz/rfl-dev/linux/drivers/net/phy/ax88796b_rust.rs
+  planned_blind_first_output: pending
+  rationale: >
+    This is the next small sample after nlmon. It keeps the benchmark in-tree,
+    has both C and Rust implementations, and exercises phylib callbacks rather
+    than rtnl/netdevice registration.
+build:
+  config_symbols:
+    - CONFIG_AX88796B_PHY
+    - CONFIG_AX88796B_RUST_PHY
+  c_mode:
+    - CONFIG_AX88796B_PHY=y
+    - CONFIG_AX88796B_RUST_PHY=n
+  rust_mode:
+    - CONFIG_AX88796B_PHY=y
+    - CONFIG_AX88796B_RUST_PHY=y
+  build_script: /home/lwz/rfl-dev/scripts/build-kernel.sh
+validation:
+  runtime_status: gap
+  current_gap: >
+    No current-tree reusable automated runtime harness has been frozen yet for
+    this PHY benchmark. Hardware, emulation, or a targeted phylib validation
+    path must be defined before grading beyond prototype-grade.
+compare_protocol:
+  required:
+    - freeze DUT and phylib callback surface
+    - perform blind-first bootstrap
+    - perform hardening
+    - compare with current-tree Rust reference
+  focus_points:
+    - read_status equivalence
+    - soft_reset ownership and side effects
+    - phylib callback table shape
+    - unnecessary Send/Sync or helper usage
+planned_outputs:
+  directory: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/ax88796b
+  files:
+    - module_manifest.yaml
+    - evaluation_report.md
+    - difference_ledger.yaml
+    - unsafe_audit.md
+    - acceptance_checklist.md
