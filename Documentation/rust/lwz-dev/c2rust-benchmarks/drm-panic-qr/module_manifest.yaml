@@ -1,60 +1,100 @@
-schema_version: 1
+schema_version: 2
 module_id: drm-panic-qr
+generated_on: 2026-03-21
+pipeline_mode: calibration
+conversion_stage: hardening
+style_alignment: benchmark-calibrated
+runtime_state: unvalidated
+stage_ceiling: hardening
+validation_gap:
+  - no credible panic or NMI runtime harness for the QR panic path
+  - default build and Rust-enabled KUnit are blocked locally by clang/libclang 14.0.0, while this tree requires >= 15.0.0
+  - blind-first purity was degraded by accidental pre-S9 reference exposure and must be treated as contaminated
 module_title: DRM panic QR component benchmark
 benchmark_track: current-tree
 sample_tier: large-component
 scope: component
-status: planned
-current_grade: unassessed
-target_grade: engineering-grade
+status: completed-with-gaps
 source_tree:
   workspace_root: /home/lwz/rfl-dev
   kernel_tree: /home/lwz/rfl-dev/linux
-  upstream_branch: upstream/rust-next
+  worktree: /home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust
+  working_branch: feature/drm-panic-qr-blind-rust
+  baseline_docs_branch: feature/nlmon-rust
+  dut_blob_equivalence:
+    compared_branches:
+      - feature/nlmon-rust
+      - rust-next
+    equal_files:
+      - drivers/gpu/drm/drm_panic.c
+      - drivers/gpu/drm/Kconfig
+      - drivers/gpu/drm/Makefile
+      - drivers/gpu/drm/tests/drm_panic_test.c
+build:
+  default_build_dir: /home/lwz/rfl-dev/build-drm-panic-qr-blind/default
+  kunit_build_dir: /home/lwz/rfl-dev/build-drm-panic-qr-blind/kunit
+  attempted_toolchains:
+    - cc: clang 14.0.0
+      ld: ld.lld 14.0.0
+      result: blocked
+      note: kernel Kconfig gate requires clang >= 15.0.0
+    - cc: gcc 11.4.0
+      ld: ld.bfd 2.38
+      result: partially-usable
+      note: defconfig and olddefconfig succeed, but rustavailable still fails because bindgen/libclang is 14.0.0
 dut:
   subsystem: drm
   c_gold_standard: /home/lwz/rfl-dev/linux/drivers/gpu/drm/drm_panic.c
-  c_component_scope: >
-    The QR code generator and panic-screen QR integration guarded by
-    CONFIG_DRM_PANIC_SCREEN_QR_CODE.
+  rust_candidate: /home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust/drivers/gpu/drm/drm_panic_qr.rs
   rust_reference: /home/lwz/rfl-dev/linux/drivers/gpu/drm/drm_panic_qr.rs
-  planned_blind_first_output: pending
-  rationale: >
-    This benchmark intentionally widens the scope from full drivers to a panic-
-    context component. It tests whether the methodology can handle no-allocation,
-    panic-path, compression, and QR-encoding logic without assuming the target
-    is always a standalone driver module.
-build:
-  config_symbols:
-    - CONFIG_DRM_PANIC
-    - CONFIG_DRM_PANIC_SCREEN_QR_CODE
-    - CONFIG_ZLIB_DEFLATE
-  rust_mode:
-    - CONFIG_DRM_PANIC=y
-    - CONFIG_DRM_PANIC_SCREEN_QR_CODE=y
-  build_script: /home/lwz/rfl-dev/scripts/build-kernel.sh
-validation:
-  runtime_status: gap
-  current_gap: >
-    A panic-path validation strategy still needs to be frozen. The benchmark
-    cannot claim more than static and build-side progress until a controlled
-    panic-screen QR validation flow is defined.
-compare_protocol:
-  required:
-    - freeze component boundaries inside drm_panic.c
-    - perform blind-first bootstrap at component scope
-    - perform hardening
-    - compare with current-tree Rust reference
-  focus_points:
-    - panic-context no-allocation constraints
-    - stack-only or caller-buffer ownership
-    - QR encoder state modeling
-    - integration seam with drm_panic.c
-planned_outputs:
-  directory: /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr
-  files:
-    - module_manifest.yaml
-    - evaluation_report.md
-    - difference_ledger.yaml
-    - unsafe_audit.md
-    - acceptance_checklist.md
+  component_scope: >
+    The benchmark scope is the QR-only panic component guarded by
+    CONFIG_DRM_PANIC_SCREEN_QR_CODE: the preallocated buffers, zlib workspace,
+    init/exit lifecycle, qr-url/raw selection, draw entry, and the minimal
+    integration seam inside drm_panic.c. The blind Rust candidate keeps the C
+    integration seam in place and replaces the current-tree QR encoder ABI.
+  included_symbols:
+    - qrbuf1
+    - qrbuf2
+    - stream
+    - drm_panic_qr_init
+    - drm_panic_qr_exit
+    - drm_panic_get_qr_code_url
+    - drm_panic_get_qr_code_raw
+    - drm_panic_get_qr_code
+    - _draw_panic_screen_qr_code
+    - draw_panic_screen_qr_code
+    - drm_panic_qr_generate
+    - drm_panic_qr_max_data_size
+  excluded_scope:
+    - user panic screen rewrites outside the QR seam
+    - kmsg panic screen rewrites outside the QR seam
+calibration:
+  user_provided_pre_rust_base: ebbed9d02ece592c3e693db72197afad8de70af8
+  user_provided_rust_intro: 79e25710e7227228902d672417b552dd1d7e5d3b
+  calibrated_pre_rust_base: 8f4eca6ac52a72181b4f054d4ef6289a5d8cfa5d
+  calibrated_rust_intro: cb5164ac43d0fc37ac6b45cabbc4d244068289ef
+  calibration_note: >
+    The provided pre-Rust base and Rust introduction commits already contained
+    drivers/gpu/drm/drm_panic_qr.rs. A metadata-only recovery pass found the
+    true path-level introduction boundary at cb5164ac43d0fc37ac6b45cabbc4d244068289ef
+    with parent 8f4eca6ac52a72181b4f054d4ef6289a5d8cfa5d.
+reference_contamination:
+  - stage: pre-s9
+    kind: limited-symbol-exposure
+    source: recursive search
+    detail: only symbol names and a few comment/export snippets were exposed before implementation
+  - stage: pre-s9
+    kind: full-official-body exposure
+    source: git diff on the rewritten worktree path
+    detail: the previous current-tree file body became visible before the formal S9 delta review
+conclusions:
+  achieved:
+    - phase-0 path calibration and DUT freeze completed
+    - blind-first Rust QR candidate implemented with zero unsafe in drivers/gpu/drm/drm_panic_qr.rs
+    - no C helper was introduced
+    - official-style delta review completed against the current-tree Rust reference
+  not_claimed:
+    - engineering-grade
+    - runtime_state=validated
+    - uncontaminated reference-free blind-first result

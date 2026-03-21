@@ -1,0 +1,54 @@
+Run metadata
+- `pipeline_mode=calibration`
+- `conversion_stage=hardening`
+- `style_alignment=benchmark-calibrated`
+- `runtime_state=unvalidated`
+- `stage ceiling=hardening`
+- `validation gap`:
+  - no credible panic or NMI runtime harness for the QR panic path
+  - default build and Rust-enabled KUnit are blocked locally by clang/libclang 14.0.0, while this tree requires >= 15.0.0
+  - blind-first purity was degraded by accidental pre-S9 reference exposure and must be treated as contaminated
+
+2026-03-21 08:xx Stage 0
+- Confirmed the isolated worktree `/home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust`, branch `feature/drm-panic-qr-blind-rust`, and split build roots under `/home/lwz/rfl-dev/build-drm-panic-qr-blind`.
+- Verified that the benchmark docs exist only on `feature/nlmon-rust`, while the DUT blobs match `rust-next`.
+
+2026-03-21 09:xx Path calibration
+- User-provided `ebbed9d02ece592c3e693db72197afad8de70af8` and `79e25710e7227228902d672417b552dd1d7e5d3b` were rejected as path-level base/introduction points because both already contain `drivers/gpu/drm/drm_panic_qr.rs`.
+- A metadata-only recovery pass found the true introduction at `cb5164ac43d0fc37ac6b45cabbc4d244068289ef` and the true pre-Rust base at `8f4eca6ac52a72181b4f054d4ef6289a5d8cfa5d`.
+
+2026-03-21 09:xx Static frontend
+- Read `drm_panic.c`, DRM `Kconfig`, DRM `Makefile`, `include/drm/drm_panic.h`, and `drivers/gpu/drm/tests/drm_panic_test.c`.
+- Froze the DUT as the QR-only panic component under `CONFIG_DRM_PANIC_SCREEN_QR_CODE`.
+- Classified the sample as a component benchmark that fits `panic-context-pure-component` more closely than a full driver model.
+
+2026-03-21 09:xx Reference contamination log
+- Limited pre-S9 contamination existed before coding via recursive search: symbol names plus a few comment/export snippets.
+- A later `git diff` on the rewritten worktree path exposed the previous current-tree body before the formal S9 compare. This upgraded the contamination severity and means the blind lane is no longer clean.
+
+2026-03-21 09:xx Blind-first implementation
+- Rewrote `drivers/gpu/drm/drm_panic_qr.rs` blindly as a zero-unsafe export layer.
+- Added `rust/kernel/drm/panic_qr.rs` to contain raw-pointer conversion and QR generation logic.
+- Kept the current-tree C seam unchanged: preallocation, zlib, draw, and init/exit stay in `drm_panic.c`.
+
+2026-03-21 09:xx Hardening / audits
+- Confirmed no helper was introduced.
+- Confirmed no `Send/Sync` was introduced.
+- Confirmed the Rust QR path does not call allocation APIs and only uses caller buffers plus stack values.
+- Recorded the 3 raw FFI `unsafe` points in `unsafe-obligations.json`.
+
+2026-03-21 09:4x Verification attempts
+- `git diff --check` passed.
+- `clang 14 + ld.lld 14` failed at config stage because the tree requires clang >= 15.
+- `gcc 11 + ld.bfd 2.38` can run `x86_64_defconfig` and `olddefconfig`, but `make rustavailable` still fails because bindgen/libclang is 14.0.0 and the tree requires >= 15.0.0.
+- `kunit.py run` confirmed the existing DRM panic KUnit entry is present, but `CONFIG_RUST` and `CONFIG_DRM_PANIC_SCREEN_QR_CODE` remain unsatisfied under the local toolchain.
+
+2026-03-21 09:4x Stage 9
+- Switched to formal official-style delta review against `/home/lwz/rfl-dev/linux/drivers/gpu/drm/drm_panic_qr.rs`.
+- Recorded aligned items, misaligned items, old-tree constraints, and workflow gaps in `calibration-delta.json`.
+
+2026-03-21 Final state
+- The run reached `conversion_stage=hardening`, `style_alignment=benchmark-calibrated`, `runtime_state=unvalidated`.
+- The run remained capped at `stage ceiling=hardening`.
+- The recorded `validation gap` remains: no trusted panic runtime harness, no Rust-capable local clang/libclang >= 15, and no uncontaminated blind lane after the pre-S9 exposure.
+- The run did not reach an uncontaminated blind-first conclusion or a runtime-validated engineering closure.

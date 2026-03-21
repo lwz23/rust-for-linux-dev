@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "No credible panic/NMI runtime harness for the QR panic path",
+    "Rust-enabled build and KUnit are blocked locally by clang/libclang 14.0.0 < 15.0.0"
+  ],
+  "workspace": {
+    "workspace_root": "/home/lwz/rfl-dev",
+    "kernel_tree": "/home/lwz/rfl-dev/linux",
+    "worktree": "/home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust",
+    "branch": "feature/drm-panic-qr-blind-rust",
+    "default_build_dir": "/home/lwz/rfl-dev/build-drm-panic-qr-blind/default",
+    "kunit_build_dir": "/home/lwz/rfl-dev/build-drm-panic-qr-blind/kunit",
+    "output_dir": "/home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr"
+  },
+  "path_calibration": {
+    "user_provided_pre_rust_base": "ebbed9d02ece592c3e693db72197afad8de70af8",
+    "user_provided_rust_intro": "79e25710e7227228902d672417b552dd1d7e5d3b",
+    "calibrated_pre_rust_base": "8f4eca6ac52a72181b4f054d4ef6289a5d8cfa5d",
+    "calibrated_rust_intro": "cb5164ac43d0fc37ac6b45cabbc4d244068289ef",
+    "commit_subject": "drm/panic: Add a QR code panic screen",
+    "calibration_method": [
+      "git show --no-patch metadata in a temporary metadata-only clone",
+      "parent verification for the true introduction commit",
+      "path absence check on the calibrated pre-Rust base"
+    ]
+  },
+  "dut": {
+    "subsystem": "drm",
+    "c_gold_standard": "/home/lwz/rfl-dev/linux/drivers/gpu/drm/drm_panic.c",
+    "kconfig_symbol": "CONFIG_DRM_PANIC_SCREEN_QR_CODE",
+    "component_scope": "QR generation and integration logic guarded by CONFIG_DRM_PANIC_SCREEN_QR_CODE",
+    "included": [
+      "preallocated qrbuf1/qrbuf2",
+      "zlib workspace and stream lifetime",
+      "drm_panic_qr_init()/drm_panic_qr_exit()",
+      "drm_panic_get_qr_code_url()/raw()/dispatcher",
+      "_draw_panic_screen_qr_code()/draw_panic_screen_qr_code()",
+      "panic screen type selection and drm_panic_init()/exit() seam"
+    ],
+    "excluded": [
+      "non-QR user panic screen rewrites",
+      "non-QR kmsg panic screen rewrites"
+    ]
+  },
+  "candidate_shape": {
+    "driver_entry_file": "/home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust/drivers/gpu/drm/drm_panic_qr.rs",
+    "kernel_abstraction_file": "/home/lwz/rfl-dev/worktrees/drm-panic-qr-blind-rust/rust/kernel/drm/panic_qr.rs",
+    "c_integration_retained": [
+      "preallocation",
+      "kmsg dumping",
+      "zlib compression",
+      "draw path",
+      "init/exit call sites"
+    ],
+    "rust_owned_logic": [
+      "qr max data size calculation",
+      "qr encoding ABI",
+      "packed monochrome image generation"
+    ]
+  },
+  "reference_contamination": [
+    {
+      "stage": "pre-s9",
+      "source": "recursive search",
+      "severity": "limited",
+      "detail": "Symbol names and a few snippets leaked before implementation"
+    },
+    {
+      "stage": "pre-s9",
+      "source": "git diff on rewritten worktree path",
+      "severity": "high",
+      "detail": "The previous current-tree worktree body became visible before the formal S9 compare"
+    }
+  ]
+}
