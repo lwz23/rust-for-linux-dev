@@ -1,0 +1,247 @@
+schema_version: 1
+validators:
+  - validator_id: diff-whitespace-check
+    tool: git diff --check
+    inputs:
+      - generated_patch
+    applies_to:
+      - all
+    blocking_stage: blind
+    output_fields:
+      - pass
+      - findings
+
+  - validator_id: build-check
+    tool: kernel-build
+    inputs:
+      - source_tree
+      - build_config
+    applies_to:
+      - all
+    blocking_stage: blind
+    output_fields:
+      - pass
+      - target
+      - log_path
+
+  - validator_id: driver-unsafe-scan
+    tool: ripgrep
+    inputs:
+      - generated_driver
+    applies_to:
+      - all
+    blocking_stage: blind
+    output_fields:
+      - pass
+      - matches
+
+  - validator_id: binding-gap-review
+    tool: structured-audit
+    inputs:
+      - binding-gap-audit.json
+    applies_to:
+      - all
+    blocking_stage: bindings
+    output_fields:
+      - pass
+      - unresolved_gaps
+
+  - validator_id: helper-audit-review
+    tool: structured-audit
+    inputs:
+      - helper-audit.json
+    applies_to:
+      - all
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - helper_count
+      - helper_justifications
+
+  - validator_id: private-access-width-check
+    tool: api-shape-review
+    inputs:
+      - generated_abstractions
+      - pattern-selection.json
+    applies_to:
+      - rtnl-netdevice-registered-module
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - widened_private_access_paths
+
+  - validator_id: registered-object-pinning-check
+    tool: api-shape-review
+    inputs:
+      - generated_abstractions
+      - c-structure-map.json
+    applies_to:
+      - rtnl-netdevice-registered-module
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - unpinned_registered_objects
+
+  - validator_id: ownership-pair-check
+    tool: lifecycle-audit
+    inputs:
+      - generated_driver
+      - unsafe-obligations.json
+    applies_to:
+      - all
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - unmatched_pairs
+
+  - validator_id: drop-pair-check
+    tool: lifecycle-audit
+    inputs:
+      - generated_driver
+      - generated_abstractions
+    applies_to:
+      - all
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - drop_findings
+
+  - validator_id: send-sync-justification-check
+    tool: rule-audit
+    inputs:
+      - generated_abstractions
+      - unsafe-obligations.json
+    applies_to:
+      - all
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - unjustified_markers
+
+  - validator_id: callback-table-shape-check
+    tool: shape-audit
+    inputs:
+      - c-structure-map.json
+      - generated_driver
+    applies_to:
+      - phy-callback-table-driver
+      - platform-devres-per-policy-owner
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - findings
+
+  - validator_id: global-registry-smell-check
+    tool: shape-audit
+    inputs:
+      - generated_driver
+      - c-structure-map.json
+    applies_to:
+      - platform-devres-per-policy-owner
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - global_registry_findings
+
+  - validator_id: lifecycle-owner-unit-check
+    tool: lifecycle-audit
+    inputs:
+      - c-structure-map.json
+      - pattern-selection.json
+      - generated_driver
+    applies_to:
+      - platform-devres-per-policy-owner
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - owner_unit_findings
+
+  - validator_id: panic-context-noalloc-check
+    tool: panic-audit
+    inputs:
+      - generated_driver
+      - generated_abstractions
+    applies_to:
+      - panic-context-pure-component
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - allocation_findings
+
+  - validator_id: configfs-drop-release-pair-check
+    tool: lifecycle-audit
+    inputs:
+      - c-structure-map.json
+      - generated_driver
+      - generated_abstractions
+    applies_to:
+      - configfs-powered-block-mq-child
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - drop_release_findings
+
+  - validator_id: historical-toolchain-compat-review
+    tool: structured-audit
+    inputs:
+      - binding-gap-audit.json
+      - verification-summary.json
+    applies_to:
+      - calibration-only
+    blocking_stage: blind
+    output_fields:
+      - pass
+      - compatibility_findings
+      - incorrectly_classified_driver_deltas
+
+  - validator_id: pipeline-mode-check
+    tool: orchestration-policy
+    inputs:
+      - task_metadata
+    applies_to:
+      - all
+    blocking_stage: blind
+    output_fields:
+      - pass
+      - mode_violations
+
+  - validator_id: unresolved-pattern-check
+    tool: orchestration-policy
+    inputs:
+      - pattern-selection.json
+      - verification-summary.json
+    applies_to:
+      - all
+    blocking_stage: hardening
+    output_fields:
+      - pass
+      - unresolved_patterns
+      - stage_ceiling
+
+  - validator_id: official-style-delta-review
+    tool: structured-compare
+    inputs:
+      - official_rust_source
+      - generated_driver
+      - generated_abstractions
+    applies_to:
+      - calibration-only
+    blocking_stage: accepted-candidate
+    output_fields:
+      - pass
+      - aligned_items
+      - misaligned_items
+      - old_tree_constraints
+      - workflow_gaps
+
+  - validator_id: difference-ledger-completeness
+    tool: structured-audit
+    inputs:
+      - difference_ledger.yaml
+      - verification-summary.json
+    applies_to:
+      - all
+    blocking_stage: accepted-candidate
+    output_fields:
+      - pass
+      - unclassified_differences

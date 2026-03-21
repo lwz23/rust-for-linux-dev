@@ -1,0 +1,178 @@
+schema_version: 1
+rules:
+  - rule_id: RFL-001
+    title: driver-layer-zero-unsafe
+    trigger:
+      any_module: true
+    preferred_rust_shape:
+      - unsafe confined to rust/kernel/* or minimal helper glue
+    forbidden_shapes:
+      - driver file contains unsafe block
+      - driver file contains raw extern "C" bridge logic
+    required_validators:
+      - driver-unsafe-scan
+    stage_ceiling: hardening
+
+  - rule_id: RFL-002
+    title: bindings-before-helper
+    trigger:
+      any_binding_gap: true
+    preferred_rust_shape:
+      - expand main bindings first
+      - restrict helpers to inline or macro blind spots
+    forbidden_shapes:
+      - add helper before binding-gap audit
+      - use helper to define new driver-private C types
+    required_validators:
+      - binding-gap-review
+      - helper-audit-review
+    stage_ceiling: hardening
+
+  - rule_id: RFL-003
+    title: callback-table-to-trait
+    trigger:
+      callback_table:
+        - function_pointers
+        - static_ops_table
+    preferred_rust_shape:
+      - trait plus vtable macro
+      - subsystem registration object or macro
+    forbidden_shapes:
+      - handwritten raw ops table in driver file
+    required_validators:
+      - callback-table-shape-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-004
+    title: registered-or-intrusive-must-be-pinned
+    trigger:
+      lifecycle_signals:
+        - register
+        - unregister
+        - add
+        - remove
+        - list_head
+        - container_of
+    preferred_rust_shape:
+      - pin_data plus opaque plus pinned_drop plus explicit state boundary
+    forbidden_shapes:
+      - movable aggregate stores registered state
+      - shared mutable access can move registered object
+    required_validators:
+      - registered-object-pinning-check
+      - private-access-width-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-005
+    title: resource-handles-must-be-raii-owned
+    trigger:
+      resource_pair_signals:
+        - get_put
+        - init_free
+        - add_remove
+    preferred_rust_shape:
+      - raii handle owned by the state object that defines the lifetime
+    forbidden_shapes:
+      - one release responsibility split across module-global and local state
+      - raw pointer resources stored without drop pairing
+    required_validators:
+      - ownership-pair-check
+      - drop-pair-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-006
+    title: split-lifecycle-prefers-minimal-owner-unit
+    trigger:
+      split_lifecycle_signals:
+        - probe_remove
+        - open_stop
+        - policy_init_exit
+        - online_offline
+        - power_on_off
+    preferred_rust_shape:
+      - model ownership at the smallest lifecycle unit that actually owns the resource
+    forbidden_shapes:
+      - copy C global registry shape before checking per-instance ownership
+    required_validators:
+      - lifecycle-owner-unit-check
+      - global-registry-smell-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-007
+    title: send-sync-requires-structural-proof
+    trigger:
+      send_sync_candidate: true
+    preferred_rust_shape:
+      - omit send and sync unless a structural proof exists
+    forbidden_shapes:
+      - default unsafe impl send or sync for convenience
+    required_validators:
+      - send-sync-justification-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-008
+    title: official-rust-only-in-calibration
+    trigger:
+      pipeline_mode: production
+    preferred_rust_shape:
+      - do not consult official Rust implementation
+    forbidden_shapes:
+      - production generation depends on official Rust source
+    required_validators:
+      - pipeline-mode-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-009
+    title: official-compare-is-post-hardening-only
+    trigger:
+      pipeline_mode: calibration
+    preferred_rust_shape:
+      - official compare happens only after hardening
+    forbidden_shapes:
+      - read official Rust implementation during blind or bindings stages
+    required_validators:
+      - official-style-delta-review
+    stage_ceiling: accepted-candidate
+
+  - rule_id: RFL-010
+    title: unresolved-patterns-must-cap-stage
+    trigger:
+      unresolved_pattern: true
+    preferred_rust_shape:
+      - emit pattern_unresolved and manual_rule_needed markers
+    forbidden_shapes:
+      - silently treat unresolved pattern as final design
+    required_validators:
+      - unresolved-pattern-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-011
+    title: configfs-registered-child-must-audit-drop-and-release
+    trigger:
+      lifecycle_signals:
+        - configfs_drop_item
+        - config_item_release
+        - add
+        - remove
+    preferred_rust_shape:
+      - child-owned live state hidden behind explicit power boundary
+      - early teardown and final release both documented and paired
+    forbidden_shapes:
+      - assume user-visible power store is the only teardown path
+      - leave final release undocumented once child owns registered state
+    required_validators:
+      - configfs-drop-release-pair-check
+      - drop-pair-check
+    stage_ceiling: hardening
+
+  - rule_id: RFL-012
+    title: historical-toolchain-drift-is-not-driver-delta
+    trigger:
+      historical_baseline: true
+    preferred_rust_shape:
+      - record compatibility fixes separately as old-tree constraints
+    forbidden_shapes:
+      - treat rustc or build-system compatibility patches as driver behavior proof
+    required_validators:
+      - historical-toolchain-compat-review
+    stage_ceiling: blind

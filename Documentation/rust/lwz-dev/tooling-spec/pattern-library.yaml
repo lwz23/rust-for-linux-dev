@@ -1,0 +1,111 @@
+schema_version: 1
+patterns:
+  - pattern_id: rtnl-netdevice-registered-module
+    description: >
+      Module-scoped registration object plus pinned private state living in
+      foreign-owned netdevice storage.
+    c_signals:
+      - rtnl_link_ops
+      - netdev_priv
+      - ndo_open_stop
+      - setup_callback
+    rust_shape:
+      - module owns pinned registration object
+      - driver trait defines callback surface
+      - private state initialized in place and accessed through pinned private accessor
+    forbidden_shapes:
+      - movable registration aggregate
+      - broad mutable private access
+    required_validators:
+      - registered-object-pinning-check
+      - private-access-width-check
+      - driver-unsafe-scan
+
+  - pattern_id: phy-callback-table-driver
+    description: >
+      Stateless or lightly stateful callback-table driver registered through a
+      subsystem macro and trait surface.
+    c_signals:
+      - phy_driver_table
+      - read_status
+      - suspend_resume
+      - soft_reset
+    rust_shape:
+      - trait impl per device flavor
+      - subsystem registration macro owns callback table
+      - no unnecessary module-global mutable state
+    forbidden_shapes:
+      - handwritten raw callback table
+      - unnecessary registered helper objects
+    required_validators:
+      - callback-table-shape-check
+      - helper-audit-review
+      - driver-unsafe-scan
+
+  - pattern_id: platform-devres-per-policy-owner
+    description: >
+      Platform device performs lightweight registration; long-lived resources
+      belong to policy-scoped state and device-bound registration uses devres.
+    c_signals:
+      - platform_driver
+      - probe_remove
+      - cpufreq_policy_driver_data
+      - opp_and_clk_lifetime
+      - online_offline
+    rust_shape:
+      - platform driver owns registration through devres
+      - per-policy state owns OPP table, freq table, cpumask, token, and clock
+      - resource handles are RAII and attached through narrow kernel abstractions
+    forbidden_shapes:
+      - probe-scoped global registry by default
+      - detached release responsibilities for policy resources
+    required_validators:
+      - lifecycle-owner-unit-check
+      - ownership-pair-check
+      - global-registry-smell-check
+      - driver-unsafe-scan
+
+  - pattern_id: panic-context-pure-component
+    description: >
+      Pure algorithmic or buffer-based component with no registration object and
+      panic-path restrictions such as no-allocation.
+    c_signals:
+      - panic_context
+      - stack_only
+      - no_allocation
+      - pure_algorithm_component
+    rust_shape:
+      - plain value types and explicit buffer/state-machine modeling
+      - no forced driver-registration abstraction
+    forbidden_shapes:
+      - unnecessary subsystem-registration wrapper
+      - heap allocation introduced into panic path
+    required_validators:
+      - panic-context-noalloc-check
+      - ownership-pair-check
+
+  - pattern_id: configfs-powered-block-mq-child
+    description: >
+      A configfs subsystem creates child groups, and each child owns a powered
+      block-mq device whose disk, tagset, and queuedata live exactly as long as
+      the child remains powered on.
+    c_signals:
+      - configfs_subsystem
+      - configfs_group_ops
+      - power_attribute
+      - blk_mq_tag_set
+      - request_pdu
+      - queuedata
+    rust_shape:
+      - module owns pinned configfs subsystem
+      - child object owns config state and live disk state
+      - live block object is hidden behind explicit power-on and power-off transitions
+      - queue_data ownership is paired with GenDisk lifetime
+    forbidden_shapes:
+      - movable live disk state exposed directly to callers
+      - only auditing power store while ignoring drop_item or final release
+    required_validators:
+      - configfs-drop-release-pair-check
+      - ownership-pair-check
+      - drop-pair-check
+      - driver-unsafe-scan
