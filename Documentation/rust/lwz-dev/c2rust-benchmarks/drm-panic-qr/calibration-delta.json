@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "No runtime panic harness",
+    "Default build/KUnit blocked by local toolchain",
+    "Blind lane contaminated before formal S9"
+  ],
+  "aligned_items": [
+    {
+      "topic": "panic-context no-allocation",
+      "detail": "Both implementations keep QR generation allocation-free and consume caller-provided buffers"
+    },
+    {
+      "topic": "buffer ownership shape",
+      "detail": "Both implementations reuse the data/tmp buffers supplied from drm_panic.c and do not create a registration object"
+    },
+    {
+      "topic": "integration boundary",
+      "detail": "Both keep preallocation, kmsg_dump, zlib flow, and draw ownership inside drm_panic.c while exporting only qr ABI entry points"
+    },
+    {
+      "topic": "error-correction policy",
+      "detail": "Both target low ECC to maximize panic-path capacity"
+    }
+  ],
+  "misaligned_items": [
+    {
+      "topic": "URL numeric packing",
+      "detail": "The official implementation uses a FIDO-style 7-byte to 17-digit numeric packing scheme, whereas the blind candidate encodes each compressed byte as a zero-padded 3-digit numeric chunk"
+    },
+    {
+      "topic": "mask selection",
+      "detail": "The official implementation applies a fixed checkerboard mask; the blind candidate runs full automatic mask selection from the adapted Nayuki engine"
+    },
+    {
+      "topic": "unsafe containment",
+      "detail": "The official old-tree file keeps unsafe extern C exports in the driver file, while the blind candidate moves raw-pointer handling into rust/kernel/drm/panic_qr.rs and keeps the driver layer zero-unsafe"
+    },
+    {
+      "topic": "state model",
+      "detail": "The official implementation uses custom Version/Segment/EncodedMsg/QrImage iterators; the blind candidate uses a more general QrCode/QrSegment/BitBuffer value model"
+    },
+    {
+      "topic": "max_data_size heuristic",
+      "detail": "The official implementation uses a coarse max*39/40 estimate for URL mode; the blind candidate computes exact capacity for its simpler per-byte numeric packing"
+    }
+  ],
+  "old_tree_constraints": [
+    {
+      "topic": "current-tree decomposition",
+      "detail": "The current tree keeps the wider panic component in C and only exposes the QR encoder ABI to Rust"
+    },
+    {
+      "topic": "benchmark branch selection",
+      "detail": "The worktree had to branch from feature/nlmon-rust for benchmark docs even though the DUT blobs match rust-next"
+    },
+    {
+      "topic": "runtime evidence",
+      "detail": "The tree does not provide a trusted panic runtime harness for QR validation"
+    }
+  ],
+  "workflow_gaps": [
+    {
+      "topic": "input calibration drift",
+      "detail": "The provided pre-Rust base and intro commits were not the true path-level boundaries"
+    },
+    {
+      "topic": "pre-s9 contamination",
+      "detail": "Recursive search and a later git diff exposed the official worktree body before the formal S9 compare"
+    },
+    {
+      "topic": "local toolchain gap",
+      "detail": "clang/libclang 14 prevents a local Rust-enabled build or KUnit run on this tree"
+    }
+  ]
+}

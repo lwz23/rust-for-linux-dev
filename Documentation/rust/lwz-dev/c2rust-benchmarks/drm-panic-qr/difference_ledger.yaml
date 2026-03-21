@@ -1,0 +1,70 @@
+schema_version: 1
+module_id: drm-panic-qr
+generated_on: 2026-03-21
+pipeline_mode: calibration
+conversion_stage: hardening
+style_alignment: benchmark-calibrated
+runtime_state: unvalidated
+stage_ceiling: hardening
+validation_gap:
+  - no credible panic runtime harness
+  - local clang/libclang version blocks Rust-enabled build evidence
+items:
+  - id: drm-panic-qr-001
+    category: 旧树约束
+    subsystem: calibration
+    summary: provided pre-Rust base and Rust introduction commits were not the true path-level boundaries
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/dut-spec.json
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/worklog
+    note: >
+      This did not change the DUT itself, but it changed what could honestly be
+      claimed as the blind base.
+
+  - id: drm-panic-qr-002
+    category: 安全修复
+    subsystem: drivers/gpu/drm/drm_panic_qr.rs
+    summary: raw-pointer and C-string unsafe handling was moved out of the driver file into rust/kernel/drm/panic_qr.rs
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/unsafe-obligations.json
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/unsafe_audit.md
+    note: >
+      This tightens the driver-layer-zero-unsafe rule even though it diverges
+      from the current-tree reference layout.
+
+  - id: drm-panic-qr-003
+    category: 可接受工程差异
+    subsystem: rust/kernel/drm/panic_qr.rs
+    summary: the blind candidate uses a general QR engine with full mask search instead of the official fixed checkerboard mask
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/calibration-delta.json
+    note: >
+      The rendered bitmap can differ, but the ABI and caller-buffer ownership
+      model remain compatible.
+
+  - id: drm-panic-qr-004
+    category: 不可接受功能差异
+    subsystem: rust/kernel/drm/panic_qr.rs
+    summary: URL-mode numeric packing is less compact and not decoder-compatible with the official 7-byte to 17-digit scheme
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/calibration-delta.json
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/evaluation_report.md
+    note: >
+      The blind candidate preserves the binary-url plus numeric-segment shape,
+      but its per-byte 3-digit packing changes capacity and the expected decoder.
+
+  - id: drm-panic-qr-005
+    category: 旧树约束
+    subsystem: drm_panic component seam
+    summary: the current-tree decomposition keeps preallocation, zlib, and draw ownership in drm_panic.c
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/c-structure-map.json
+      - /home/lwz/rfl-dev/linux/Documentation/rust/lwz-dev/c2rust-benchmarks/drm-panic-qr/calibration-delta.json
+    note: >
+      This benchmark is component-scoped, but the Rust candidate still lands on
+      the same current-tree QR ABI boundary as the official implementation.
