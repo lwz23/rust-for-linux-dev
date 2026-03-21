@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "No runtime harness; audit is static"
+  ],
+  "helper_usage": [],
+  "decision": {
+    "helper_needed": false,
+    "reason": "All remaining inline/macro blind spots stay on the C-owned integration seam, and raw-pointer containment was moved to rust/kernel/drm/panic_qr.rs instead of a C helper"
+  },
+  "forbidden_shapes_checked": [
+    "No helper-backed driver-private C type was introduced",
+    "No helper was added before the binding-gap audit"
+  ]
+}

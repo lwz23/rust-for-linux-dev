@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "No runtime panic harness",
+    "Rust-enabled build is blocked by local libclang/toolchain version"
+  ],
+  "classification": {
+    "scope": "component",
+    "benchmark_rationale": [
+      "The DUT is a panic-path QR generator integrated into drm_panic.c rather than a standalone registered driver",
+      "The state is dominated by preallocated buffers, caller-provided buffers, and pure algorithm/dataflow logic",
+      "The meaningful seam is the QR ABI plus the C-owned panic integration path, not subsystem registration"
+    ],
+    "closer_to": "panic-context-pure-component",
+    "why_not_full_driver": [
+      "No registration object is introduced by the QR encoder itself",
+      "The current-tree Rust file only exports qr generator ABI entry points",
+      "panic draw and zlib flow remain inside drm_panic.c"
+    ]
+  },
+  "signals": {
+    "panic_context": true,
+    "no_allocation": true,
+    "caller_buffer_ownership": true,
+    "preallocated_buffer_ownership": true,
+    "pure_algorithm_component": true,
+    "driver_registration_model": false
+  },
+  "objects": [
+    {
+      "name": "qrbuf1",
+      "kind": "preallocated-buffer",
+      "owner": "drm_panic_qr_init()/drm_panic_qr_exit()",
+      "panic_path_use": "kmsg storage or temporary QR scratch"
+    },
+    {
+      "name": "qrbuf2",
+      "kind": "preallocated-buffer",
+      "owner": "drm_panic_qr_init()/drm_panic_qr_exit()",
+      "panic_path_use": "compressed kmsg or final QR bitmap"
+    },
+    {
+      "name": "stream.workspace",
+      "kind": "preallocated-workspace",
+      "owner": "drm_panic_qr_init()/drm_panic_qr_exit()",
+      "panic_path_use": "zlib state"
+    },
+    {
+      "name": "drm_panic_qr_generate(data, tmp)",
+      "kind": "caller-buffer ABI",
+      "owner": "drm_panic.c",
+      "panic_path_use": "zero-allocation QR encoding surface"
+    }
+  ],
+  "integration_seams": [
+    "drm_panic_get_qr_code_url()",
+    "drm_panic_get_qr_code_raw()",
+    "drm_panic_get_qr_code()",
+    "_draw_panic_screen_qr_code()",
+    "draw_panic_screen_qr_code()",
+    "drm_panic_init()/drm_panic_exit()"
+  ],
+  "test_reuse": {
+    "existing_entry": "drivers/gpu/drm/tests/drm_panic_test.c",
+    "can_provide": [
+      "draw-path coverage for qr_code screen selection",
+      "static framebuffer write coverage",
+      "config-gated integration evidence"
+    ],
+    "cannot_provide": [
+      "real panic or NMI timing",
+      "real kmsg_dump panic ordering",
+      "runtime proof of no-allocation on panic path"
+    ]
+  }
+}

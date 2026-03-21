@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "Pattern evidence is static only; runtime panic proof is unavailable"
+  ],
+  "selected_pattern": "panic-context-pure-component",
+  "selection_status": "resolved",
+  "evidence": [
+    "drm_panic.c explicitly documents panic-context constraints: no lock-taking, no allocation, no sleep",
+    "QR generation consumes caller-provided data/tmp buffers and C-owned preallocated buffers rather than registration-owned state",
+    "The Rust ABI is an algorithmic component with no device or subsystem registration object",
+    "The meaningful ownership model is buffer/state flow across init/exit and draw-time calls"
+  ],
+  "counter_evidence": [
+    "The benchmark scope includes a C-owned integration seam, zlib workspace, and draw path that are not all migrated into Rust in the blind candidate"
+  ],
+  "manual_rule_needed": false,
+  "pattern_unresolved": false,
+  "stage_ceiling_reached": false
+}

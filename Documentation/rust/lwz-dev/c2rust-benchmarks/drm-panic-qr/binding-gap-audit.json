@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "Build-generated bindings could not be regenerated locally because bindgen/libclang is 14.0.0 < 15.0.0"
+  ],
+  "audit_basis": [
+    "Static header review of include/drm/drm_panic.h and drm_panic.c",
+    "Current blind candidate keeps kmsg_dump/zlib/draw integration in C",
+    "Rust surface only consumes the exported qr ABI types"
+  ],
+  "covered_without_new_helper": [
+    "C ABI types: *const c_char, *mut u8, usize",
+    "C string conversion through kernel::str::CStrExt",
+    "caller-buffer ownership expressed via slices after raw conversion"
+  ],
+  "stays_on_c_side": [
+    "kmsg_dump_* iterator APIs",
+    "zlib_deflate* and struct z_stream_s",
+    "utsname() formatting",
+    "strlen / DIV_ROUND_UP / build-time string macros",
+    "drm_draw_* and get_default_font() draw helpers"
+  ],
+  "helper_candidates_considered": [
+    {
+      "name": "utsname()/string helper",
+      "decision": "not needed",
+      "reason": "The blind candidate does not move URL formatting out of drm_panic.c"
+    },
+    {
+      "name": "drm_draw / font helper",
+      "decision": "not needed",
+      "reason": "The current-tree seam keeps draw ownership in C"
+    }
+  ],
+  "result": {
+    "helper_needed": false,
+    "bindings_before_helper_respected": true
+  }
+}
