@@ -7,7 +7,13 @@
 
 use crate::block::mq::{raw_writer::RawWriter, Operations, TagSet};
 use crate::error;
-use crate::{bindings, error::from_err_ptr, error::Result, sync::Arc};
+use crate::{
+    bindings,
+    error::from_err_ptr,
+    error::Result,
+    sync::Arc,
+    types::{ForeignOwnable, ScopeGuard},
+};
 use core::fmt::{self, Write};
 
 /// A builder for [`GenDisk`].
@@ -92,7 +98,15 @@ impl GenDiskBuilder {
         self,
         name: fmt::Arguments<'_>,
         tagset: Arc<TagSet<T>>,
+        queue_data: T::QueueData,
     ) -> Result<GenDisk<T>> {
+        let data = queue_data.into_foreign();
+        let recover_data = ScopeGuard::new(|| {
+            // SAFETY: `data` was produced by `into_foreign` above and has not
+            // been transferred back yet.
+            drop(unsafe { T::QueueData::from_foreign(data) });
+        });
+
         let lock_class_key = crate::sync::LockClassKey::new();
 
         // SAFETY: `tagset.raw_tag_set()` points to a valid and initialized tag set
@@ -100,7 +114,7 @@ impl GenDiskBuilder {
             bindings::__blk_mq_alloc_disk(
                 tagset.raw_tag_set(),
                 core::ptr::null_mut(), // TODO: We can pass queue limits right here
-                core::ptr::null_mut(),
+                data.cast_mut(),
                 lock_class_key.as_ptr(),
             )
         })?;
@@ -180,6 +194,8 @@ impl GenDiskBuilder {
             },
         )?;
 
+        recover_data.dismiss();
+
         // INVARIANT: `gendisk` was initialized above.
         // INVARIANT: `gendisk` was added to the VFS via `device_add_disk` above.
         Ok(GenDisk {
@@ -207,9 +223,17 @@ unsafe impl<T: Operations + Send> Send for GenDisk<T> {}
 
 impl<T: Operations> Drop for GenDisk<T> {
     fn drop(&mut self) {
+        // SAFETY: By type invariant, `self.gendisk` points to a valid disk and
+        // the queue private data was created by `into_foreign` in `build`.
+        let queue_data = unsafe { (*(*self.gendisk).queue).queuedata };
+
         // SAFETY: By type invariant, `self.gendisk` points to a valid and
         // initialized instance of `struct gendisk`, and it was previously added
         // to the VFS.
         unsafe { bindings::del_gendisk(self.gendisk) };
+
+        // SAFETY: `queue_data` originates from `ForeignOwnable::into_foreign`
+        // in `build` and this is its unique matching reclamation point.
+        drop(unsafe { T::QueueData::from_foreign(queue_data) });
     }
 }

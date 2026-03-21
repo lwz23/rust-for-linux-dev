@@ -22,7 +22,15 @@ pub trait BoxExt<T>: Sized {
 impl<T> BoxExt<T> for Box<T> {
     fn new(x: T, flags: Flags) -> Result<Self, AllocError> {
         let b = <Self as BoxExt<_>>::new_uninit(flags)?;
-        Ok(Box::write(b, x))
+        let raw = Box::into_raw(b);
+
+        // SAFETY: `raw` points to a valid allocation for `MaybeUninit<T>`.
+        // Writing `x` initializes the allocation, and rebuilding the box
+        // transfers ownership back to `Box<T>`.
+        unsafe {
+            raw.write(MaybeUninit::new(x));
+            Ok(Box::from_raw(raw.cast::<T>()))
+        }
     }
 
     #[cfg(any(test, testlib))]

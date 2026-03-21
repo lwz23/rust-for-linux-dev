@@ -35,7 +35,11 @@ obj-$(CONFIG_BLK_DEV_PCIESSD_MTIP32XX)	+= mtip32xx/
 obj-$(CONFIG_ZRAM) += zram/
 obj-$(CONFIG_BLK_DEV_RNBD)	+= rnbd/
 
+ifdef CONFIG_BLK_DEV_RUST_NULL
+obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= rnull/
+else
 obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= null_blk/
+endif
 
 obj-$(CONFIG_BLK_DEV_UBLK)			+= ublk_drv.o
 

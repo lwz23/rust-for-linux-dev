@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config BLK_DEV_RUST_NULL
+	bool "Rust null block driver subset"
+	depends on BLK_DEV_NULL_BLK && RUST
+	help
+	  Build the Rust calibration driver for the configfs-controlled null block
+	  device subset. This keeps the C null_blk implementation available and
+	  switches the build to the Rust implementation when enabled.

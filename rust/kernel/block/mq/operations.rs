@@ -9,9 +9,11 @@ use crate::{
     block::mq::request::RequestDataWrapper,
     block::mq::Request,
     error::{from_result, Result},
-    types::ARef,
+    types::{ARef, ForeignOwnable},
 };
 use core::{marker::PhantomData, sync::atomic::AtomicU64, sync::atomic::Ordering};
+
+type ForeignBorrowed<'a, T> = <T as ForeignOwnable>::Borrowed<'a>;
 
 /// Implement this trait to interface blk-mq as block devices.
 ///
@@ -25,12 +27,24 @@ use core::{marker::PhantomData, sync::atomic::AtomicU64, sync::atomic::Ordering}
 /// [module level documentation]: kernel::block::mq
 #[macros::vtable]
 pub trait Operations: Sized {
+    /// Data associated with the request queue allocated for the disk using
+    /// this operations implementation.
+    type QueueData: ForeignOwnable;
+
     /// Called by the kernel to queue a request with the driver. If `is_last` is
     /// `false`, the driver is allowed to defer committing the request.
-    fn queue_rq(rq: ARef<Request<Self>>, is_last: bool) -> Result;
+    fn queue_rq(
+        queue_data: ForeignBorrowed<'_, Self::QueueData>,
+        rq: ARef<Request<Self>>,
+        is_last: bool,
+    ) -> Result;
 
     /// Called by the kernel to indicate that queued requests should be submitted.
-    fn commit_rqs();
+    fn commit_rqs(queue_data: ForeignBorrowed<'_, Self::QueueData>);
+
+    /// Called by the kernel when a request scheduled through
+    /// [`Request::complete`] becomes ready to finish.
+    fn complete(rq: ARef<Request<Self>>);
 
     /// Called by the kernel to poll the device for completed requests. Only
     /// used for poll queues.
@@ -69,7 +83,7 @@ impl<T: Operations> OperationsVTable<T> {
     ///   promise to not access the request until the driver calls
     ///   `bindings::blk_mq_end_request` for the request.
     unsafe extern "C" fn queue_rq_callback(
-        _hctx: *mut bindings::blk_mq_hw_ctx,
+        hctx: *mut bindings::blk_mq_hw_ctx,
         bd: *const bindings::blk_mq_queue_data,
     ) -> bindings::blk_status_t {
         // SAFETY: `bd.rq` is valid as required by the safety requirement for
@@ -87,10 +101,20 @@ impl<T: Operations> OperationsVTable<T> {
         //    reference counted by `ARef` until then.
         let rq = unsafe { Request::aref_from_raw((*bd).rq) };
 
+        // SAFETY: `hctx` is valid as required by the safety requirements of
+        // this function, and `queuedata` remains owned by the disk while the
+        // queue is live.
+        let queue_data = unsafe { (*(*hctx).queue).queuedata };
+        // SAFETY: `queuedata` originates from `ForeignOwnable::into_foreign`
+        // during disk construction, and matching `from_foreign` only happens
+        // when the disk is dropped.
+        let queue_data = unsafe { T::QueueData::borrow(queue_data) };
+
         // SAFETY: We have exclusive access and we just set the refcount above.
         unsafe { Request::start_unchecked(&rq) };
 
         let ret = T::queue_rq(
+            queue_data,
             rq,
             // SAFETY: `bd` is valid as required by the safety requirement for
             // this function.
@@ -110,8 +134,15 @@ impl<T: Operations> OperationsVTable<T> {
     /// # Safety
     ///
     /// This function may only be called by blk-mq C infrastructure.
-    unsafe extern "C" fn commit_rqs_callback(_hctx: *mut bindings::blk_mq_hw_ctx) {
-        T::commit_rqs()
+    unsafe extern "C" fn commit_rqs_callback(hctx: *mut bindings::blk_mq_hw_ctx) {
+        // SAFETY: `hctx` is valid as required by the safety requirements of
+        // this function.
+        let queue_data = unsafe { (*(*hctx).queue).queuedata };
+        // SAFETY: `queuedata` originates from `ForeignOwnable::into_foreign`
+        // during disk construction, and matching `from_foreign` only happens
+        // when the disk is dropped.
+        let queue_data = unsafe { T::QueueData::borrow(queue_data) };
+        T::commit_rqs(queue_data)
     }
 
     /// This function is called by the C kernel. It is not currently
@@ -120,7 +151,12 @@ impl<T: Operations> OperationsVTable<T> {
     /// # Safety
     ///
     /// This function may only be called by blk-mq C infrastructure.
-    unsafe extern "C" fn complete_callback(_rq: *mut bindings::request) {}
+    unsafe extern "C" fn complete_callback(rq: *mut bindings::request) {
+        // SAFETY: This callback is reached through `Request::complete`, which
+        // leaked a refcount that we recover here.
+        let aref = unsafe { Request::aref_from_raw(rq) };
+        T::complete(aref);
+    }
 
     /// This function is called by the C kernel. A pointer to this function is
     /// installed in the `blk_mq_ops` vtable for the driver.

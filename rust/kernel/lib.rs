@@ -14,7 +14,6 @@
 #![no_std]
 #![feature(coerce_unsized)]
 #![feature(dispatch_from_dyn)]
-#![feature(new_uninit)]
 #![feature(receiver_trait)]
 #![feature(unsize)]
 
@@ -30,6 +29,8 @@ pub mod alloc;
 #[cfg(CONFIG_BLOCK)]
 pub mod block;
 mod build_assert;
+#[cfg(CONFIG_CONFIGFS_FS)]
+pub mod configfs;
 pub mod error;
 pub mod init;
 pub mod ioctl;
