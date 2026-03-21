@@ -1,0 +1,78 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "status_axes": {
+    "conversion_stage": "hardening",
+    "style_alignment": "benchmark-calibrated",
+    "runtime_state": "unvalidated"
+  },
+  "validations": [
+    {
+      "validator_id": "diff-whitespace-check",
+      "pass": true,
+      "command": "git -C /home/lwz/rfl-dev/worktrees/rnull-blind-rust diff --check",
+      "finding_summary": "clean"
+    },
+    {
+      "validator_id": "driver-unsafe-scan",
+      "pass": true,
+      "command": "rg -n \"\\\\bunsafe\\\\b|unsafe impl Send|unsafe impl Sync\" /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/rnull -g '*.rs'",
+      "finding_summary": "no matches"
+    },
+    {
+      "validator_id": "helper-audit-review",
+      "pass": true,
+      "command": "structured audit recorded in helper-audit.json",
+      "finding_summary": "no helper introduced"
+    },
+    {
+      "validator_id": "send-sync-justification-check",
+      "pass": true,
+      "command": "manual abstraction audit recorded in unsafe-obligations.json",
+      "finding_summary": "no driver-layer Send/Sync markers; abstraction-side markers documented"
+    },
+    {
+      "validator_id": "build-check-rust-object",
+      "pass": true,
+      "command": "make -C /home/lwz/rfl-dev/worktrees/rnull-blind-rust O=/home/lwz/rfl-dev/build-rnull-blind LLVM=1 -j$(nproc) drivers/block/rnull/rnull.o",
+      "finding_summary": "Rust-mode object build succeeded"
+    },
+    {
+      "validator_id": "build-check-c-object",
+      "pass": true,
+      "command": "disable CONFIG_BLK_DEV_RUST_NULL, then make -C /home/lwz/rfl-dev/worktrees/rnull-blind-rust O=/home/lwz/rfl-dev/build-rnull-blind LLVM=1 -j$(nproc) drivers/block/null_blk/main.o",
+      "finding_summary": "C-mode object build succeeded"
+    },
+    {
+      "validator_id": "ownership-pair-check",
+      "pass": true,
+      "command": "manual lifecycle audit recorded in c-structure-map.json and unsafe-obligations.json",
+      "finding_summary": "no unmatched queue-data or live-device ownership pair found for the implemented subset"
+    },
+    {
+      "validator_id": "drop-pair-check",
+      "pass": true,
+      "command": "manual lifecycle audit recorded in c-structure-map.json and calibration-delta.json",
+      "finding_summary": "drop_item plus final release dual-path was explicitly reviewed"
+    }
+  ],
+  "runtime_gap": {
+    "runtime_state": "unvalidated",
+    "trusted_harness_available": false,
+    "missing_evidence": [
+      "configfs create/delete of rnull devices",
+      "power on/off lifecycle under a real kernel boot",
+      "size/blocksize/rotational/irqmode constraint checks under configfs",
+      "basic block IO completion evidence"
+    ],
+    "non_evidence_seen": [
+      "single-module link attempts without full kernel link context",
+      "modpost unresolved symbols with `vmlinux.o is missing`"
+    ],
+    "blocked_claims": [
+      "validated",
+      "engineering-grade",
+      "mainline-grade"
+    ]
+  }
+}

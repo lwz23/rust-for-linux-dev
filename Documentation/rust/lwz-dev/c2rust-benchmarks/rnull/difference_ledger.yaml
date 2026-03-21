@@ -1,0 +1,82 @@
+schema_version: 1
+module_id: rnull
+generated_on: 2026-03-21
+items:
+  - id: rnull-001
+    category: 不可接受功能差异
+    subsystem: drivers/block/rnull/rnull.rs
+    summary: blind-write retained Timer irqmode support even though current-tree rnull only supports None and Soft
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/calibration-delta.json
+      - /home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs
+    note: >
+      This is a scope expansion relative to the frozen compare target. It is
+      not evidence of weaker ownership for the shared subset, but it is still a
+      real mismatch.
+
+  - id: rnull-002
+    category: 不可接受功能差异
+    subsystem: drivers/block/rnull/configfs.rs
+    summary: blind-write root features output advertises power while current-tree rnull does not
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/calibration-delta.json
+      - /home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs
+    note: >
+      The child power attribute exists in both implementations, but the root
+      features file is a user-visible discoverability surface and therefore this
+      difference remains open.
+
+  - id: rnull-003
+    category: 可接受工程差异
+    subsystem: drivers/block/rnull/configfs.rs
+    summary: blind-write split config and live state into two mutexes and powers off explicitly in drop_item
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/rnull/configfs.rs
+      - /home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs
+    note: >
+      This is more conservative than the current-tree single-mutex model. No
+      clear soundness weakening or user-visible ABI regression was identified
+      for the implemented subset.
+
+  - id: rnull-004
+    category: 旧树约束
+    subsystem: drivers/block/Kconfig
+    summary: rerun benchmark preserved C null_blk and switched builds through CONFIG_BLK_DEV_RUST_NULL
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/Kconfig
+      - /home/lwz/rfl-dev/linux/drivers/block/rnull/Kconfig
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/calibration-delta.json
+    note: >
+      Current-tree official rnull is a standalone module. The rerun
+      intentionally used a switchable C versus Rust build to keep the DUT slot
+      comparable inside the historical baseline.
+
+  - id: rnull-005
+    category: 旧树约束
+    subsystem: rust/kernel and scripts
+    summary: true pre-rnull baseline needed host toolchain compatibility fixes unrelated to DUT semantics
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/rust/kernel/alloc/box_ext.rs
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/scripts/Makefile.build
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/binding-gap-audit.json
+    note: >
+      These adjustments are recorded as historical environment drift so they do
+      not get misreported as driver-correctness findings.
+
+  - id: rnull-006
+    category: 旧树约束
+    subsystem: calibration scope
+    summary: the true pre-rnull semantic baseline predates the current-tree rotational configfs attribute
+    status: accepted
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/null_blk/main.c
+      - /home/lwz/rfl-dev/linux/drivers/block/null_blk/main.c
+      - /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/calibration-delta.json
+    note: >
+      Rotational was treated as a compare-scope normalization derived from the
+      current-tree rnull subset, not as a pure pre-rnull baseline feature.

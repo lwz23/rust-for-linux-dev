@@ -1,0 +1,61 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "reference_files": [
+    "/home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs",
+    "/home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs"
+  ],
+  "answers": {
+    "scope_expansion_or_shrink": {
+      "result": "expanded",
+      "details": [
+        "The blind-write retained `Timer` irqmode support even though current-tree rnull supports only `None` and `Soft`.",
+        "The blind-write root `features` output advertised `power`, while current-tree rnull advertises only `blocksize,size,rotational,irqmode`."
+      ]
+    },
+    "configfs_model_alignment": {
+      "result": "partial-match",
+      "details": [
+        "Both implementations model a configfs root that creates child devices and gate configuration changes while powered on.",
+        "Blind-write uses split `config` and `live` mutexes plus explicit `drop_item` power-off.",
+        "Current-tree rnull uses one mutex containing powered state and `disk: Option<GenDisk<_>>`."
+      ]
+    },
+    "request_completion_and_queue_data_ownership": {
+      "result": "no-known-soundness-weakening-for-official-subset",
+      "details": [
+        "For `None` and `Soft` irq modes, the blind-write request completion strategy matches the official ownership direction: queue request, optionally remote complete, and end the request exactly once.",
+        "Queue data is foreign-owned at disk build time and reclaimed on `GenDisk` drop in the blind-write abstraction, so ownership is paired.",
+        "The extra `Timer` path is a scope expansion, not evidence that the official subset became less sound."
+      ]
+    }
+  },
+  "aligned_items": [
+    "Driver layer stays zero unsafe in both the blind-write and current-tree reference.",
+    "Both implementations put the live block object under configfs child ownership.",
+    "Both implementations reject config changes while powered on.",
+    "Both implementations use blk-mq queue data to carry irq-mode choice."
+  ],
+  "misaligned_items": [
+    "Blind-write adds `Timer` irqmode support beyond current-tree rnull.",
+    "Blind-write root `features` string includes `power` while current-tree rnull does not.",
+    "Blind-write build integration switches C versus Rust in the same DUT slot, while current-tree rnull is a standalone module `rnull_mod`."
+  ],
+  "old_tree_constraints": [
+    "The true pre-rnull baseline at `3253aba3408aa4eb2e4e09365eede3e63ef7536b` predates the current-tree rotational configfs attribute, so the rerun mixes a historical baseline with a later frozen compare scope.",
+    "Historical-tree compilation on host rustc 1.82 required compatibility fixes in `rust/kernel/alloc/box_ext.rs` and `scripts/Makefile.build` that do not change the driver semantics."
+  ],
+  "workflow_gaps": [
+    "The pattern library did not yet contain a configfs child plus powered block-mq registration pattern.",
+    "The existing rule set did not call out the need to audit both `drop_item` and final release for configfs children that own registered objects."
+  ],
+  "backwritten_rule_ids": [
+    "RFL-011",
+    "RFL-012"
+  ],
+  "backwritten_pattern_id": "configfs-powered-block-mq-child",
+  "backwritten_validator_ids": [
+    "configfs-drop-release-pair-check",
+    "historical-toolchain-compat-review"
+  ]
+}

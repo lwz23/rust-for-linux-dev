@@ -1,0 +1,62 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "driver_layer_zero_unsafe": true,
+  "unsafe_sites": [
+    {
+      "area": "rust/kernel/block/mq/request.rs",
+      "symbol": "Request::complete",
+      "obligations": [
+        "ARef::into_raw leaks exactly one request refcount into the blk-mq completion path",
+        "If `blk_mq_complete_request_remote` returns false, the same raw pointer is immediately reconstructed into an `ARef` and completed locally",
+        "The request must be handed back to blk-mq exactly once"
+      ]
+    },
+    {
+      "area": "rust/kernel/block/mq/operations.rs",
+      "symbol": "queue_rq_callback / commit_rqs_callback / complete_callback",
+      "obligations": [
+        "queuedata originates from `ForeignOwnable::into_foreign` during disk construction",
+        "borrowed queuedata must not outlive the live disk",
+        "request refcount handoff between queueing and completion must stay balanced"
+      ]
+    },
+    {
+      "area": "rust/kernel/block/mq/gen_disk.rs",
+      "symbol": "GenDiskBuilder::build / GenDisk::drop",
+      "obligations": [
+        "queue_data is transferred into foreign ownership exactly once during build",
+        "queue_data is reclaimed exactly once during `GenDisk` drop after `del_gendisk`",
+        "tagset outlives the registered disk because `GenDisk` retains an `Arc<TagSet<T>>`"
+      ]
+    },
+    {
+      "area": "rust/kernel/configfs.rs",
+      "symbol": "GroupOperationsVTable::make_group / drop_item / release",
+      "obligations": [
+        "Child groups allocated by `Box::pin_init` are reclaimed only from the matching release callback",
+        "`drop_item` may run before final release and therefore may only perform early teardown plus `config_item_put`",
+        "Safe Rust data exposed through `Group::data()` must not let callers move already-registered state"
+      ]
+    },
+    {
+      "area": "rust/kernel/configfs.rs",
+      "symbol": "unsafe impl Send/Sync for Subsystem, Attribute, AttributeList, ItemType",
+      "obligations": [
+        "These wrapper types represent immutable metadata or registration objects whose mutation is synchronized by the kernel",
+        "No safe API may expose unsynchronized interior mutable state without an explicit lock or ownership token"
+      ]
+    }
+  ],
+  "send_sync_review": {
+    "driver_layer_markers": [],
+    "abstraction_markers_reviewed": [
+      "rust/kernel/configfs.rs",
+      "rust/kernel/block/mq/request.rs",
+      "rust/kernel/block/mq/gen_disk.rs"
+    ],
+    "still_open_questions": [
+      "The new configfs wrappers rely on structural reasoning rather than a dedicated validator-backed proof. This is documented but not treated as a driver-layer blocker."
+    ]
+  }
+}

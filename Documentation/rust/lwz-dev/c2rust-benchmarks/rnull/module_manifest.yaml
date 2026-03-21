@@ -1,0 +1,90 @@
+schema_version: 1
+module_id: rnull
+module_title: Rust rnull calibration rerun
+benchmark_track: calibration-rerun
+sample_tier: historical
+scope: block_mq_plus_configfs_subset
+status: completed
+current_grade: prototype-grade
+target_grade: mainline-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/worktrees/rnull-blind-rust
+  reference_tree: /home/lwz/rfl-dev/linux
+  working_branch: feature/rnull-blind-rust
+  reference_branch: feature/nlmon-rust
+freeze:
+  pipeline_mode: calibration
+  true_pre_rnull_commit: 3253aba3408aa4eb2e4e09365eede3e63ef7536b
+  true_rnull_intro_commit: bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5
+  requested_pre_rust_base_commit: ebbed9d02ece592c3e693db72197afad8de70af8
+  requested_rust_intro_commit: 79e25710e7227228902d672417b552dd1d7e5d3b
+  branch: feature/rnull-blind-rust
+  build_dir: /home/lwz/rfl-dev/build-rnull-blind
+dut:
+  subsystem: block
+  c_gold_standard: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/null_blk/main.c
+  rust_candidate: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/rnull/rnull.rs
+  rust_reference: /home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs
+  rust_reference_aux:
+    - /home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs
+  scope_note: >
+    The comparison target is not full null_blk feature parity. The intended DUT
+    scope is the current-tree rnull subset that actually covers block-mq plus
+    configfs child lifecycle, namely size, blocksize, rotational, irqmode, and
+    power-controlled add/remove.
+  compare_questions:
+    - Did the blind-write expand or shrink the intended current-tree rnull scope?
+    - Is the configfs child lifecycle model aligned with current-tree rnull?
+    - Does request completion or queue-data ownership weaken soundness?
+  rerun_note: >
+    This run is a calibration rerun. It does not automatically count toward a
+    new formal benchmark quota.
+build:
+  config_symbols:
+    - CONFIG_BLK_DEV_NULL_BLK
+    - CONFIG_BLK_DEV_RUST_NULL
+  c_mode:
+    - CONFIG_BLK_DEV_NULL_BLK=y
+    - CONFIG_BLK_DEV_RUST_NULL=n
+  rust_mode:
+    - CONFIG_BLK_DEV_NULL_BLK=y
+    - CONFIG_BLK_DEV_RUST_NULL=y
+validation:
+  runtime_status: unavailable
+  runtime_profiles: []
+  runtime_reports: []
+  guest_runner_note: >
+    No trusted runtime harness was established for configfs create/delete,
+    powered lifecycle, or block IO completion on this historical baseline.
+    Single-module link failures caused by missing full-kernel link context were
+    explicitly treated as infrastructure gaps, not as driver validation.
+artifacts:
+  directory: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull
+  module_manifest: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/module_manifest.yaml
+  dut_spec: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/dut-spec.json
+  c_structure_map: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/c-structure-map.json
+  binding_gap_audit: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/binding-gap-audit.json
+  helper_audit: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/helper-audit.json
+  pattern_selection: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/pattern-selection.json
+  unsafe_obligations: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/unsafe-obligations.json
+  verification_summary: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/verification-summary.json
+  calibration_delta: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/calibration-delta.json
+  evaluation_report: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/evaluation_report.md
+  difference_ledger: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/difference_ledger.yaml
+  unsafe_audit: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/unsafe_audit.md
+  acceptance_checklist: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/acceptance_checklist.md
+  worklog: /home/lwz/rfl-dev/worktrees/rnull-blind-rust/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull/worklog
+conclusions:
+  achieved:
+    - Completed blind-first and hardening from a true pre-rnull semantic baseline
+    - Kept the driver layer at zero unsafe
+    - Completed the post-hardening compare against current-tree rnull
+  not_yet_claimed:
+    - Trusted runtime validation
+    - engineering-grade or mainline-grade
+    - Full null_blk feature parity
+next_actions:
+  - Narrow the blind-write scope to official None/Soft irq modes if converging toward current-tree rnull
+  - Add a trusted configfs lifecycle runner before upgrading runtime_state
+  - Reuse the new configfs and block-mq lifecycle findings in later benchmarks

@@ -1,0 +1,51 @@
+{
+  "module_id": "rnull",
+  "pipeline_mode": "calibration",
+  "rerun_class": "calibration-rerun",
+  "counts_toward_formal_quota": false,
+  "semantic_baseline": {
+    "true_pre_rnull_commit": "3253aba3408aa4eb2e4e09365eede3e63ef7536b",
+    "true_rnull_intro_commit": "bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5",
+    "requested_pre_rust_base_commit": "ebbed9d02ece592c3e693db72197afad8de70af8",
+    "requested_rust_intro_commit": "79e25710e7227228902d672417b552dd1d7e5d3b",
+    "note": "The requested base commit was not a true pre-rnull baseline in the local shallow clone. Full history was fetched before freezing the semantic baseline."
+  },
+  "reference_tree": "/home/lwz/rfl-dev/linux",
+  "kernel_tree": "/home/lwz/rfl-dev/worktrees/rnull-blind-rust",
+  "branch": "feature/rnull-blind-rust",
+  "build_dir": "/home/lwz/rfl-dev/build-rnull-blind",
+  "c_gold_standard": "/home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/null_blk/main.c",
+  "official_rust_reference": "/home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs",
+  "official_rust_reference_aux": [
+    "/home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs"
+  ],
+  "official_compare_started_only_after_hardening": true,
+  "comparison_scope": {
+    "summary": "The compare target is the current-tree rnull block-mq plus configfs subset, not full null_blk parity.",
+    "in_scope": [
+      "configfs root plus child object creation",
+      "power-controlled add/remove lifecycle",
+      "size attribute",
+      "blocksize attribute",
+      "rotational attribute",
+      "irqmode attribute",
+      "basic request completion path for mq requests"
+    ],
+    "out_of_scope": [
+      "full null_blk fault injection surface",
+      "memory-backed storage path",
+      "zoned device support",
+      "shared tag and advanced queue topology options",
+      "trusted runtime claims without a dedicated runner"
+    ]
+  },
+  "status_axes": {
+    "conversion_stage": "hardening",
+    "style_alignment": "benchmark-calibrated",
+    "runtime_state": "unvalidated"
+  },
+  "verification_state": {
+    "static": "completed",
+    "runtime": "gap-recorded"
+  }
+}

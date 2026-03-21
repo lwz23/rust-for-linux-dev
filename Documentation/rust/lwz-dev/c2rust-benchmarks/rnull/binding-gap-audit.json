@@ -1,0 +1,58 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "driver_scope": "block-mq plus configfs subset",
+  "resolved_gaps": [
+    {
+      "id": "gap-001",
+      "kind": "bindgen-coverage",
+      "need": "configfs type definitions and constants",
+      "resolution": "Added `#include <linux/configfs.h>` to `rust/bindings/bindings_helper.h`."
+    },
+    {
+      "id": "gap-002",
+      "kind": "kernel-abstraction",
+      "need": "safe configfs subsystem, group, item type, and attribute wrappers",
+      "resolution": "Added `rust/kernel/configfs.rs` and exported it from `rust/kernel/lib.rs`."
+    },
+    {
+      "id": "gap-003",
+      "kind": "kernel-abstraction",
+      "need": "blk-mq request remote completion hook",
+      "resolution": "Added `Request::complete` in `rust/kernel/block/mq/request.rs`."
+    },
+    {
+      "id": "gap-004",
+      "kind": "kernel-abstraction",
+      "need": "queue private data ownership from disk creation through teardown",
+      "resolution": "Extended `Operations::QueueData`, `commit_rqs`, and `GenDiskBuilder::build(..., queue_data)` so `GenDisk` owns queuedata and reclaims it on drop."
+    },
+    {
+      "id": "gap-005",
+      "kind": "kernel-abstraction",
+      "need": "temporary raw ownership handoff for request completion",
+      "resolution": "Added `ARef::into_raw` to `rust/kernel/types.rs`."
+    }
+  ],
+  "helper_candidates": [],
+  "helper_decision": {
+    "added_helpers": 0,
+    "note": "No new C helper was introduced for rnull. The path was serviced by bindings expansion and Rust-side abstractions."
+  },
+  "non_dut_compatibility_findings": [
+    {
+      "id": "compat-001",
+      "kind": "host-toolchain-drift",
+      "need": "historical tree compatibility with host rustc 1.82",
+      "resolution": "Adjusted `rust/kernel/alloc/box_ext.rs` to avoid relying on `Box::write`."
+    },
+    {
+      "id": "compat-002",
+      "kind": "historical-build-system-drift",
+      "need": "avoid stable-feature warnings promoted to errors",
+      "resolution": "Removed the stale `new_uninit` feature injection from `scripts/Makefile.build`."
+    }
+  ],
+  "unresolved_gaps": []
+}

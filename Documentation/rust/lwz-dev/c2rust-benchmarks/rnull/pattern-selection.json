@@ -1,0 +1,43 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "blind_stage": {
+    "library_match": [],
+    "pattern_unresolved": true,
+    "manual_rule_needed": true,
+    "stage_ceiling": "hardening",
+    "reason": "The existing pattern library had no registered shape for a configfs child that owns a powered block-mq device and callback-owned queue data."
+  },
+  "selected_shape": {
+    "provisional_pattern_id": "configfs-powered-block-mq-child",
+    "owner_unit": "configfs child object",
+    "registered_resources": [
+      "GenDisk",
+      "TagSet",
+      "request_queue queuedata"
+    ],
+    "callback_owned_state": [
+      "blk-mq request ARef",
+      "request PDU completion state"
+    ],
+    "lifecycle_split_points": [
+      "power attribute store",
+      "configfs group drop_item",
+      "configfs item release"
+    ]
+  },
+  "post_compare_result": {
+    "pattern_can_be_registered": true,
+    "registered_in_tooling_spec": true,
+    "registered_pattern_id": "configfs-powered-block-mq-child",
+    "required_validators": [
+      "configfs-drop-release-pair-check",
+      "ownership-pair-check",
+      "drop-pair-check",
+      "driver-unsafe-scan"
+    ],
+    "remaining_delta_from_current_tree": [
+      "Blind-write split config and live state into two mutexes; official rnull uses one mutex with `disk: Option<GenDisk<_>>`."
+    ]
+  }
+}

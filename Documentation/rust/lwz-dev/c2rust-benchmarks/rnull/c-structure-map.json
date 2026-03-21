@@ -1,0 +1,183 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "c_gold_standard": "/home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/null_blk/main.c",
+  "supporting_header": "/home/lwz/rfl-dev/worktrees/rnull-blind-rust/drivers/block/null_blk/null_blk.h",
+  "frozen_projection": {
+    "note": "The C gold standard is full null_blk, but this rerun freezes only the current-tree rnull subset.",
+    "configfs_subset": [
+      "power",
+      "size",
+      "blocksize",
+      "irqmode"
+    ],
+    "reference_scope_additions_from_current_tree": [
+      "rotational"
+    ],
+    "explicitly_excluded_from_blind_write": [
+      "memory_backed",
+      "discard",
+      "badblocks",
+      "zoned",
+      "cache_size",
+      "mbps",
+      "queue_mode",
+      "submit_queues",
+      "poll_queues",
+      "shared_tags",
+      "shared_tag_bitmap",
+      "fault injection"
+    ]
+  },
+  "objects": [
+    {
+      "name": "nullb_device",
+      "kind": "configfs_child_configuration_object",
+      "declared_in": "drivers/block/null_blk/null_blk.h",
+      "key_fields": [
+        "struct nullb *nullb",
+        "struct config_group group",
+        "unsigned long flags",
+        "unsigned long size",
+        "unsigned int blocksize",
+        "unsigned int irqmode",
+        "bool power"
+      ],
+      "relevant_callbacks": [
+        "nullb_device_power_store",
+        "nullb_group_make_group",
+        "nullb_group_drop_item",
+        "nullb_device_release"
+      ],
+      "ownership_role": "Owns configuration state and points at the powered live device when NULLB_DEV_FL_UP is set."
+    },
+    {
+      "name": "nullb",
+      "kind": "powered_live_block_device",
+      "declared_in": "drivers/block/null_blk/null_blk.h",
+      "key_fields": [
+        "struct request_queue *q",
+        "struct gendisk *disk",
+        "struct blk_mq_tag_set *tag_set",
+        "struct blk_mq_tag_set __tag_set",
+        "struct nullb_queue *queues"
+      ],
+      "relevant_callbacks": [
+        "null_add_dev",
+        "null_del_dev",
+        "null_setup_tagset"
+      ],
+      "ownership_role": "Owns the registered block object, tagset, request queue, and queue private data while power is on."
+    },
+    {
+      "name": "nullb_queue",
+      "kind": "per_hctx_queue_state",
+      "declared_in": "drivers/block/null_blk/null_blk.h",
+      "key_fields": [
+        "struct nullb_device *dev",
+        "struct list_head poll_list",
+        "spinlock_t poll_lock"
+      ],
+      "relevant_callbacks": [
+        "null_queue_rq",
+        "null_poll",
+        "null_timeout_rq"
+      ],
+      "ownership_role": "Lives under the powered device and routes request completion policy."
+    },
+    {
+      "name": "nullb_cmd",
+      "kind": "request_private_pdu",
+      "declared_in": "drivers/block/null_blk/null_blk.h",
+      "key_fields": [
+        "blk_status_t error",
+        "bool fake_timeout",
+        "struct nullb_queue *nq",
+        "struct hrtimer timer"
+      ],
+      "relevant_callbacks": [
+        "null_queue_rq",
+        "null_handle_cmd",
+        "nullb_complete_cmd",
+        "null_cmd_timer_expired"
+      ],
+      "ownership_role": "PDU attached to each blk-mq request; completion ownership transfers back to blk-mq exactly once."
+    }
+  ],
+  "lifecycle_edges": [
+    {
+      "from": "nullb_group_make_group",
+      "to": "nullb_group_drop_item",
+      "kind": "configfs_child_group_lifetime",
+      "notes": [
+        "Child configfs group is allocated before power-on.",
+        "drop_item may need to tear down a still-powered live device before item release."
+      ]
+    },
+    {
+      "from": "nullb_group_drop_item",
+      "to": "nullb_device_release",
+      "kind": "dual_teardown_path",
+      "notes": [
+        "drop_item calls null_del_dev when device is up, then config_item_put.",
+        "release performs final storage free and null_free_dev."
+      ]
+    },
+    {
+      "from": "nullb_device_power_store(power=1)",
+      "to": "null_add_dev",
+      "kind": "power_on_transition",
+      "notes": [
+        "Sets NULLB_DEV_FL_UP and NULLB_DEV_FL_CONFIGURED only after successful add."
+      ]
+    },
+    {
+      "from": "nullb_device_power_store(power=0)",
+      "to": "null_del_dev",
+      "kind": "power_off_transition",
+      "notes": [
+        "Clears NULLB_DEV_FL_UP and NULLB_DEV_FL_CONFIGURED, then tears down live device."
+      ]
+    },
+    {
+      "from": "null_add_dev",
+      "to": "null_del_dev",
+      "kind": "registered_block_object_pair",
+      "notes": [
+        "null_add_dev allocates nullb, queues, tagset, disk, and queue private data.",
+        "null_del_dev must pair disk unregister, tagset free, queue free, and live pointer reset."
+      ]
+    }
+  ],
+  "request_completion": {
+    "entry_point": "null_queue_rq",
+    "request_private_data": "struct nullb_cmd via blk_mq_rq_to_pdu(rq)",
+    "completion_modes": [
+      {
+        "mode": "NULL_IRQ_NONE",
+        "callback": "blk_mq_end_request"
+      },
+      {
+        "mode": "NULL_IRQ_SOFTIRQ",
+        "callback": "blk_mq_complete_request"
+      },
+      {
+        "mode": "NULL_IRQ_TIMER",
+        "callback": "null_cmd_end_timer -> null_cmd_timer_expired -> blk_mq_complete_request"
+      }
+    ],
+    "queue_data_owner": {
+      "c_shape": "request_queue->queuedata = struct nullb *",
+      "lifetime": "owned by the powered live device between add_disk and del_gendisk"
+    }
+  },
+  "pattern_signals": [
+    "configfs_subsystem",
+    "configfs_group_child",
+    "power_controlled_registration",
+    "blk_mq_tag_set",
+    "request_pdu",
+    "queue_private_data",
+    "dual_teardown_path"
+  ]
+}

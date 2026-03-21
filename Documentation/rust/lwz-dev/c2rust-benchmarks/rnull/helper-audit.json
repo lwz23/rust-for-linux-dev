@@ -1,0 +1,14 @@
+{
+  "module_id": "rnull",
+  "generated_on": "2026-03-21",
+  "helper_count": 0,
+  "added_helpers": [],
+  "retained_existing_helpers": [],
+  "driver_private_c_types_in_helpers": false,
+  "decision": "no-helper-needed",
+  "justification": [
+    "configfs coverage came from bindings expansion and a Rust-side `rust/kernel/configfs.rs` abstraction",
+    "blk-mq request completion and queue-data ownership were handled inside `rust/kernel/block/mq/*`",
+    "No driver-specific C bridge was required for the rnull subset"
+  ]
+}

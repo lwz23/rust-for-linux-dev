@@ -1,0 +1,96 @@
+2026-03-21
+
+- Confirmed `/home/lwz/rfl-dev/linux` was a shallow repository and completed
+  `git fetch upstream --unshallow --tags --prune`.
+- Confirmed `git fetch origin --tags --prune` completed and
+  `git rev-parse --is-shallow-repository` now reports `false`.
+- Verified requested commit `ebbed9d02ece592c3e693db72197afad8de70af8` was not a
+  true pre-rnull semantic baseline in the local reference tree because that
+  tree already contained `drivers/block/rnull/`.
+- Located true intro commit by metadata search:
+  `bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5`
+  (`rust: block: add rnull, Rust null_blk implementation`).
+- Located true pre-rnull semantic baseline:
+  `3253aba3408aa4eb2e4e09365eede3e63ef7536b`.
+- Created isolated worktree:
+  `/home/lwz/rfl-dev/worktrees/rnull-blind-rust`
+  on branch `feature/rnull-blind-rust`.
+- Frozen DUT scope as the current-tree rnull block-mq plus configfs subset, not
+  full null_blk parity.
+- Began blind-first work without reading:
+  `/home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs`
+  `/home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs`
+
+2026-03-21 blind-first
+
+- Added `drivers/block/rnull/Kconfig` and `drivers/block/rnull/Makefile`.
+- Updated `drivers/block/Kconfig` and `drivers/block/Makefile` so C
+  `null_blk` stays available and Rust `rnull` can be selected through
+  `CONFIG_BLK_DEV_RUST_NULL`.
+- Audited binding and abstraction gaps before adding any helper-backed bridge.
+- Added minimal configfs coverage by extending
+  `rust/bindings/bindings_helper.h` with `<linux/configfs.h>` and introducing
+  `rust/kernel/configfs.rs`.
+- Extended blk-mq abstractions so a driver can own queue data across
+  `GenDiskBuilder::build(...)` and use `Request::complete(...)`.
+- Kept the driver layer zero unsafe across
+  `drivers/block/rnull/rnull.rs` and
+  `drivers/block/rnull/configfs.rs`.
+
+2026-03-21 hardening
+
+- Reviewed block-mq request ownership, request completion, and queue-data
+  reclamation through `GenDisk` drop.
+- Reviewed configfs child lifecycle, especially `drop_item` versus final item
+  release.
+- Confirmed the driver layer still contains no `unsafe`, `unsafe impl Send`, or
+  `unsafe impl Sync`.
+- Confirmed no C helper was added for the rnull driver path.
+- Recorded remaining abstraction-side unsafe obligations in
+  `unsafe-obligations.json`.
+
+2026-03-21 official compare
+
+- Read current-tree reference files only after hardening completed:
+  `/home/lwz/rfl-dev/linux/drivers/block/rnull/rnull.rs`
+  `/home/lwz/rfl-dev/linux/drivers/block/rnull/configfs.rs`
+- Determined the blind-write expanded the intended current-tree rnull scope in
+  two places:
+  - `Timer` irqmode support was retained even though official rnull supports
+    only `None` and `Soft`.
+  - root `features` output advertised `power`, while official rnull lists only
+    `blocksize,size,rotational,irqmode`.
+- Determined configfs modeling is only a partial match:
+  - blind-write uses split `config` and `live` mutexes plus explicit
+    `drop_item` power-off.
+  - official rnull uses one mutex with `disk: Option<GenDisk<_>>` and relies
+    primarily on final state drop.
+- Determined no clear soundness weakening was found for the shared
+  `None` and `Soft` completion paths; the extra `Timer` path is a scope
+  expansion, not evidence of weaker ownership for the official subset.
+
+2026-03-21 verification
+
+- `git diff --check` passed.
+- Rust-mode object build passed for `drivers/block/rnull/rnull.o`.
+- C-mode object build passed for `drivers/block/null_blk/main.o` after disabling
+  `CONFIG_BLK_DEV_RUST_NULL`.
+- Driver unsafe scan returned no matches under `drivers/block/rnull`.
+- Full module link evidence was not established. Attempts that skipped the full
+  kernel link context hit `vmlinux.o is missing` and unresolved modpost
+  symbols, so runtime state remains `unvalidated`.
+
+2026-03-21 methodology feedback
+
+- Backwrote the configfs dual-teardown lesson into:
+  - `Documentation/rust/lwz-dev/AGENT_PLAYBOOK.md`
+  - `Documentation/rust/lwz-dev/HARD_RULES.md`
+  - `Documentation/rust/lwz-dev/ACCEPTANCE_CHECKLIST.md`
+  - `Documentation/rust/lwz-dev/EVALUATION_LADDER.md`
+  - `Documentation/rust/lwz-dev/BENCHMARK_PORTFOLIO.md`
+- Added tooling-spec support for the new pattern and validators:
+  - `tooling-spec/rule-library.yaml`
+  - `tooling-spec/pattern-library.yaml`
+  - `tooling-spec/validator-matrix.yaml`
+- Backwrote the historical toolchain-drift lesson so old-tree compatibility
+  adjustments will not be misreported as driver correctness deltas.
