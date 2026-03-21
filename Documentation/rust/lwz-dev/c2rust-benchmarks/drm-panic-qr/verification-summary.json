@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "No credible panic runtime harness",
+    "Rust-enabled build blocked by libclang 14.0.0 < 15.0.0",
+    "Pre-S9 reference contamination prevents claiming a clean blind-only lane"
+  ],
+  "checks": [
+    {
+      "id": "git-diff-check",
+      "status": "pass",
+      "detail": "git diff --check reported no whitespace or conflict-marker issues"
+    },
+    {
+      "id": "driver-unsafe-scan",
+      "status": "pass",
+      "detail": "drivers/gpu/drm/drm_panic_qr.rs remains zero-unsafe"
+    },
+    {
+      "id": "kernel-unsafe-audit",
+      "status": "pass-with-obligations",
+      "detail": "rust/kernel/drm/panic_qr.rs contains three raw-pointer/CStr unsafe conversions, all enumerated in unsafe-obligations.json"
+    },
+    {
+      "id": "helper-audit",
+      "status": "pass",
+      "detail": "No helper was added"
+    },
+    {
+      "id": "panic-context-noalloc-audit",
+      "status": "pass-static",
+      "detail": "No allocation APIs appear in the Rust QR path; the Rust candidate uses only caller buffers and stack values"
+    },
+    {
+      "id": "ownership-drop-pair-audit",
+      "status": "pass-static",
+      "detail": "The Rust candidate does not introduce new long-lived ownership beyond caller buffers; preallocated C resources keep their existing init/exit pairing"
+    },
+    {
+      "id": "default-build",
+      "status": "blocked",
+      "detail": "gcc+ld.bfd can complete x86_64_defconfig/olddefconfig and a non-Rust kernel build can start, but rustavailable fails because local libclang is 14.0.0 < 15.0.0; CONFIG_RUST and CONFIG_DRM_PANIC_SCREEN_QR_CODE never become active, so the DUT is not actually built"
+    },
+    {
+      "id": "kunit-reuse",
+      "status": "blocked",
+      "detail": "drivers/gpu/drm/tests/drm_panic_test.c is a credible static/KUnit entry, but the attempted kunit.py run cannot satisfy CONFIG_RUST and CONFIG_DRM_PANIC_SCREEN_QR_CODE under the local clang/libclang 14 toolchain"
+    },
+    {
+      "id": "official-style-delta-review",
+      "status": "pass",
+      "detail": "Current-tree comparison completed and recorded in calibration-delta.json"
+    }
+  ],
+  "reference_contamination": [
+    {
+      "source": "recursive search",
+      "severity": "limited"
+    },
+    {
+      "source": "git diff on the rewritten worktree path",
+      "severity": "high"
+    }
+  ]
+}
