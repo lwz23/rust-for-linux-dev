@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "module_id": "drm-panic-qr",
+  "generated_on": "2026-03-21",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "hardening",
+  "style_alignment": "benchmark-calibrated",
+  "runtime_state": "unvalidated",
+  "stage_ceiling": "hardening",
+  "validation_gap": [
+    "Unsafe obligations are statically audited only; no runtime harness is available"
+  ],
+  "driver_layer_zero_unsafe": true,
+  "unsafe_count": 3,
+  "obligations": [
+    {
+      "location": "rust/kernel/drm/panic_qr.rs:46",
+      "kind": "slice::from_raw_parts_mut(data, data_size)",
+      "preconditions": [
+        "data is non-null",
+        "data points to writable memory for data_size bytes",
+        "data_len <= data_size"
+      ],
+      "postconditions": [
+        "The Rust layer treats the buffer as the sole mutable owner for the duration of the call",
+        "The encoded QR bitmap is written back into the caller buffer"
+      ]
+    },
+    {
+      "location": "rust/kernel/drm/panic_qr.rs:47",
+      "kind": "slice::from_raw_parts_mut(tmp, tmp_size)",
+      "preconditions": [
+        "tmp is non-null",
+        "tmp points to writable memory for tmp_size bytes"
+      ],
+      "postconditions": [
+        "The temporary workspace remains caller-owned and is not retained past the call"
+      ]
+    },
+    {
+      "location": "rust/kernel/drm/panic_qr.rs:57",
+      "kind": "CStr::from_char_ptr(url)",
+      "preconditions": [
+        "url is either NULL or a valid NUL-terminated string"
+      ],
+      "postconditions": [
+        "The URL is borrowed read-only and never stored"
+      ]
+    }
+  ],
+  "send_sync": {
+    "introduced": false,
+    "justification_needed": false
+  }
+}
