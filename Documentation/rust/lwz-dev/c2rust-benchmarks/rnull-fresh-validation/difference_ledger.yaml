@@ -1,0 +1,133 @@
+schema_version: 1
+module_id: rnull
+generated_on: 2026-03-23
+items:
+  - id: rnull-001
+    category: 安全修复
+    subsystem: drivers/block/rnull/configfs.rs
+    summary: driver-layer configfs attribute list setup no longer spells unsafe directly
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/rust/kernel/configfs.rs
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/configfs.rs
+
+  - id: rnull-002
+    category: 安全修复
+    subsystem: drivers/block/rnull/rnull.rs
+    summary: lifecycle-affecting configfs and power mutations are serialized by a controller-level lock
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/rnull.rs
+
+  - id: rnull-003
+    category: 工程差异
+    subsystem: drivers/block/rnull/rnull.rs
+    summary: memory-backed storage uses Rust-owned page slots rather than the C radix-tree layout
+    status: accepted_with_runtime_evidence
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/rnull.rs
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log
+      - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.io-core.log
+    note: >
+      Runtime evidence covered basic read, write, flush, discard, and badblocks
+      paths, so this remains classified as an engineering difference rather than
+      a proven functional mismatch.
+
+  - id: rnull-004
+    category: 工程差异
+    subsystem: drivers/block/rnull/rnull.rs
+    summary: mbps throttling uses delayed completion timing instead of the C stop-start queue model
+    status: open_runtime_gap
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/rnull.rs
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log
+      - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.io-core.log
+    note: >
+      Rust runtime showed throttling, but the C baseline remained a runtime gap
+      under the current harness, so no equivalence claim is possible for the
+      frozen mbps target.
+
+  - id: rnull-005
+    category: 旧树约束
+    subsystem: rust/kernel/configfs.rs
+    summary: manual configfs AttributeList path retained because configfs_attrs! is not viable for this baseline-tree use case
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/rust/kernel/configfs.rs
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/configfs.rs
+
+  - id: rnull-006
+    category: 旧树约束
+    subsystem: rust/helpers.c
+    summary: generic blk-mq and hrtimer bridge helpers remain required on this tree
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/rust/helpers.c
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/helper-audit.json
+
+  - id: rnull-007
+    category: 安全修复
+    subsystem: rust/kernel/block/mq/tag_set.rs
+    summary: TagSet Send and Sync extension now has memory-debug shared_tags runtime evidence
+    status: resolved_with_runtime_scope_note
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/rust/kernel/block/mq/tag_set.rs
+      - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.matrix-core.log
+    note: >
+      shared_tags powered-on queue-count updates passed on the Rust candidate
+      without new dmesg anomalies in the memory-debug profile only.
+
+  - id: rnull-008
+    category: 功能修复
+    subsystem: drivers/block/rnull/configfs.rs
+    summary: home_node configfs text format was tightened from signed i32 to the C-compatible uint wire format
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/configfs.rs
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/null_blk/main.c
+    note: >
+      This avoids silently widening the user-visible configfs contract relative
+      to the C baseline.
+
+  - id: rnull-009
+    category: 功能修复
+    subsystem: drivers/block/rnull/rnull.rs
+    summary: shared_tags devices now allow powered-on submit and poll queue updates like the C baseline
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull/rnull.rs
+      - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.matrix-core.log
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.matrix-core.log
+
+  - id: rnull-010
+    category: 工作流程缺陷
+    subsystem: tools/testing/rust/rnull/rnull-guest-runner.sh
+    summary: lifecycle loop counter was accidentally clobbered by wait_for_path shell globals
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/tools/testing/rust/rnull/rnull-guest-runner.sh
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.lifecycle.debug.log
+    note: >
+      The bug caused an infinite cycle1 loop and would have produced a false
+      runtime failure if not fixed before the final A/B run.
+
+  - id: rnull-011
+    category: 工作流程缺陷
+    subsystem: tools/testing/rust/rnull/rnull-io-tool.c
+    summary: write-pattern originally missed delayed writeback errors until fsync/close checking was added
+    status: resolved
+    evidence:
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/tools/testing/rust/rnull/rnull-io-tool.c
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log
+    note: >
+      Without this fix the badblocks path would have been falsely reported as a
+      write success.
+
+  - id: rnull-012
+    category: 运行缺口
+    subsystem: validation
+    summary: runtime_state remains unvalidated because the frozen mbps target was not credibly closed on the C baseline
+    status: open
+    evidence:
+      - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log
+      - /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/verification-summary.json

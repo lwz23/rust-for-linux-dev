@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "generated_on": "2026-03-23",
+  "driver_layer": {
+    "paths": [
+      "drivers/block/rnull/rnull.rs",
+      "drivers/block/rnull/configfs.rs"
+    ],
+    "explicit_unsafe_occurrences": 0,
+    "verification": "rg -n '\\bunsafe\\b' drivers/block/rnull returned no matches after hardening and runtime fixes"
+  },
+  "unsafe_sites": [
+    {
+      "id": "configfs-001",
+      "path": "rust/kernel/configfs.rs",
+      "kind": "intrusive configfs callback and container_of boundary",
+      "invariant": "Subsystem, group, and item storage remain pinned and release/drop_item callbacks reconstruct the owning Rust object exactly once.",
+      "why_unsafe_exists": "configfs hands raw C pointers back into Rust and requires container_of reconstruction plus raw page buffer access.",
+      "hardening_status": "active_and_audited"
+    },
+    {
+      "id": "hrtimer-001",
+      "path": "rust/kernel/time/hrtimer.rs",
+      "kind": "pinned timer callback boundary",
+      "invariant": "HrTimer owner stays pinned for the entire callback lifetime and callback reconstruction from the raw timer pointer always points back to the same owner.",
+      "why_unsafe_exists": "hrtimer callbacks arrive as raw C pointers and require container_of plus raw timer control functions.",
+      "hardening_status": "active_and_audited"
+    },
+    {
+      "id": "mq-request-001",
+      "path": "rust/kernel/block/mq/request.rs",
+      "kind": "request private-data and completion boundary",
+      "invariant": "Each blk-mq request private area is initialized once, refcounted through completion, timeout, and poll paths, and dropped exactly once when blk-mq exits the request.",
+      "why_unsafe_exists": "The block layer owns request storage and only exposes raw request pointers and PDU accessors.",
+      "hardening_status": "active_and_audited"
+    },
+    {
+      "id": "mq-tagset-001",
+      "path": "rust/kernel/block/mq/tag_set.rs",
+      "kind": "tag-set registration and queue-map bridge",
+      "invariant": "driver_data always points at valid queue-mapping state for the lifetime of the tag set and blk_mq_free_tag_set is paired exactly once with successful allocation.",
+      "why_unsafe_exists": "blk-mq registration, queue mapping, and driver_data handoff are C-owned raw pointer flows.",
+      "hardening_status": "active_with_memory_debug_runtime_evidence",
+      "notes": [
+        "TagSet carries unsafe impl Send and Sync to support controller-level shared tag pools.",
+        "memory-debug matrix-core runtime covered shared_tags queue-count updates without new dmesg anomalies on the Rust candidate."
+      ]
+    },
+    {
+      "id": "gendisk-001",
+      "path": "rust/kernel/block/mq/gen_disk.rs",
+      "kind": "gendisk allocation and queue_data foreign ownership",
+      "invariant": "queue_data foreign storage is transferred to the block layer at build time and reclaimed exactly once when the gendisk is dropped.",
+      "why_unsafe_exists": "blk_mq_alloc_disk, set_capacity, disk_name writes, and queuedata extraction are all raw C operations.",
+      "hardening_status": "active_and_audited"
+    },
+    {
+      "id": "badblocks-001",
+      "path": "rust/kernel/block/badblocks.rs",
+      "kind": "opaque C struct init/exit and concurrent checks",
+      "invariant": "badblocks_init and badblocks_exit are paired, disabled state never triggers the helper WARN_ON path, and the wrapper only exposes thread-safe operations after initialization.",
+      "why_unsafe_exists": "struct badblocks is C-owned state with initialization and show/check/set helpers exposed through bindings.",
+      "hardening_status": "active_and_audited"
+    },
+    {
+      "id": "helpers-001",
+      "path": "rust/helpers.c",
+      "kind": "generic helper bridge",
+      "invariant": "Helpers remain generic bindings bridges only and do not encode rnull-owned driver state or lifetimes.",
+      "why_unsafe_exists": "blk-mq inline helpers, request-iteration macros, and hrtimer inline wrappers are not directly expressible from Rust on this baseline tree.",
+      "hardening_status": "retained_pending_retirement_compare"
+    }
+  ],
+  "open_items": [
+    {
+      "id": "open-001",
+      "topic": "helper retirement",
+      "status": "deferred_to_compare",
+      "reason": "Hardening reduced the helper surface but did not yet prove the remaining generic helpers can be retired on this tree."
+    },
+    {
+      "id": "open-002",
+      "topic": "full target runtime validation",
+      "status": "blocked_by_c_baseline_mbps_gap",
+      "reason": "The frozen mbps target still lacks credible C-baseline runtime closure under the current harness."
+    }
+  ]
+}
