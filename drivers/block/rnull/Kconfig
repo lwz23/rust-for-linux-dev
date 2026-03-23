@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Rust null block device driver configuration
+#
+
+config BLK_DEV_RUST_NULL
+	tristate "Rust null block driver (Experimental)"
+	depends on RUST && CONFIGFS_FS
+	help
+	  Builds the Rust benchmark candidate for the null block driver.
+	  This option is intended for switchable C/Rust benchmark validation
+	  against the C null_blk gold standard and should not be enabled at
+	  the same time as BLK_DEV_NULL_BLK in the benchmark harness.
+
