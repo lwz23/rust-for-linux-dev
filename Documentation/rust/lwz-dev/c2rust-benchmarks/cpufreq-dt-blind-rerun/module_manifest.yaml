@@ -1,0 +1,111 @@
+schema_version: 2
+module_id: cpufreq-dt
+generated_on: 2026-03-23
+pipeline_mode: calibration
+conversion_stage: blind
+style_alignment: unreviewed
+runtime_state: unvalidated
+stage_ceiling: phase-10
+run_kind: fresh workflow validation rerun
+benchmark_quota_accounting: not counted toward new formal benchmark quota
+module_title: cpufreq-dt blind-first fresh rerun
+benchmark_track: current-tree
+sample_tier: driver
+scope: driver
+status: completed-unvalidated
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/linux
+  worktree: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun
+  working_branch: feature/cpufreq-dt-blind-rerun
+  current_tree_head: 63c37d99f6eba4531100ae887c396206e0f7cf3e
+build:
+  default_build_dir: /home/lwz/rfl-dev/build-cpufreq-dt-blind-rerun
+  target_arch: arm
+  llvm: 1
+dut:
+  subsystem: cpufreq
+  c_gold_standard: /home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt.c
+  shared_c_seams:
+    - /home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt-platdev.c
+    - /home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt.h
+  rust_candidate: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/drivers/cpufreq/rcpufreq_dt.rs
+  component_scope: >
+    Generic cpufreq-dt core logic in drivers/cpufreq/cpufreq-dt.c, while
+    reusing cpufreq-dt-platdev.c as the shared C platform-device creation seam
+    and not rewriting external SoC-specific callback providers.
+  c_function_target:
+    included:
+      - private_data lifetime and resource ownership
+      - cpufreq_dt_find_data
+      - set_target
+      - find_supply_name
+      - cpufreq_init
+      - cpufreq_online
+      - cpufreq_offline
+      - cpufreq_exit
+      - dt_cpufreq_early_init
+      - dt_cpufreq_release
+      - dt_cpufreq_probe
+      - dt_cpufreq_remove
+      - cpufreq_dt_pdev_register
+      - optional cpufreq_dt_platform_data callback plumbing
+    excluded:
+      - rewriting cpufreq-dt-platdev.c allowlist/blocklist/machine detection logic
+      - rewriting external SoC-specific callback providers outside cpufreq-dt.c
+official_rust_reference:
+  lower_bound: 06149d8f2216894cee86106c701d13141948f159
+  mature: 63c37d99f6eba4531100ae887c396206e0f7cf3e
+runtime_harness:
+  root: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/tools/testing/rust/cpufreq-dt
+  results_dir: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/test-results/cpufreq-dt
+  trust_boundary:
+    - host-side QEMU launcher and exit-code propagation
+    - guest-side module load and sysfs observation runner
+    - saved full logs used for verdict generation
+  verdict_path:
+    - per-environment logs and parsed observations feed verification-summary.json
+    - combined runtime claim ceiling remains capped by the weakest unresolved gap
+runtime_coverage_scope:
+  runtime_validated_core: []
+  runtime_gap_paths:
+    - generic standalone cpufreq-dt probe-to-policy path on sabrelite
+    - provider-assisted composite path beyond module load on mcimx7d-sabre
+    - policy sysfs / scaling_driver / governor / frequency table observability in tested environments
+    - optional cpufreq_dt_platform_data callback plumbing
+    - cpufreq_dt_pdev_register export path
+runtime_results_summary:
+  env_a:
+    name: sabrelite
+    verdict: baseline observability gap
+    c_log: test-results/cpufreq-dt/sabrelite-c.log
+    rust_log: test-results/cpufreq-dt/sabrelite-rust.log
+    ab_ceiling: limited parity on module-load and no-policy observations only
+  env_b:
+    name: mcimx7d-sabre
+    verdict: baseline observability gap
+    c_log: test-results/cpufreq-dt/mcimx7d-c.log
+    rust_log: test-results/cpufreq-dt/mcimx7d-rust.log
+    ab_ceiling: provider-assisted front-half parity only; no policy-level validation
+  combined_claim_ceiling: no functional equivalence claim
+switching_integration_plan:
+  enabled: true
+  applied: true
+  description: >
+    A minimal Kconfig switching integration patch may be added so
+    ARM_IMX_CPUFREQ_DT can remain buildable for benchmark fallback runtime when
+    CPUFREQ_DT_RUST is selected.
+  patch:
+    file: /home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/drivers/cpufreq/Kconfig.arm
+    change: ARM_IMX_CPUFREQ_DT depends on CPUFREQ_DT || CPUFREQ_DT_RUST
+  classification:
+    - benchmark harness switching integration
+    - old-tree constraint
+    - not part of c_function_target
+blind_first_constraints:
+  search_exclusions:
+    - drivers/cpufreq/rcpufreq_dt.rs
+    - old cpufreq-dt benchmark directories
+    - old cpufreq-dt blind worktrees
+    - official related diff or compare inputs before stage 9
+  status: preserved

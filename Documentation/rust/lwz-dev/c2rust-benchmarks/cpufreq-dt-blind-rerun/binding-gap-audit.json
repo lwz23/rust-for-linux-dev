@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "primary_bindings_source": "rust/bindings/bindings_helper.h",
+  "audit_order": [
+    "check existing main bindings coverage",
+    "extend main bindings before considering helpers",
+    "defer helper introduction unless an inline or macro blind spot remains"
+  ],
+  "required_symbols": [
+    {
+      "symbol": "struct cpufreq_dt_platform_data",
+      "declared_in": "drivers/cpufreq/cpufreq-dt.h",
+      "pre_audit_status": "missing from current Rust-side search results",
+      "action": "include ../../drivers/cpufreq/cpufreq-dt.h from rust/bindings/bindings_helper.h",
+      "post_action_status": "verified in generated main bindings after the first Rust-capable build regeneration"
+    },
+    {
+      "symbol": "cpufreq_dt_pdev_register",
+      "declared_in": "drivers/cpufreq/cpufreq-dt.h",
+      "pre_audit_status": "missing from current Rust-side search results",
+      "action": "include ../../drivers/cpufreq/cpufreq-dt.h from rust/bindings/bindings_helper.h",
+      "post_action_status": "verified in generated main bindings after the first Rust-capable build regeneration"
+    }
+  ],
+  "header_changes": [
+    {
+      "file": "rust/bindings/bindings_helper.h",
+      "change": "#include <../../drivers/cpufreq/cpufreq-dt.h>"
+    }
+  ],
+  "remaining_gaps": [],
+  "helper_fallback_needed": false,
+  "notes": [
+    "The audit found no reason to model cpufreq_dt_platform_data with a bespoke helper type.",
+    "Coverage was validated in sabrelite-rust generated bindings after bindgen regeneration."
+  ]
+}

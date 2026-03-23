@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "official_rust_reference": {
+    "lower_bound": "06149d8f2216894cee86106c701d13141948f159",
+    "mature": "63c37d99f6eba4531100ae887c396206e0f7cf3e"
+  },
+  "aligned_items": [
+    "Both the blind-first driver and the official Rust implementations keep the cpufreq driver name as `cpufreq-dt` and preserve the generic callbacks `init`, `target_index`, `get`, `suspend`, `verify`, and `register_em`.",
+    "Both designs keep long-lived OPP/freq-table/clock resources in per-policy state rather than in long-lived probe-global storage.",
+    "Both designs preserve the `cpu0` then `cpu` regulator-name fallback semantics from the C driver.",
+    "Both designs keep `online` and `offline` as lightweight paths and rely on `target_index` plus OPP `set_rate` for frequency changes."
+  ],
+  "unaligned_items": [
+    "The official initial and mature Rust files model `cpufreq-dt` as an OF-matched platform driver with no driver-wide shared config, while the blind-first rerun models probe-time shared state explicitly and registers the cpufreq core through `RegistrationConfig` plus `driver_data`.",
+    "The official initial and mature Rust files do not model `cpufreq_dt_platform_data` callback plumbing or the `cpufreq_dt_pdev_register` seam inside the driver file, while the blind-first rerun adds a thin public seam in `rust/kernel/cpufreq_dt.rs` and keeps callback-aware shared config.",
+    "The official initial and mature Rust files rely on driver-file `unsafe` for CPU-device access and policy resource publication, while the blind-first rerun moves those operations behind safe abstractions and keeps the driver layer at zero `unsafe` and zero direct bindings use.",
+    "The official initial and mature Rust files keep `BOOST_ENABLED=true` with a no-op `set_boost`, while the blind-first rerun currently leaves boost handling unimplemented in the driver trait surface."
+  ],
+  "functional_differences": [
+    {
+      "id": "scope-expansion-over-official-initial",
+      "status": "present",
+      "detail": "The blind-first rerun intentionally covers more of the C gold standard than the official initial Rust file by carrying the shared C seam, runtime registration flags, and optional platform-data callback plumbing."
+    },
+    {
+      "id": "boost-path-gap",
+      "status": "open",
+      "detail": "The C gold driver sets `.set_boost = cpufreq_boost_set_sw`, and the official Rust file exposes boost-related trait surface, while the blind-first rerun currently does not implement a boost path."
+    },
+    {
+      "id": "env-b-deferred-probe-visibility-delta",
+      "status": "open",
+      "detail": "In mcimx7d-sabre runtime, the C baseline emits `platform cpufreq-dt: deferred probe pending`, while the Rust candidate reaches the same unbound platform-device state without the same dmesg line. Because neither run reaches policy sysfs, this remains an unvalidated runtime difference candidate."
+    }
+  ],
+  "engineering_differences": [
+    "The blind-first rerun adds `present_cpus()` / `for_each_present()` / callback-scoped CPU device access in `rust/kernel/cpu.rs`.",
+    "The blind-first rerun adds immutable typed platform data reads in `rust/kernel/platform.rs`.",
+    "The blind-first rerun adds regulator RAII and CPU-device OPP table helpers in `rust/kernel/opp.rs`.",
+    "The blind-first rerun adds safe policy resource publication and runtime-configurable cpufreq registration in `rust/kernel/cpufreq.rs`.",
+    "The blind-first rerun keeps driver-layer `unsafe` at zero, which is stricter than both the official initial and mature Rust files."
+  ],
+  "old_tree_constraints": [
+    "The local `ARM_IMX_CPUFREQ_DT depends on CPUFREQ_DT || CPUFREQ_DT_RUST` patch is benchmark harness switching integration only.",
+    "The benchmark configs disable `CONFIG_MODVERSIONS` so Rust remains selectable on this tree.",
+    "The sabrelite runtime had to move to a `multi_v7_defconfig`-derived ARMv7 baseline to avoid old-tree ARM/Rust helper link failures.",
+    "A host-side LLVM compatibility layer was required to satisfy the tree's clang requirement without altering system libraries."
+  ],
+  "workflow_defects": [
+    "The first runtime harness revision staged a host-architecture busybox into the ARM guest initramfs and therefore failed before any cpufreq observation.",
+    "The first runtime launcher revision did not normalize CR in the serial verdict marker and could hang after guest halt without explicit QEMU stop logic.",
+    "An intermediate build command used an overlong dtb target path, which was a local execution mistake rather than a code or tree constraint."
+  ],
+  "official_evolution": [
+    "From `06149d8...` to current-tree mature, the official Rust file mostly changed API spelling and tree integration details, such as `c_str!` to `c\"...\"`, `property_present()` through `fwnode()`, `DEFAULT_TRANSITION_LATENCY_NS`, and `PinInit`-style probe return shape.",
+    "No major structural evolution was observed between the official initial and mature files with respect to shared config, platdata callback plumbing, or driver-layer unsafe concentration."
+  ],
+  "assessment": {
+    "scope_vs_c_gold": "The blind-first rerun expands beyond the official initial Rust scope toward the C gold standard by carrying the shared C seam and callback-aware registration, but still has an open boost-path gap and no runtime policy-level validation.",
+    "remaining_gap_to_official_mature": "The blind-first rerun is more ambitious on engineering safety and C-scope coverage, but it diverges structurally from the mature official file and still lacks runtime proof for the deeper paths it targets.",
+    "tool_failure_judgment": "Partial. The workflow successfully produced a zero-unsafe blind-first driver plus supporting abstractions, but runtime evidence remained capped by baseline observability gaps and one open runtime difference candidate."
+  }
+}

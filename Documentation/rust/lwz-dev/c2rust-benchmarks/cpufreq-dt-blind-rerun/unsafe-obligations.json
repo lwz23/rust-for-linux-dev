@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "driver_layer": {
+    "unsafe_count": 0,
+    "direct_bindings_usage": 0,
+    "status": "satisfied"
+  },
+  "kernel_layer_obligations": [
+    {
+      "id": "cpufreq-driver-data-borrow",
+      "file": "rust/kernel/cpufreq.rs",
+      "boundary": "cpufreq driver registration / callback dispatch",
+      "unsafe_site": "borrowing T::DData from cpufreq_get_driver_data()",
+      "requirement": "the pointer stored in struct cpufreq_driver::driver_data must remain valid for every callback until unregister completes",
+      "current_status": "audited and satisfied",
+      "discharge_notes": [
+        "Registration::new_with_config() transfers ownership into the C driver object",
+        "Registration::Drop calls cpufreq_unregister_driver() before reclaiming driver_data",
+        "callback wrappers only re-borrow driver_data through cpufreq_get_driver_data() while the registration object is still alive",
+        "PlatformState owns the registration object, so the shared config cannot be dropped before platform-driver teardown"
+      ]
+    },
+    {
+      "id": "policy-driver-data-borrow",
+      "file": "rust/kernel/cpufreq.rs",
+      "boundary": "policy private data access",
+      "unsafe_site": "ForeignOwnable borrow/from_foreign around policy->driver_data",
+      "requirement": "policy data must be attached exactly once, cleared exactly once, and only reclaimed on matched exit/error rollback paths",
+      "current_status": "audited and satisfied",
+      "discharge_notes": [
+        "Policy::set_data() is paired with Policy::clear_data() on init_post rollback and on exit",
+        "cpufreq::Registration exit_callback always clears policy data before invoking Driver::exit",
+        "The Rust cpufreq-dt driver keeps long-lived OPP/clock/regulator resources inside PolicyState only"
+      ]
+    },
+    {
+      "id": "platform-platdata-read",
+      "file": "rust/kernel/platform.rs",
+      "boundary": "platform device typed platdata access",
+      "unsafe_site": "reading device.platform_data and converting it through PlatData::from_raw",
+      "requirement": "the typed view must only be used for immutable platform data that outlives the borrow",
+      "current_status": "implemented and build-checked"
+    },
+    {
+      "id": "cpufreq-dt-export-shim",
+      "file": "rust/kernel/cpufreq_dt.rs",
+      "boundary": "C export for cpufreq_dt_pdev_register",
+      "unsafe_site": "extern \"C\" export and raw parent device pointer handoff",
+      "requirement": "the incoming device pointer must be a valid C device pointer accepted by platform_device_register_full()",
+      "current_status": "implemented and static-only"
+    },
+    {
+      "id": "registration-send-sync",
+      "file": "rust/kernel/cpufreq.rs",
+      "boundary": "cpufreq::Registration<T>",
+      "unsafe_site": "unsafe impl Send/Sync",
+      "requirement": "shared access must not expose mutable interior state except through the cpufreq core's C-side synchronization rules",
+      "current_status": "reviewed, unchanged pre-existing obligation",
+      "discharge_notes": [
+        "The blind-first cpufreq-dt driver does not introduce any driver-layer unsafe impl Send/Sync",
+        "The remaining Send/Sync site lives in the pre-existing kernel-layer registration wrapper",
+        "No new Send/Sync surface was added in the driver file during this rerun"
+      ]
+    }
+  ],
+  "helper_obligations": {
+    "cpufreq_specific_helper_count": 0,
+    "status": "satisfied",
+    "notes": [
+      "No helper was introduced for cpufreq_dt_platform_data or cpufreq_dt_pdev_register.",
+      "Any future helper must be justified strictly as an inline/macro blind-spot bridge."
+    ]
+  }
+}

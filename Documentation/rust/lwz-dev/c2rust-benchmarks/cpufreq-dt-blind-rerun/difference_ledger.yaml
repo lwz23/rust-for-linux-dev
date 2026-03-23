@@ -1,0 +1,185 @@
+schema_version: 1
+module_id: cpufreq-dt
+generated_on: 2026-03-23
+entries:
+  - id: old-tree-kconfig-switching-integration
+    category: old-tree constraint
+    subcategory: benchmark harness switching integration
+    status: applied
+    file: drivers/cpufreq/Kconfig.arm
+    detail: >
+      ARM_IMX_CPUFREQ_DT dependency widened from CPUFREQ_DT to
+      CPUFREQ_DT || CPUFREQ_DT_RUST so the provider-assisted mcimx7d-sabre
+      fallback environment can be configured for the Rust candidate.
+    rationale: >
+      This is required for benchmark runtime switching on the old tree and is
+      not part of the C gold-standard functional target.
+    affects:
+      - env_b.mcimx7d-sabre
+      - runtime harness switching only
+  - id: runtime-static-only-paths
+    category: runtime gap
+    subcategory: scope freeze
+    status: open
+    detail: >
+      optional cpufreq_dt_platform_data callback plumbing and the
+      cpufreq_dt_pdev_register export path are inside the static target but
+      are not assumed runtime covered by default.
+  - id: config-drift-discipline
+    category: engineering difference
+    subcategory: config control
+    status: open
+    detail: >
+      For each runtime environment, C baseline and Rust candidate configs must
+      remain aligned except for CONFIG_CPUFREQ_DT, CONFIG_CPUFREQ_DT_RUST, and
+      Rust-only unavoidable dependencies. Any additional drift must be recorded
+      here once config snapshots are generated.
+  - id: rust-enable-modversions
+    category: old-tree constraint
+    subcategory: config enablement
+    status: applied
+    detail: >
+      The chosen ARM baseline had CONFIG_MODVERSIONS=y, which prevented
+      CONFIG_RUST from being retained in .config on this tree. The benchmark
+      config disables MODVERSIONS for both C and Rust variants of the same
+      environment so Rust enablement is possible without introducing a
+      C-vs-Rust drift inside that environment.
+    affects:
+      - env_a.sabrelite
+      - env_b.mcimx7d-sabre
+      - build and runtime harness only
+  - id: sabrelite-net-minimization
+    category: engineering difference
+    subcategory: minimal runtime environment
+    status: applied
+    detail: >
+      CONFIG_NET was disabled in the sabrelite benchmark config to keep the
+      runtime image focused on serial-console/initramfs cpufreq observation and
+      to avoid unrelated Rust networking compilation surface. This is planned to
+      be mirrored in the C baseline for the same environment, so it is not a
+      C-vs-Rust drift by itself.
+    affects:
+      - env_a.sabrelite
+      - build surface and runtime minimalism
+  - id: host-llvm-compat-layer
+    category: old-tree constraint
+    subcategory: host toolchain environment
+    status: applied
+    detail: >
+      The official LLVM 18 tarball required libtinfo.so.5 on the host. A local
+      compat extraction of Ubuntu's libtinfo5 package was used via
+      LD_LIBRARY_PATH so the benchmark can keep LLVM=1 without altering system
+      libraries.
+    affects:
+      - host build environment only
+  - id: sabrelite-armv7-build-baseline
+    category: old-tree constraint
+    subcategory: benchmark harness build integration
+    status: applied
+    detail: >
+      An initial sabrelite attempt derived from imx_v6_v7_defconfig compiled
+      rust/helpers/helpers.o with __LINUX_ARM_ARCH__=6 and -march=armv6k,
+      which made Rust's generic atomic_ext i8/i16 xchg and cmpxchg helpers
+      resolve to __bad_xchg and __bad_cmpxchg at vmlinux link time. Both the C
+      baseline and Rust candidate for env_a were therefore rebased onto a
+      multi_v7_defconfig-derived ARMv7 config to keep the build comparable
+      while avoiding this old-tree ARM/Rust helper mismatch.
+    affects:
+      - env_a.sabrelite
+      - build and runtime harness only
+  - id: env-a-sabrelite-config-parity
+    category: engineering difference
+    subcategory: config control
+    status: applied
+    detail: >
+      After rebasing env_a onto multi_v7_defconfig, the sabrelite C baseline
+      and Rust candidate configs were aligned by copying the Rust config and
+      flipping only CONFIG_CPUFREQ_DT versus CONFIG_CPUFREQ_DT_RUST. Extra
+      CPUFREQ_DT-driven SoC module defaults were explicitly disabled again, so
+      the remaining intentional delta is limited to the driver-selection
+      symbol pair.
+    affects:
+      - env_a.sabrelite
+  - id: env-b-mcimx7d-config-parity
+    category: engineering difference
+    subcategory: config control
+    status: applied
+    detail: >
+      The env_b.mcimx7d-sabre C baseline and Rust candidate configs were
+      derived from the aligned env_a snapshots, then both enabled
+      CONFIG_ARM_IMX_CPUFREQ_DT=m. The intentional C-vs-Rust delta remains
+      limited to CONFIG_CPUFREQ_DT versus CONFIG_CPUFREQ_DT_RUST, while the
+      provider module, userspace governor module, and ARMv7 baseline stay
+      aligned across both variants.
+    affects:
+      - env_b.mcimx7d-sabre
+  - id: runtime-harness-initramfs-arch-mismatch
+    category: runtime harness defect
+    subcategory: guest userland staging
+    status: fixed
+    detail: >
+      The first sabrelite runtime attempt copied the host busybox into the
+      initramfs, which made /init fail inside the ARM guest with -ENOEXEC.
+      The harness was repaired by replacing the shell/busybox path with a
+      host-built static ARM guest init binary that performs module loading,
+      sysfs observation, and verdict emission directly.
+    affects:
+      - env_a.sabrelite
+      - env_b.mcimx7d-sabre
+      - runtime harness only
+  - id: runtime-harness-qemu-shutdown-and-marker-parsing
+    category: runtime harness defect
+    subcategory: host orchestration
+    status: fixed
+    detail: >
+      The first ARM runtime runs exposed two host-side issues: carriage returns
+      in the serial log confused guest RC parsing, and QEMU sometimes remained
+      alive after the guest halted. The launcher now strips CR from the marker,
+      records QEMU_FORCED_STOP, and terminates QEMU after the guest verdict is
+      visible.
+    affects:
+      - env_a.sabrelite
+      - env_b.mcimx7d-sabre
+      - runtime harness only
+  - id: env-a-sabrelite-baseline-observability-gap
+    category: baseline observability gap
+    subcategory: generic standalone path
+    status: open
+    detail: >
+      Under sabrelite, both C baseline and Rust candidate can boot, load the
+      governor module, and load the cpufreq-dt module, but neither produces
+      policy sysfs, scaling_driver, frequency tables, or governor-level
+      observability. This prevents a trusted A/B verdict for the generic
+      standalone path.
+    affects:
+      - env_a.sabrelite
+      - runtime claim ceiling
+  - id: env-b-mcimx7d-baseline-observability-gap
+    category: baseline observability gap
+    subcategory: provider-assisted composite path
+    status: open
+    detail: >
+      Under mcimx7d-sabre, both C baseline and Rust candidate load the
+      provider module and the cpufreq driver module, and both expose the
+      cpufreq-dt platform device plus driver directory. However the platform
+      device remains unbound, no policy sysfs appears, and no governor or
+      frequency data becomes observable. The tested QEMU machine leaves the
+      cpufreq path below the policy level unvalidated.
+    affects:
+      - env_b.mcimx7d-sabre
+      - runtime claim ceiling
+  - id: env-b-deferred-probe-visibility-delta
+    category: runtime gap
+    subcategory: observed c-vs-rust divergence under low observability
+    status: open
+    detail: >
+      In env_b, the C baseline log includes `platform cpufreq-dt: deferred
+      probe pending`, while the Rust candidate reaches the same visible state
+      of `platform.device.cpufreq_dt.present=1`,
+      `platform.driver.cpufreq_dt.present=1`, and unbound device/driver links,
+      but does not emit the same deferred-probe dmesg line. Because no policy
+      sysfs appears in either run, this is recorded as a runtime difference
+      candidate rather than a proven functional regression.
+    affects:
+      - env_b.mcimx7d-sabre
+      - runtime claim ceiling

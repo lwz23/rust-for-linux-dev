@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "blind",
+  "style_alignment": "unreviewed",
+  "runtime_state": "unvalidated",
+  "run_kind": "fresh workflow validation rerun",
+  "benchmark_quota_accounting": "not counted toward new formal benchmark quota",
+  "workspace": {
+    "workspace_root": "/home/lwz/rfl-dev",
+    "kernel_tree": "/home/lwz/rfl-dev/linux",
+    "worktree": "/home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun",
+    "branch": "feature/cpufreq-dt-blind-rerun",
+    "default_build_dir": "/home/lwz/rfl-dev/build-cpufreq-dt-blind-rerun",
+    "output_dir": "/home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt-blind-rerun"
+  },
+  "dut": {
+    "subsystem": "cpufreq",
+    "c_gold_standard": "/home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt.c",
+    "shared_c_seams": [
+      "/home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt-platdev.c",
+      "/home/lwz/rfl-dev/linux/drivers/cpufreq/cpufreq-dt.h"
+    ],
+    "rust_candidate": "/home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun/drivers/cpufreq/rcpufreq_dt.rs",
+    "kconfig_symbols": [
+      "CONFIG_CPUFREQ_DT",
+      "CONFIG_CPUFREQ_DT_RUST",
+      "CONFIG_ARM_IMX_CPUFREQ_DT"
+    ],
+    "c_function_target": {
+      "included": [
+        "private_data lifetime and resource ownership",
+        "cpufreq_dt_find_data",
+        "set_target",
+        "find_supply_name",
+        "cpufreq_init",
+        "cpufreq_online",
+        "cpufreq_offline",
+        "cpufreq_exit",
+        "dt_cpufreq_early_init",
+        "dt_cpufreq_release",
+        "dt_cpufreq_probe",
+        "dt_cpufreq_remove",
+        "cpufreq_dt_pdev_register",
+        "optional cpufreq_dt_platform_data callback plumbing"
+      ],
+      "excluded": [
+        "rewriting cpufreq-dt-platdev.c allowlist/blocklist/machine detection logic",
+        "rewriting external SoC-specific callback providers outside cpufreq-dt.c"
+      ]
+    }
+  },
+  "official_rust_reference": {
+    "lower_bound": "06149d8f2216894cee86106c701d13141948f159",
+    "mature": "63c37d99f6eba4531100ae887c396206e0f7cf3e"
+  },
+  "runtime_coverage_scope": {
+    "runtime_validated_core": [],
+    "runtime_gap_paths": [
+      "generic standalone cpufreq-dt probe-to-policy path on sabrelite",
+      "provider-assisted composite path beyond module load on mcimx7d-sabre",
+      "policy sysfs / scaling_driver / governor / frequency table observability in tested environments",
+      "optional cpufreq_dt_platform_data callback plumbing",
+      "cpufreq_dt_pdev_register export path"
+    ]
+  },
+  "runtime_targets": {
+    "env_a": {
+      "name": "sabrelite",
+      "machine": "sabrelite",
+      "dtb": "arch/arm/boot/dts/nxp/imx/imx6q-sabrelite.dtb",
+      "guest_cpus": 4,
+      "console": "ttymxc1",
+      "goal": "generic and platdev automatic creation path observability"
+    },
+    "env_b": {
+      "name": "mcimx7d-sabre",
+      "machine": "mcimx7d-sabre",
+      "dtb": "arch/arm/boot/dts/nxp/imx/imx7d-sdb.dtb",
+      "guest_cpus": 2,
+      "console": "ttymxc0",
+      "goal": "provider-assisted composite fallback path",
+      "activation_condition": "local Kconfig switching integration patch completed"
+    }
+  },
+  "switching_integration_plan": {
+    "enabled": true,
+    "applied": true,
+    "classification": [
+      "benchmark harness switching integration",
+      "old-tree constraint",
+      "not part of c_function_target"
+    ],
+    "target": "drivers/cpufreq/Kconfig.arm",
+    "change": "ARM_IMX_CPUFREQ_DT depends on CPUFREQ_DT || CPUFREQ_DT_RUST",
+    "intent": "allow ARM_IMX_CPUFREQ_DT to build under CPUFREQ_DT_RUST without changing the C gold-standard scope"
+  },
+  "blind_first": {
+    "status": "preserved",
+    "search_exclusions": [
+      "drivers/cpufreq/rcpufreq_dt.rs",
+      "old cpufreq-dt benchmark directories",
+      "old cpufreq-dt blind worktrees",
+      "official related diffs and compare inputs"
+    ]
+  },
+  "runtime_outcome": {
+    "env_a": {
+      "verdict": "baseline observability gap",
+      "ab_ceiling": "limited parity on module-load and no-policy observations only"
+    },
+    "env_b": {
+      "verdict": "baseline observability gap",
+      "ab_ceiling": "provider-assisted front-half parity only; no policy-level validation"
+    },
+    "combined_claim_ceiling": "no functional equivalence claim"
+  }
+}

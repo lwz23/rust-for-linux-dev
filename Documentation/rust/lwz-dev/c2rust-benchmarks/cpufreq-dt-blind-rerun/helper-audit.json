@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "helper_target_count": 0,
+  "status": "no helper introduced",
+  "allowed_helper_scope": [
+    "inline function blind spots",
+    "macro-only gaps that cannot be surfaced through main bindings"
+  ],
+  "rejected_helper_uses": [
+    {
+      "candidate": "cpufreq_dt_platform_data type bridge",
+      "reason": "The type is defined in drivers/cpufreq/cpufreq-dt.h and should enter via main bindings, not a helper-owned shadow type."
+    },
+    {
+      "candidate": "cpufreq_dt_pdev_register declaration bridge",
+      "reason": "The export is a regular function declaration in the same public header and should enter via main bindings."
+    }
+  ],
+  "current_helpers": [],
+  "retirement_check": {
+    "required_in_hardening": true,
+    "current_result": "trivially satisfied because helper count is still zero"
+  }
+}

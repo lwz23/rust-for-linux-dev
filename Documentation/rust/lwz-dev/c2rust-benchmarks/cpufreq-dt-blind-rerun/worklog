@@ -1,0 +1,131 @@
+Run metadata
+- `pipeline_mode=calibration`
+- `module_id=cpufreq-dt`
+- `conversion_stage=blind`
+- `style_alignment=unreviewed`
+- `runtime_state=unvalidated`
+- `run_kind=fresh workflow validation rerun`
+- `benchmark_quota_accounting=not counted toward new formal benchmark quota`
+
+2026-03-23 Stage 0
+- Created isolated worktree `/home/lwz/rfl-dev/worktrees/cpufreq-dt-blind-rerun` from `63c37d99f6eba4531100ae887c396206e0f7cf3e`.
+- Created branch `feature/cpufreq-dt-blind-rerun`.
+- Created build directory `/home/lwz/rfl-dev/build-cpufreq-dt-blind-rerun`.
+- Created benchmark directory `Documentation/rust/lwz-dev/c2rust-benchmarks/cpufreq-dt-blind-rerun/`.
+- Froze the DUT to `drivers/cpufreq/cpufreq-dt.c` generic core with the user-specified `c_function_target`.
+- Froze `official_rust_reference.lower_bound=06149d8f2216894cee86106c701d13141948f159`.
+- Froze `official_rust_reference.mature=63c37d99f6eba4531100ae887c396206e0f7cf3e`.
+- Froze `runtime_coverage_scope` with empty `runtime_validated_core` and initial `runtime_gap_paths`.
+- Froze runtime harness root at `tools/testing/rust/cpufreq-dt/` and result root at `test-results/cpufreq-dt/`.
+
+2026-03-23 Stage 0 incidental path exposure
+- `only pathname matched`
+- `no file content opened`
+- `no semantic reuse`
+- `blind-first status preserved`
+
+2026-03-23 Stage 0 switching-integration decision
+- Selected plan A: add a minimal local Kconfig switching integration patch if needed so `ARM_IMX_CPUFREQ_DT` can participate in the Rust fallback runtime environment.
+- Classified that patch as `benchmark harness switching integration`.
+- Classified that patch as `old-tree constraint`.
+- Recorded that patch as `not part of c_function_target`.
+
+2026-03-23 Stage 0 search discipline
+- All subsequent searches must explicitly exclude `drivers/cpufreq/rcpufreq_dt.rs`.
+- All subsequent searches must explicitly exclude old `cpufreq-dt` benchmark directories.
+- All subsequent searches must explicitly exclude old `cpufreq-dt` blind worktrees.
+- All subsequent searches must explicitly exclude official related diff and compare inputs until stage 9.
+
+2026-03-23 Stage 1 static frontend
+- Read `drivers/cpufreq/cpufreq-dt.c`, `drivers/cpufreq/cpufreq-dt-platdev.c`, `drivers/cpufreq/cpufreq-dt.h`, `drivers/cpufreq/Kconfig`, `drivers/cpufreq/Kconfig.arm`, and `drivers/cpufreq/Makefile`.
+- Classified the DUT as `platform-devres-per-policy-owner`.
+- Recorded that C uses a prototype-era `priv_list`, but the Rust port should prefer a per-policy long-lived owner model rather than mechanically reproducing the global registry shape.
+- Captured owner adjustments, resource lifetimes, sharing semantics, and rollback pairs in `c-structure-map.json`.
+- Marked `cpufreq_dt_platform_data` callback plumbing and `cpufreq_dt_pdev_register` export path as static target only until runtime evidence exists.
+
+2026-03-23 Stage 2 switching integration
+- Reused the existing `CONFIG_CPUFREQ_DT` / `CONFIG_CPUFREQ_DT_RUST` switch already present in `drivers/cpufreq/Kconfig` and `drivers/cpufreq/Makefile`.
+- Applied a minimal local Kconfig integration patch in `drivers/cpufreq/Kconfig.arm`.
+- Changed `ARM_IMX_CPUFREQ_DT` dependency from `CPUFREQ_DT` to `CPUFREQ_DT || CPUFREQ_DT_RUST`.
+- Classified the patch as `benchmark harness switching integration`.
+- Classified the patch as `old-tree constraint`.
+- Recorded that the patch is `not part of c_function_target`.
+
+2026-03-23 Stage 3 bindings audit
+- Extended `rust/bindings/bindings_helper.h` to include `../../drivers/cpufreq/cpufreq-dt.h`.
+- Targeted main-bindings exposure for `struct cpufreq_dt_platform_data` and `cpufreq_dt_pdev_register`.
+- Regenerated bindings during the first Rust-capable build and confirmed that the benchmark did not need a shadow helper-owned C type.
+
+2026-03-23 Stage 4 helper audit
+- Kept the cpufreq-specific helper count at `0`.
+- Rejected helper-based shadowing for both `cpufreq_dt_platform_data` and `cpufreq_dt_pdev_register`.
+- Recorded helper retirement status as trivially satisfied for the cpufreq-specific benchmark path.
+
+2026-03-23 Stage 5 pattern selection and abstraction layer
+- Promoted present-CPU iteration and callback-scoped CPU device access into `rust/kernel/cpu.rs`.
+- Added typed immutable platform data access to `rust/kernel/platform.rs`.
+- Added OPP/regulator RAII pieces in `rust/kernel/opp.rs`.
+- Extended `rust/kernel/cpufreq.rs` with safe policy resource publication, runtime registration configuration, and driver-wide shared data plumbing.
+- Added a thin public seam module `rust/kernel/cpufreq_dt.rs` to keep cpufreq-dt-specific public C seam handling out of the driver file while avoiding pollution of generic platform/cpufreq abstractions.
+
+2026-03-23 Stage 6 blind-first driver
+- Implemented a blind-first Rust `cpufreq-dt` driver in `drivers/cpufreq/rcpufreq_dt.rs`.
+- Kept driver-layer `unsafe` at `0`.
+- Kept driver-layer direct `bindings::` usage at `0`.
+- Modeled long-lived resources in `PolicyState` and kept `PlatformState` as registration plus shared descriptor owner.
+- Reworked shared cluster descriptors to hold CPU id vectors instead of long-lived `CpumaskVar`, so per-policy masks remain policy-owned and shared config remains lightweight.
+
+2026-03-23 Build enablement and static verification
+- The host default clang was too old for this tree (`clang 14` vs tree requirement `clang >= 15`).
+- Downloaded the official LLVM 18 tarball into `/home/lwz/toolchains`.
+- Found that the tarball required `libtinfo.so.5` and could not run on the host as-is.
+- Downloaded and locally extracted Ubuntu `libtinfo5` into a private compat directory under `/home/lwz/toolchains/compat-libs-root/`.
+- Enabled LLVM 18 for the benchmark through `PATH`, `LD_LIBRARY_PATH`, and `LIBCLANG_PATH` without changing system libraries.
+- Observed that the ARM baseline config retained `CONFIG_MODVERSIONS=y`, which caused `CONFIG_RUST` to fall back out of `.config`.
+- Disabled `CONFIG_MODVERSIONS` in the benchmark config so `CONFIG_RUST` and `CONFIG_CPUFREQ_DT_RUST=m` remain selectable on this tree.
+- Disabled `CONFIG_NET` in the sabrelite benchmark config to keep the runtime environment minimal and avoid unrelated Rust networking build surface.
+- Completed `modules_prepare` successfully for the sabrelite Rust candidate.
+- Built `drivers/cpufreq/rcpufreq_dt.o` successfully inside a module build, proving the blind-first driver and its supporting kernel abstractions compile together.
+- Saved the current sabrelite Rust candidate config snapshot as `sabrelite-rust.config` under the benchmark directory.
+- Started a full Rust candidate build for `zImage modules dtbs`; result still pending at the time of this entry.
+
+2026-03-23 Stage 7 hardening
+- Audited `cpufreq_driver.driver_data` lifetime against `Registration::new_with_config()` and `Registration::Drop` in `rust/kernel/cpufreq.rs`.
+- Confirmed that driver-wide shared config ownership is transferred into `struct cpufreq_driver::driver_data` at registration time and reclaimed only after `cpufreq_unregister_driver()` returns.
+- Confirmed that the Rust driver itself does not introduce `unsafe impl Send/Sync`; the only remaining Send/Sync site is the pre-existing kernel-layer `cpufreq::Registration<T>` boundary.
+- Rechecked `PolicyState` ownership so long-lived resources remain policy-owned while `PlatformState` only retains registration plus shared cluster descriptors.
+- Reordered `PolicyState` fields so RAII teardown pairs stay closer to the C teardown sequence.
+- Rechecked the fallback sharing path so the retained CPU shape reflects the full fallback cpumask rather than only iterated present CPUs.
+
+2026-03-23 Stage 8 runtime harness repair
+- The first sabrelite C baseline run failed before guest tests due to an initramfs defect: host busybox was copied into the ARM guest and `/init` failed with `error -8`.
+- Replaced the shell-and-busybox guest path with a host-built static ARM test binary in `tools/testing/rust/cpufreq-dt/cpufreq-dt-guest-init.c`.
+- Updated `prepare-test-rootfs.sh` to stage the static ARM `/init` binary instead of host busybox applets.
+- Updated `run-qemu-test.sh` to strip CR from `CPUFREQ_DT_GUEST_RC`, record `QEMU_FORCED_STOP`, and stop QEMU once the guest verdict is visible.
+
+2026-03-23 Stage 8 env_a.sabrelite runtime
+- Rebuilt and reran the sabrelite C baseline with the repaired runtime harness.
+- Observed: C baseline booted, loaded `cpufreq_userspace.ko`, loaded `cpufreq-dt.ko`, and produced no warnings/oops-level anomalies.
+- Observed: sabrelite C baseline never exposed `policy*` sysfs and therefore never exposed `scaling_driver`, available governors, or available frequencies.
+- Recorded env_a as a `baseline observability gap` for the generic standalone path.
+- Rebuilt and reran the sabrelite Rust candidate with the same harness.
+- Observed: Rust candidate booted, loaded `cpufreq_userspace.ko`, loaded `rcpufreq_dt.ko`, and matched the C baseline ceiling of `policy.root_visible=0`.
+- Recorded env_a C/Rust parity as limited to module-load and no-policy observations only; no trusted A/B functional verdict is possible.
+
+2026-03-23 Stage 8 env_b.mcimx7d-sabre build and runtime
+- Derived `mcimx7d-c.config` and `mcimx7d-rust.config` from the aligned sabrelite snapshots.
+- Enabled `CONFIG_ARM_IMX_CPUFREQ_DT=m` in both env_b variants while preserving the same `CONFIG_CPUFREQ_DT` versus `CONFIG_CPUFREQ_DT_RUST` split discipline.
+- Built `zImage`, `imx7d-sdb.dtb`, `imx-cpufreq-dt.ko`, `cpufreq-dt.ko`, `rcpufreq_dt.ko`, and `cpufreq_userspace.ko` for env_b.
+- Observed: env_b C baseline booted and loaded both `imx-cpufreq-dt.ko` and `cpufreq-dt.ko`.
+- Observed: env_b Rust candidate booted and loaded both `imx-cpufreq-dt.ko` and `rcpufreq_dt.ko`.
+- Observed: both env_b runs exposed the `cpufreq-dt` platform device and driver directory in sysfs but showed no driver binding (`platform.device.cpufreq_dt.driver_link=0`, `platform.driver.cpufreq_dt.bound_device=0`).
+- Observed: env_b C baseline logged `platform cpufreq-dt: deferred probe pending: (reason unknown)`.
+- Observed: env_b Rust candidate reached the same unbound platform-device state but did not emit the identical deferred-probe dmesg line.
+- Observed: neither env_b run exposed `policy*` sysfs, `scaling_driver`, governors, or frequency tables.
+- Classified env_b as a provider-assisted `baseline observability gap` with an additional open runtime difference candidate in dmesg visibility / deferred-probe behavior.
+
+2026-03-23 Stage 8 runtime conclusion
+- `runtime_state` remains `unvalidated`.
+- `runtime_validated_core` remains empty.
+- `runtime_gap_paths` now include the generic standalone probe-to-policy path and the provider-assisted composite path beyond module load.
+- No claim of functional equivalence can be made from the available runtime evidence.

@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "source_files": {
+    "c_gold_standard": "drivers/cpufreq/cpufreq-dt.c",
+    "shared_c_seams": [
+      "drivers/cpufreq/cpufreq-dt-platdev.c",
+      "drivers/cpufreq/cpufreq-dt.h"
+    ],
+    "kconfig": "drivers/cpufreq/Kconfig",
+    "kconfig_arm": "drivers/cpufreq/Kconfig.arm",
+    "makefile": "drivers/cpufreq/Makefile"
+  },
+  "pattern_classification": {
+    "primary": "platform-devres-per-policy-owner",
+    "notes": [
+      "The C implementation uses a prototype-stage global registry `priv_list` to map CPUs to shared private_data clusters.",
+      "The Rust candidate should not mechanically copy the global registry shape.",
+      "Long-lived frequency-policy resources are better modeled as per-policy state.",
+      "Probe/device state should remain a light descriptor plus shared configuration, not the owner of policy resources."
+    ]
+  },
+  "owner_unit_adjustments": {
+    "allowed_owner_adjustments": [
+      "Move long-lived cpumask, OPP regulator token, OPP table, cpufreq table, and clk ownership from the global `private_data` list entry into a per-policy Rust owner.",
+      "Keep a lightweight platform/shared-config owner for cluster discovery and driver registration data."
+    ],
+    "must_stay_semantically_equivalent": [
+      "One logical policy owner per shared CPU mask.",
+      "The related CPU mask visible through cpufreq policy must match the C sharing semantics.",
+      "Frequency transitions must continue to read the selected frequency entry and call into the OPP rate setter for the primary CPU device.",
+      "Probe/remove and init/exit pairings must preserve the same acquisition and release coverage as the C baseline."
+    ],
+    "static_only_not_runtime_covered_yet": [
+      "optional cpufreq_dt_platform_data callback plumbing",
+      "cpufreq_dt_pdev_register export path"
+    ]
+  },
+  "key_structures": {
+    "private_data": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:27",
+      "fields": [
+        "node",
+        "cpus",
+        "cpu_dev",
+        "freq_table",
+        "have_static_opps",
+        "opp_token"
+      ],
+      "role": "Cluster-level resource bundle and registry node shared across all CPUs in one policy."
+    },
+    "priv_list": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:37",
+      "role": "Global registry used to locate the cluster owner by CPU membership."
+    },
+    "cpufreq_policy": {
+      "init_file": "drivers/cpufreq/cpufreq-dt.c:83",
+      "role": "Per-policy view that receives cpus, clk, freq_table, suspend_freq, transition latency, and driver_data."
+    },
+    "cpufreq_driver": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:140",
+      "role": "Static driver instance whose callbacks are optionally patched by platform data before registration."
+    },
+    "platform_device": {
+      "probe_file": "drivers/cpufreq/cpufreq-dt.c:280",
+      "remove_file": "drivers/cpufreq/cpufreq-dt.c:317",
+      "platdev_seam_file": "drivers/cpufreq/cpufreq-dt-platdev.c:226",
+      "export_register_file": "drivers/cpufreq/cpufreq-dt.c:332"
+    }
+  },
+  "resource_lifetimes": {
+    "cpumask": {
+      "acquire": "zalloc_cpumask_var in dt_cpufreq_early_init",
+      "mutations": [
+        "seed with current CPU",
+        "expand to shared CPUs via OPP sharing lookup",
+        "fallback can widen to all CPUs before setting sharing"
+      ],
+      "attach": "copied into policy->cpus in cpufreq_init",
+      "release": "free_cpumask_var in dt_cpufreq_release or early_init rollback"
+    },
+    "cpu_device": {
+      "acquire": "get_cpu_device in dt_cpufreq_early_init",
+      "attach": "stored in private_data and later reused by set_target, cpufreq_init, and release paths",
+      "release": "borrowed core device pointer; no explicit put in this driver"
+    },
+    "opp_regulator_token": {
+      "acquire": "dev_pm_opp_set_regulators after find_supply_name",
+      "attach": "stored as private_data.opp_token",
+      "release": "dev_pm_opp_put_regulators in dt_cpufreq_release or early_init rollback"
+    },
+    "opp_table": {
+      "acquire": "dev_pm_opp_of_cpumask_add_table when static OPP data is present",
+      "guard": "have_static_opps",
+      "release": "dev_pm_opp_of_cpumask_remove_table in dt_cpufreq_release or rollback"
+    },
+    "freq_table": {
+      "acquire": "dev_pm_opp_init_cpufreq_table",
+      "attach": "stored in private_data then published to policy->freq_table in cpufreq_init",
+      "release": "dev_pm_opp_free_cpufreq_table in dt_cpufreq_release"
+    },
+    "clk": {
+      "acquire": "clk_get in cpufreq_init",
+      "attach": "policy->clk",
+      "release": "clk_put in cpufreq_exit"
+    }
+  },
+  "control_flow": {
+    "cpufreq_dt_find_data": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:39",
+      "purpose": "Map a CPU id to the private_data cluster by scanning the registry."
+    },
+    "find_supply_name": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:63",
+      "purpose": "Resolve the legacy `cpu0-supply` versus modern `cpu-supply` regulator naming."
+    },
+    "set_target": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:51",
+      "purpose": "Read policy->freq_table[index] and set the OPP rate for the cluster's CPU device."
+    },
+    "cpufreq_init_online_offline_exit": {
+      "init": "drivers/cpufreq/cpufreq-dt.c:83",
+      "online": "drivers/cpufreq/cpufreq-dt.c:120",
+      "offline": "drivers/cpufreq/cpufreq-dt.c:126",
+      "exit": "drivers/cpufreq/cpufreq-dt.c:135",
+      "notes": [
+        "init acquires clk late and publishes the cluster resources into policy",
+        "online/offline are intentionally lightweight no-ops",
+        "exit only releases clk; cluster resources remain owned by the global registry until driver unregister/remove"
+      ]
+    },
+    "dt_cpufreq_early_init": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:156",
+      "purpose": "Create a cluster owner for a CPU if none exists, discover related CPUs, set regulators, load OPP tables, and build the cpufreq frequency table."
+    },
+    "dt_cpufreq_release": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:266",
+      "purpose": "Destroy every cluster owner and release freq tables, static OPP tables, regulator token, cpumask, and registry membership."
+    },
+    "dt_cpufreq_probe_remove": {
+      "probe": "drivers/cpufreq/cpufreq-dt.c:280",
+      "remove": "drivers/cpufreq/cpufreq-dt.c:317",
+      "notes": [
+        "probe iterates all present CPUs and runs early init before registering the cpufreq driver",
+        "probe mutates the static cpufreq_driver based on optional cpufreq_dt_platform_data",
+        "remove unregisters the driver and then releases all cluster resources"
+      ]
+    },
+    "cpufreq_dt_pdev_register": {
+      "file": "drivers/cpufreq/cpufreq-dt.c:332",
+      "purpose": "Exported helper that allows provider drivers to create the cpufreq-dt platform device as a child of their device."
+    },
+    "platdev_autocreation": {
+      "file": "drivers/cpufreq/cpufreq-dt-platdev.c:226",
+      "purpose": "Core-initcall path that creates the cpufreq-dt platform device for allowlisted machines or OPP-v2 systems not in the blocklist.",
+      "runtime_note": "This is the generic standalone creation seam and is distinct from provider-assisted `cpufreq_dt_pdev_register`."
+    }
+  },
+  "sharing_semantics": {
+    "shared_mask_source": [
+      "dev_pm_opp_of_get_sharing_cpus",
+      "fallback to dev_pm_opp_get_sharing_cpus, then cpumask_setall plus dev_pm_opp_set_sharing_cpus"
+    ],
+    "policy_visibility": [
+      "cpumask_copy(policy->cpus, priv->cpus)",
+      "cpufreq_dt_find_data relies on membership in the same mask"
+    ],
+    "implication_for_rust": "Per-policy ownership may replace the registry shape, but related CPU mask results must stay equivalent."
+  },
+  "error_rollback_and_drop_pairs": [
+    {
+      "site": "drivers/cpufreq/cpufreq-dt.c:188-193",
+      "failure": "dev_pm_opp_set_regulators < 0",
+      "rollback": [
+        "free_cpumask_var"
+      ]
+    },
+    {
+      "site": "drivers/cpufreq/cpufreq-dt.c:222-226",
+      "failure": "dev_pm_opp_of_cpumask_add_table == -EPROBE_DEFER",
+      "rollback": [
+        "dev_pm_opp_put_regulators",
+        "free_cpumask_var"
+      ]
+    },
+    {
+      "site": "drivers/cpufreq/cpufreq-dt.c:233-251",
+      "failure": "empty OPP table or cpufreq table init failure",
+      "rollback": [
+        "dev_pm_opp_of_cpumask_remove_table if have_static_opps",
+        "dev_pm_opp_put_regulators",
+        "free_cpumask_var"
+      ]
+    },
+    {
+      "site": "drivers/cpufreq/cpufreq-dt.c:305-313",
+      "failure": "cpufreq_register_driver failure after probe setup",
+      "rollback": [
+        "dt_cpufreq_release over every cluster entry"
+      ]
+    },
+    {
+      "site": "drivers/cpufreq/cpufreq-dt.c:135-138 and 266-277",
+      "pairing": "clk_get/clk_put is per-policy; OPP/freq-table/regulator/cpumask teardown is registration-lifetime"
+    }
+  ],
+  "kbuild_switching": {
+    "kconfig": {
+      "cpufreq_dt": "drivers/cpufreq/Kconfig:193",
+      "cpufreq_dt_rust": "drivers/cpufreq/Kconfig:204",
+      "cpufreq_dt_platdev": "drivers/cpufreq/Kconfig:216",
+      "arm_imx_cpufreq_dt": "drivers/cpufreq/Kconfig.arm:90"
+    },
+    "makefile": {
+      "c_impl": "drivers/cpufreq/Makefile:15",
+      "rust_impl": "drivers/cpufreq/Makefile:16",
+      "platdev_seam": "drivers/cpufreq/Makefile:17"
+    },
+    "note": "Current-tree already provides the primary CPUFREQ_DT versus CPUFREQ_DT_RUST switch, but ARM_IMX_CPUFREQ_DT is still tied only to CPUFREQ_DT in Kconfig.arm."
+  }
+}

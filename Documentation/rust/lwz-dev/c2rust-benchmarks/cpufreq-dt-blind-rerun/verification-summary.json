@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "conversion_stage": "blind",
+  "runtime_state": "unvalidated",
+  "static_target_covered": {
+    "status": "implemented",
+    "notes": [
+      "The blind-first Rust driver targets the full generic cpufreq-dt core scope frozen in stage 0.",
+      "Shared C seam reuse remains limited to cpufreq-dt-platdev.c and cpufreq-dt.h.",
+      "No runtime evidence elevates cpufreq_dt_platform_data callback plumbing or cpufreq_dt_pdev_register export-path coverage beyond static inclusion."
+    ]
+  },
+  "hardening": {
+    "driver_layer_unsafe_count": 0,
+    "driver_layer_direct_bindings_count": 0,
+    "driver_layer_unsafe_impl_send_sync_count": 0,
+    "helper_count": 0,
+    "platform_state_policy_resource_split": "satisfied",
+    "policy_state_drop_order": "audited",
+    "driver_data_lifetime_pairing": "audited"
+  },
+  "build_verification": {
+    "env_a": {
+      "name": "sabrelite",
+      "c_baseline": {
+        "config_snapshot": "sabrelite-c.config",
+        "built": true
+      },
+      "rust_candidate": {
+        "config_snapshot": "sabrelite-rust.config",
+        "built": true
+      }
+    },
+    "env_b": {
+      "name": "mcimx7d-sabre",
+      "c_baseline": {
+        "config_snapshot": "mcimx7d-c.config",
+        "built": true
+      },
+      "rust_candidate": {
+        "config_snapshot": "mcimx7d-rust.config",
+        "built": true
+      }
+    }
+  },
+  "runtime": {
+    "env_a": {
+      "name": "sabrelite",
+      "verdict": "baseline observability gap",
+      "c_baseline": {
+        "log": "test-results/cpufreq-dt/sabrelite-c.log",
+        "module_driver_loaded": true,
+        "policy_root_visible": false,
+        "qemu_forced_stop": true
+      },
+      "rust_candidate": {
+        "log": "test-results/cpufreq-dt/sabrelite-rust.log",
+        "module_driver_loaded": true,
+        "policy_root_visible": false,
+        "qemu_forced_stop": true
+      },
+      "ab_conclusion": "limited parity on module-load and no-policy observations only"
+    },
+    "env_b": {
+      "name": "mcimx7d-sabre",
+      "verdict": "baseline observability gap",
+      "c_baseline": {
+        "log": "test-results/cpufreq-dt/mcimx7d-c.log",
+        "provider_loaded": true,
+        "module_driver_loaded": true,
+        "platform_device_present": true,
+        "platform_driver_present": true,
+        "platform_driver_bound_device": false,
+        "policy_root_visible": false,
+        "qemu_forced_stop": false,
+        "notable_dmesg": [
+          "imx-cpufreq-dt provider log observed",
+          "platform cpufreq-dt deferred probe pending observed"
+        ]
+      },
+      "rust_candidate": {
+        "log": "test-results/cpufreq-dt/mcimx7d-rust.log",
+        "provider_loaded": true,
+        "module_driver_loaded": true,
+        "platform_device_present": true,
+        "platform_driver_present": true,
+        "platform_driver_bound_device": false,
+        "policy_root_visible": false,
+        "qemu_forced_stop": false,
+        "notable_dmesg": [
+          "imx-cpufreq-dt provider log observed",
+          "no matching platform cpufreq-dt deferred-probe dmesg line observed"
+        ]
+      },
+      "ab_conclusion": "provider-assisted front-half parity only; no policy-level validation"
+    },
+    "combined_claim_ceiling": {
+      "status": "no functional equivalence claim",
+      "reason": [
+        "No tested environment produced policy sysfs or frequency/governor observability for the C baseline.",
+        "runtime_validated_core remains empty.",
+        "env_b contains an open runtime difference candidate in deferred-probe visibility."
+      ]
+    }
+  },
+  "runtime_validated_core": [],
+  "runtime_gap_paths": [
+    "generic standalone cpufreq-dt probe-to-policy path on sabrelite",
+    "provider-assisted composite path beyond module load on mcimx7d-sabre",
+    "policy sysfs / scaling_driver / governor / frequency table observability in every tested environment",
+    "optional cpufreq_dt_platform_data callback plumbing",
+    "cpufreq_dt_pdev_register export path"
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "module_id": "cpufreq-dt",
+  "generated_on": "2026-03-23",
+  "selection_order": [
+    "reuse target-baseline abstractions where available",
+    "promote reusable current-tree abstractions into rust/kernel/*",
+    "add the minimum new public abstraction needed for blind-first parity",
+    "avoid helpers unless the gap is strictly an inline or macro blind spot"
+  ],
+  "driver_shape": {
+    "platform_state": {
+      "role": "lightweight registration owner plus shared configuration",
+      "holds": [
+        "cpufreq::Registration<CpufreqDtDriver>",
+        "Arc<SharedConfig>"
+      ],
+      "does_not_hold": [
+        "policy clock",
+        "policy OPP table",
+        "policy freq table",
+        "policy regulator token"
+      ]
+    },
+    "shared_config": {
+      "role": "cluster descriptor and optional platform callback plumbing",
+      "holds": [
+        "cluster descriptors keyed by CPU membership",
+        "copied cpufreq_dt_platform_data callbacks"
+      ],
+      "notes": [
+        "The blind-first design deliberately does not mechanically reproduce the C global priv_list registry.",
+        "Cluster descriptors were further slimmed to CPU id vectors so the shared config stays Send-safe and does not own policy resources."
+      ]
+    },
+    "policy_state": {
+      "role": "true long-lived owner for per-policy resources",
+      "holds": [
+        "CpumaskVar",
+        "opp::RegulatorToken",
+        "opp::Table",
+        "opp::FreqTable",
+        "Clk",
+        "primary CpuId"
+      ]
+    }
+  },
+  "selected_abstractions": [
+    {
+      "file": "rust/kernel/cpu.rs",
+      "items": [
+        "present_cpus()",
+        "for_each_present()",
+        "with_device()"
+      ],
+      "why": "cpufreq-dt probe and early-init logic need present-CPU iteration plus callback-scoped safe CPU device access without exposing raw lifetime caveats to the driver."
+    },
+    {
+      "file": "rust/kernel/platform.rs",
+      "items": [
+        "PlatData trait",
+        "Device::platdata<T>()"
+      ],
+      "why": "optional cpufreq_dt_platform_data callback plumbing is part of the C surface and needs typed immutable access from the driver without direct bindings usage."
+    },
+    {
+      "file": "rust/kernel/opp.rs",
+      "items": [
+        "RegulatorToken RAII wrapper",
+        "Table::from_cpu_dev_cpumask()"
+      ],
+      "why": "the C driver couples regulator setup, optional static OPP table installation, and cpufreq table creation around CPU-device scoped ownership; these responsibilities belong in a safe OPP abstraction, not in the driver."
+    },
+    {
+      "file": "rust/kernel/cpufreq.rs",
+      "items": [
+        "Policy::data() now callable from shared borrows",
+        "Policy::data_mut()",
+        "Policy::copy_cpus_from()",
+        "Policy::install_clk_from()",
+        "Policy::install_freq_table_from()",
+        "with_driver_data()",
+        "RegistrationConfig<T>",
+        "Registration::new_with_config()",
+        "Registration::new_foreign_owned_with()",
+        "Driver::DData associated type",
+        "post-attach init_post() hook"
+      ],
+      "why": "cpufreq-dt cannot be expressed as a pure trait-constant registration: probe-time flags and shared config are runtime-derived, and callbacks need safe access to driver-wide registration data."
+    },
+    {
+      "file": "rust/kernel/cpufreq_dt.rs",
+      "items": [
+        "PlatformData typed wrapper",
+        "PlatformCallbacks owned copy",
+        "register_pdev_from_raw_device()",
+        "cpufreq_dt_pdev_register export shim"
+      ],
+      "why": "the cpufreq-dt public C seam is narrow but highly specific. Keeping it in a thin focused module is thinner than smearing cpufreq-dt-only concepts across generic platform/cpufreq modules, while still avoiding a driver-private escape hatch."
+    }
+  ],
+  "thin-module_justification": {
+    "created": true,
+    "file": "rust/kernel/cpufreq_dt.rs",
+    "why_thinner_than_spread_patches": [
+      "cpufreq_dt_platform_data is not a generic platform concept.",
+      "cpufreq_dt_pdev_register is not a generic cpufreq registration primitive.",
+      "placing these in a focused seam module keeps their bindings-facing unsafe isolated outside the driver without thickening unrelated public modules."
+    ],
+    "why_not_driver_private_bypass": [
+      "the seam is public C API shared with provider drivers",
+      "the wrapper lives in rust/kernel/*, not inside drivers/cpufreq/",
+      "the driver still consumes only safe abstractions"
+    ]
+  },
+  "rejected_options": [
+    {
+      "option": "reproduce the C priv_list registry shape directly",
+      "reason": "it preserves historical structure rather than the true owner unit; per-policy ownership is closer to the actual resource lifetime split required by the checklist."
+    },
+    {
+      "option": "keep probe-built resource bundles alive in PlatformState",
+      "reason": "that would over-broaden shared state and blur the lifetime boundary between registration-owned and policy-owned resources."
+    },
+    {
+      "option": "model cpufreq_dt_platform_data and cpufreq_dt_pdev_register through helpers",
+      "reason": "they are ordinary declarations in a public header and belong in main bindings plus kernel abstractions, not helper-owned shadow APIs."
+    }
+  ],
+  "driver_contract": {
+    "driver_layer_unsafe": 0,
+    "driver_layer_direct_bindings": 0,
+    "notes": [
+      "All remaining unsafe is intentionally contained under rust/kernel/*.",
+      "Policy resource publication now happens through cpufreq kernel abstractions instead of driver-local raw pointer writes."
+    ]
+  }
+}
