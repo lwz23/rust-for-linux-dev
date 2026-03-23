@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "generated_on": "2026-03-23",
+  "official_references": {
+    "lower_bound": {
+      "commit": "bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5",
+      "path": "drivers/block/rnull.rs"
+    },
+    "mature": {
+      "commit": "63c37d99f6eba4531100ae887c396206e0f7cf3e",
+      "paths": [
+        "drivers/block/rnull/rnull.rs",
+        "drivers/block/rnull/configfs.rs"
+      ]
+    }
+  },
+  "aligned_items": [
+    {
+      "id": "align-001",
+      "summary": "independent Rust driver topology under drivers/block/rnull/ with switchable Kbuild integration",
+      "reference": "mature"
+    },
+    {
+      "id": "align-002",
+      "summary": "configfs-controlled device creation, power on/off lifecycle, and configfs root subsystem",
+      "reference": "mature"
+    },
+    {
+      "id": "align-003",
+      "summary": "queue_mode=1 reject and queue_mode=0 downgrade to blk-mq behavior match the C baseline",
+      "reference": "c_gold_standard"
+    },
+    {
+      "id": "align-004",
+      "summary": "shared_tags powered-on queue-count update behavior now matches the C baseline runtime",
+      "reference": "c_gold_standard"
+    }
+  ],
+  "unaligned_items": [
+    {
+      "id": "unalign-001",
+      "summary": "manual configfs AttributeList wiring remains in the abstraction layer instead of using the mature configfs_attrs! path",
+      "classification": "old_tree_constraint"
+    },
+    {
+      "id": "unalign-002",
+      "summary": "Rust candidate adds broad main.c-core functionality absent from both official Rust references",
+      "classification": "intentional_scope_expansion_to_match_c"
+    },
+    {
+      "id": "unalign-003",
+      "summary": "full frozen target runtime validation is blocked by the C-baseline mbps runtime gap",
+      "classification": "runtime_gap"
+    }
+  ],
+  "functional_differences": [
+    {
+      "id": "func-001",
+      "status": "not_a_silent_shrink",
+      "summary": "The implementation intentionally exceeds official Rust rnull feature scope because the frozen C target includes configfs, memory-backed I/O, queue updates, shared tags, badblocks, poll queues, and mbps."
+    },
+    {
+      "id": "func-002",
+      "status": "explicit_subset_only",
+      "summary": "Only zoned support and fault injection remain excluded, and both were frozen explicitly in phase 0 rather than silently dropped."
+    },
+    {
+      "id": "func-003",
+      "status": "runtime_gap",
+      "summary": "C baseline and Rust candidate align on most runtime-visible paths, but the frozen mbps target lacks credible C-baseline closure under the current harness, so full equivalence cannot be claimed."
+    }
+  ],
+  "engineering_differences": [
+    {
+      "id": "eng-001",
+      "summary": "The candidate front-ports new public abstractions into rust/kernel/configfs.rs, rust/kernel/time/hrtimer.rs, rust/kernel/block/badblocks.rs, and rust/kernel/block/mq/* instead of keeping logic inside the driver."
+    },
+    {
+      "id": "eng-002",
+      "summary": "The candidate uses a controller plus runtime/backing object model, whereas both official references keep a much smaller fixed-function structure."
+    },
+    {
+      "id": "eng-003",
+      "summary": "The candidate's memory-backed storage and throttling internals differ structurally from the C radix-tree and queue-stop model."
+    }
+  ],
+  "old_tree_constraints": [
+    {
+      "id": "old-001",
+      "summary": "The lower-bound official reference predates the directory split and configfs support; compare must account for drivers/block/rnull.rs as the true initial shape."
+    },
+    {
+      "id": "old-002",
+      "summary": "configfs_attrs! could not be used for this baseline-tree rnull shape, forcing manual attribute wiring inside rust/kernel/configfs.rs."
+    },
+    {
+      "id": "old-003",
+      "summary": "Generic blk-mq and hrtimer helper bridges remain necessary on this tree."
+    }
+  ],
+  "workflow_defects": [
+    {
+      "id": "wf-001",
+      "summary": "The guest runner originally reused global shell loop variables and produced a false infinite lifecycle loop."
+    },
+    {
+      "id": "wf-002",
+      "summary": "The guest I/O tool originally missed delayed writeback errors because fsync and close failures were not audited."
+    },
+    {
+      "id": "wf-003",
+      "summary": "The early helper audit still reflected planned helpers rather than the actual retained helper set until refreshed."
+    }
+  ],
+  "tool_failures": [
+    {
+      "id": "tool-001",
+      "summary": "No clear blind-first tool failure was identified in the final compare; the remaining blockers are old-tree constraints or runtime closure gaps."
+    }
+  ],
+  "answers": {
+    "scope_expansion_or_shrink": "The implementation expands far beyond official Rust rnull, but that expansion is intentional and required by the frozen C main.c core + configfs target. No silent shrink was identified beyond the explicit zoned and fault-injection exclusions.",
+    "delta_vs_initial_official": "Compared with bc5b..., the candidate adds configfs, runtime configurability, memory-backed I/O, queue updates, badblocks, poll queues, timer completion, and shared tag handling.",
+    "delta_vs_mature_official": "Compared with 63c37d..., the candidate still exceeds the mature official feature surface substantially, but it also depends on unreviewed local abstractions and manual configfs wiring that the mature tree avoids.",
+    "version_evolution": "The move from single-file fixed-function rnull to directory topology plus configfs is normal version evolution.",
+    "process_problems": "Harness bugs, stale helper-audit wording, and the initial shared_tags update restriction were workflow defects uncovered by this rerun.",
+    "real_tool_failures": "No distinct tool failure remains after fixes; the unresolved issue is a runtime gap on the C baseline mbps target."
+  }
+}
