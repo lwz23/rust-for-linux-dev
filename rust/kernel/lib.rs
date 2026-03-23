@@ -81,6 +81,8 @@ pub mod configfs;
 pub mod cpu;
 #[cfg(CONFIG_CPU_FREQ)]
 pub mod cpufreq;
+#[cfg(all(CONFIG_CPU_FREQ, CONFIG_CPUFREQ_DT_RUST))]
+pub mod cpufreq_dt;
 pub mod cpumask;
 pub mod cred;
 pub mod debugfs;

@@ -15,7 +15,7 @@ use crate::{
     device::{Bound, Device},
     devres,
     error::{code::*, from_err_ptr, from_result, to_result, Result, VTABLE_DEFAULT_ERROR},
-    ffi::{c_char, c_ulong},
+    ffi::{c_char, c_ulong, c_void},
     prelude::*,
     types::ForeignOwnable,
     types::Opaque,
@@ -446,7 +446,7 @@ impl Policy {
 
     /// Returns a raw mutable pointer to the C `struct cpufreq_policy`.
     #[inline]
-    fn as_raw(&self) -> *mut bindings::cpufreq_policy {
+    pub(crate) fn as_raw(&self) -> *mut bindings::cpufreq_policy {
         let this: *const Self = self;
         this.cast_mut().cast()
     }
@@ -631,13 +631,73 @@ impl Policy {
     }
 
     /// Returns the [`Policy`]'s private data.
-    pub fn data<T: ForeignOwnable>(&mut self) -> Option<<T>::Borrowed<'_>> {
+    pub fn data<T: ForeignOwnable>(&self) -> Option<<T>::Borrowed<'_>> {
         if self.as_ref().driver_data.is_null() {
             None
         } else {
             // SAFETY: The data is earlier set from [`set_data`].
             Some(unsafe { T::borrow(self.as_ref().driver_data.cast()) })
         }
+    }
+
+    /// Returns the [`Policy`]'s private data mutably.
+    pub fn data_mut<T: ForeignOwnable>(&mut self) -> Option<<T>::BorrowedMut<'_>> {
+        if self.as_ref().driver_data.is_null() {
+            None
+        } else {
+            // SAFETY: The data is earlier set from [`set_data`].
+            Some(unsafe { T::borrow_mut(self.as_ref().driver_data.cast()) })
+        }
+    }
+
+    /// Publishes a clock stored inside the policy data as the policy clock.
+    #[cfg(CONFIG_COMMON_CLK)]
+    pub fn install_clk_from<T, U>(&mut self, project: fn(&U) -> &Clk) -> Result<&mut Self>
+    where
+        T: ForeignOwnable,
+        for<'a> T::Borrowed<'a>: Deref<Target = U>,
+    {
+        let clk = {
+            let data = self.data::<T>().ok_or(ENOENT)?;
+            project(data.deref()).as_raw()
+        };
+
+        self.as_mut_ref().clk = clk;
+        Ok(self)
+    }
+
+    /// Publishes a frequency table stored inside the policy data as the policy table.
+    pub fn install_freq_table_from<T, U>(&mut self, project: fn(&U) -> &Table) -> Result<&mut Self>
+    where
+        T: ForeignOwnable,
+        for<'a> T::Borrowed<'a>: Deref<Target = U>,
+    {
+        let table = {
+            let data = self.data::<T>().ok_or(ENOENT)?;
+            project(data.deref()).as_raw()
+        };
+
+        self.as_mut_ref().freq_table = table;
+        Ok(self)
+    }
+
+    /// Copies the related CPU mask from the stored policy data into the policy.
+    pub fn copy_cpus_from<T, U>(
+        &mut self,
+        project: fn(&U) -> &cpumask::Cpumask,
+    ) -> Result<&mut Self>
+    where
+        T: ForeignOwnable,
+        for<'a> T::Borrowed<'a>: Deref<Target = U>,
+    {
+        let src = {
+            let data = self.data::<T>().ok_or(ENOENT)?;
+            project(data.deref()).as_raw()
+        };
+
+        // SAFETY: Both cpumask pointers are valid for the duration of the call.
+        unsafe { bindings::cpumask_copy(self.as_mut_ref().cpus.as_mut_ptr(), src) };
+        Ok(self)
     }
 
     /// Sets the private data of the [`Policy`] using a foreign-ownable wrapper.
@@ -712,6 +772,39 @@ impl<'a> Drop for PolicyCpu<'a> {
     }
 }
 
+/// Borrows the currently registered cpufreq driver's shared data for the duration of `f`.
+pub fn with_driver_data<T: ForeignOwnable, R>(
+    f: impl for<'a> FnOnce(T::Borrowed<'a>) -> R,
+) -> Option<R> {
+    // SAFETY: The pointer is managed by the cpufreq core for the lifetime of the registered
+    // driver.
+    let ptr = unsafe { bindings::cpufreq_get_driver_data() };
+    if ptr.is_null() {
+        None
+    } else {
+        // SAFETY: The cpufreq core returns the same pointer previously provided during driver
+        // registration, and it remains valid for the duration of the callback.
+        Some(f(unsafe { T::borrow(ptr) }))
+    }
+}
+
+fn require_driver_data<T: Driver, R>(
+    f: impl for<'a> FnOnce(<T::DData as ForeignOwnable>::Borrowed<'a>) -> Result<R>,
+) -> Result<R> {
+    with_driver_data::<T::DData, _>(f).ok_or(ENOENT)?
+}
+
+fn driver_data_ptr<T: Driver>() -> Result<*mut c_void> {
+    // SAFETY: The pointer is managed by the cpufreq core for the lifetime of the registered
+    // driver.
+    let ptr = unsafe { bindings::cpufreq_get_driver_data() };
+    if ptr.is_null() {
+        Err(ENOENT)
+    } else {
+        Ok(ptr.cast())
+    }
+}
+
 /// CPU frequency driver.
 ///
 /// Implement this trait to provide a CPU frequency driver and its callbacks.
@@ -734,99 +827,179 @@ pub trait Driver {
     /// wrapped data structure.
     type PData: ForeignOwnable;
 
+    /// Driver-wide shared data stored in `struct cpufreq_driver::driver_data`.
+    type DData: ForeignOwnable;
+
     /// Driver's `init` callback.
-    fn init(policy: &mut Policy) -> Result<Self::PData>;
+    fn init(
+        policy: &mut Policy,
+        driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result<Self::PData>;
+
+    /// Post-init hook that runs after the policy data has been attached to the C policy object.
+    fn init_post(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
+        Ok(())
+    }
 
     /// Driver's `exit` callback.
-    fn exit(_policy: &mut Policy, _data: Option<Self::PData>) -> Result {
+    fn exit(
+        _policy: &mut Policy,
+        _data: Option<Self::PData>,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `online` callback.
-    fn online(_policy: &mut Policy) -> Result {
+    fn online(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `offline` callback.
-    fn offline(_policy: &mut Policy) -> Result {
+    fn offline(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `suspend` callback.
-    fn suspend(_policy: &mut Policy) -> Result {
+    fn suspend(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `resume` callback.
-    fn resume(_policy: &mut Policy) -> Result {
+    fn resume(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `ready` callback.
-    fn ready(_policy: &mut Policy) {
+    fn ready(_policy: &mut Policy, _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>) {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `verify` callback.
-    fn verify(data: &mut PolicyData) -> Result;
+    fn verify(
+        data: &mut PolicyData,
+        driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result;
 
     /// Driver's `setpolicy` callback.
-    fn setpolicy(_policy: &mut Policy) -> Result {
+    fn setpolicy(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `target` callback.
-    fn target(_policy: &mut Policy, _target_freq: u32, _relation: Relation) -> Result {
+    fn target(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _target_freq: u32,
+        _relation: Relation,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `target_index` callback.
-    fn target_index(_policy: &mut Policy, _index: TableIndex) -> Result {
+    fn target_index(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _index: TableIndex,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `fast_switch` callback.
-    fn fast_switch(_policy: &mut Policy, _target_freq: u32) -> u32 {
+    fn fast_switch(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _target_freq: u32,
+    ) -> u32 {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `adjust_perf` callback.
-    fn adjust_perf(_policy: &mut Policy, _min_perf: usize, _target_perf: usize, _capacity: usize) {
+    fn adjust_perf(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _min_perf: usize,
+        _target_perf: usize,
+        _capacity: usize,
+    ) {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `get_intermediate` callback.
-    fn get_intermediate(_policy: &mut Policy, _index: TableIndex) -> u32 {
+    fn get_intermediate(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _index: TableIndex,
+    ) -> u32 {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `target_intermediate` callback.
-    fn target_intermediate(_policy: &mut Policy, _index: TableIndex) -> Result {
+    fn target_intermediate(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _index: TableIndex,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `get` callback.
-    fn get(_policy: &mut Policy) -> Result<u32> {
+    fn get(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) -> Result<u32> {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `update_limits` callback.
-    fn update_limits(_policy: &mut Policy) {
+    fn update_limits(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `bios_limit` callback.
-    fn bios_limit(_policy: &mut Policy, _limit: &mut u32) -> Result {
+    fn bios_limit(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _limit: &mut u32,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `set_boost` callback.
-    fn set_boost(_policy: &mut Policy, _state: i32) -> Result {
+    fn set_boost(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+        _state: i32,
+    ) -> Result {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
     /// Driver's `register_em` callback.
-    fn register_em(_policy: &mut Policy) {
+    fn register_em(
+        _policy: &mut Policy,
+        _driver_data: <Self::DData as ForeignOwnable>::Borrowed<'_>,
+    ) {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 }
@@ -858,29 +1031,33 @@ pub trait Driver {
 ///
 ///     type PData = Arc<SampleDevice>;
 ///
-///     fn init(policy: &mut cpufreq::Policy) -> Result<Self::PData> {
+///     fn init(policy: &mut cpufreq::Policy, _shared: ()) -> Result<Self::PData> {
 ///         // Initialize here
 ///         Ok(Arc::new(SampleDevice, GFP_KERNEL)?)
 ///     }
 ///
-///     fn exit(_policy: &mut cpufreq::Policy, _data: Option<Self::PData>) -> Result {
+///     fn exit(_policy: &mut cpufreq::Policy, _data: Option<Self::PData>, _shared: ()) -> Result {
 ///         Ok(())
 ///     }
 ///
-///     fn suspend(policy: &mut cpufreq::Policy) -> Result {
+///     fn suspend(policy: &mut cpufreq::Policy, _shared: ()) -> Result {
 ///         policy.generic_suspend()
 ///     }
 ///
-///     fn verify(data: &mut cpufreq::PolicyData) -> Result {
+///     fn verify(data: &mut cpufreq::PolicyData, _shared: ()) -> Result {
 ///         data.generic_verify()
 ///     }
 ///
-///     fn target_index(policy: &mut cpufreq::Policy, index: cpufreq::TableIndex) -> Result {
+///     fn target_index(
+///         policy: &mut cpufreq::Policy,
+///         _shared: (),
+///         index: cpufreq::TableIndex,
+///     ) -> Result {
 ///         // Update CPU frequency
 ///         Ok(())
 ///     }
 ///
-///     fn get(policy: &mut cpufreq::Policy) -> Result<u32> {
+///     fn get(policy: &mut cpufreq::Policy, _shared: ()) -> Result<u32> {
 ///         policy.generic_get()
 ///     }
 /// }
@@ -898,6 +1075,35 @@ pub trait Driver {
 ///     }
 /// }
 /// ```
+pub struct RegistrationConfig<T: Driver> {
+    flags: u16,
+    boost_enabled: bool,
+    driver_data: T::DData,
+}
+
+impl<T: Driver> RegistrationConfig<T> {
+    /// Creates a new registration config with driver defaults and caller-provided shared data.
+    pub fn new(driver_data: T::DData) -> Self {
+        Self {
+            flags: T::FLAGS,
+            boost_enabled: T::BOOST_ENABLED,
+            driver_data,
+        }
+    }
+
+    /// Overrides the driver flags.
+    pub fn flags(mut self, flags: u16) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    /// Overrides the initial boost state.
+    pub fn boost_enabled(mut self, boost_enabled: bool) -> Self {
+        self.boost_enabled = boost_enabled;
+        self
+    }
+}
+
 #[repr(transparent)]
 pub struct Registration<T: Driver>(KBox<UnsafeCell<bindings::cpufreq_driver>>, PhantomData<T>);
 
@@ -1032,26 +1238,63 @@ impl<T: Driver> Registration<T> {
     }
 
     /// Registers a CPU frequency driver with the cpufreq core.
-    pub fn new() -> Result<Self> {
+    pub fn new_with_config(config: RegistrationConfig<T>) -> Result<Self> {
         // We can't use `&Self::VTABLE` directly because the cpufreq core modifies some fields in
         // the C `struct cpufreq_driver`, which requires a mutable reference.
         let mut drv = KBox::new(UnsafeCell::new(Self::VTABLE), GFP_KERNEL)?;
+        let raw = drv.get_mut();
+        let RegistrationConfig {
+            flags,
+            boost_enabled,
+            driver_data,
+        } = config;
+
+        raw.flags = flags;
+        raw.boost_enabled = boost_enabled;
+        raw.driver_data = <T::DData as ForeignOwnable>::into_foreign(driver_data).cast();
 
         // SAFETY: `drv` is guaranteed to be valid for the lifetime of `Registration`.
-        to_result(unsafe { bindings::cpufreq_register_driver(drv.get_mut()) })?;
+        if let Err(err) = to_result(unsafe { bindings::cpufreq_register_driver(raw) }) {
+            // SAFETY: We just transferred ownership to the raw pointer above, so it is safe to
+            // reclaim it on the failed registration path.
+            unsafe {
+                <T::DData as ForeignOwnable>::from_foreign(raw.driver_data.cast());
+            }
+            raw.driver_data = ptr::null_mut();
+            return Err(err);
+        }
 
         Ok(Self(drv, PhantomData))
     }
 
-    /// Same as [`Registration::new`], but does not return a [`Registration`] instance.
+    /// Same as [`Registration::new_with_config`], but does not return a [`Registration`]
+    /// instance.
     ///
     /// Instead the [`Registration`] is owned by [`devres::register`] and will be dropped, once the
     /// device is detached.
+    pub fn new_foreign_owned_with(dev: &Device<Bound>, config: RegistrationConfig<T>) -> Result
+    where
+        T: 'static,
+    {
+        devres::register(dev, Self::new_with_config(config)?, GFP_KERNEL)
+    }
+}
+
+impl<T> Registration<T>
+where
+    T: Driver<DData = ()>,
+{
+    /// Registers a CPU frequency driver with unit shared data.
+    pub fn new() -> Result<Self> {
+        Self::new_with_config(RegistrationConfig::new(()))
+    }
+
+    /// Same as [`Registration::new`], but device-managed.
     pub fn new_foreign_owned(dev: &Device<Bound>) -> Result
     where
         T: 'static,
     {
-        devres::register(dev, Self::new()?, GFP_KERNEL)
+        Self::new_foreign_owned_with(dev, RegistrationConfig::new(()))
     }
 }
 
@@ -1065,12 +1308,33 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn init_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
+            let driver_data = driver_data_ptr::<T>()?;
+
             // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
             // lifetime of `policy`.
             let policy = unsafe { Policy::from_raw_mut(ptr) };
 
-            let data = T::init(policy)?;
+            let data = T::init(
+                policy,
+                // SAFETY: `driver_data` remains valid while the cpufreq driver is registered.
+                unsafe { <T::DData as ForeignOwnable>::borrow(driver_data) },
+            )?;
             policy.set_data(data)?;
+            if let Err(err) = T::init_post(
+                policy,
+                // SAFETY: `driver_data` remains valid while the cpufreq driver is registered.
+                unsafe { <T::DData as ForeignOwnable>::borrow(driver_data) },
+            ) {
+                let data = policy.clear_data();
+                let _ = T::exit(
+                    policy,
+                    data,
+                    // SAFETY: `driver_data` remains valid while the cpufreq driver is
+                    // registered.
+                    unsafe { <T::DData as ForeignOwnable>::borrow(driver_data) },
+                );
+                return Err(err);
+            }
             Ok(0)
         })
     }
@@ -1086,8 +1350,10 @@ impl<T: Driver> Registration<T> {
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
 
-        let data = policy.clear_data();
-        let _ = T::exit(policy, data);
+        let _ = require_driver_data::<T, _>(|driver_data| {
+            let data = policy.clear_data();
+            T::exit(policy, data, driver_data)
+        });
     }
 
     /// Driver's `online` callback.
@@ -1098,10 +1364,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn online_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::online(policy).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::online(policy, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1113,10 +1381,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn offline_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::offline(policy).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::offline(policy, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1128,10 +1398,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn suspend_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::suspend(policy).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::suspend(policy, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1143,10 +1415,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn resume_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::resume(policy).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::resume(policy, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1160,7 +1434,10 @@ impl<T: Driver> Registration<T> {
         // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
-        T::ready(policy);
+        let _ = require_driver_data::<T, _>(|driver_data| {
+            T::ready(policy, driver_data);
+            Ok(())
+        });
     }
 
     /// Driver's `verify` callback.
@@ -1171,10 +1448,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn verify_callback(ptr: *mut bindings::cpufreq_policy_data) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let data = unsafe { PolicyData::from_raw_mut(ptr) };
-            T::verify(data).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let data = unsafe { PolicyData::from_raw_mut(ptr) };
+                T::verify(data, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1186,10 +1465,12 @@ impl<T: Driver> Registration<T> {
     /// - The pointer arguments must be valid pointers.
     unsafe extern "C" fn setpolicy_callback(ptr: *mut bindings::cpufreq_policy) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::setpolicy(policy).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::setpolicy(policy, driver_data).map(|()| 0)
+            })
         })
     }
 
@@ -1205,10 +1486,12 @@ impl<T: Driver> Registration<T> {
         relation: c_uint,
     ) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::target(policy, target_freq, Relation::new(relation)?).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::target(policy, driver_data, target_freq, Relation::new(relation)?).map(|()| 0)
+            })
         })
     }
 
@@ -1223,15 +1506,17 @@ impl<T: Driver> Registration<T> {
         index: c_uint,
     ) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
 
-            // SAFETY: The C code guarantees that `index` corresponds to a valid entry in the
-            // frequency table.
-            let index = unsafe { TableIndex::new(index as usize) };
+                // SAFETY: The C code guarantees that `index` corresponds to a valid entry in the
+                // frequency table.
+                let index = unsafe { TableIndex::new(index as usize) };
 
-            T::target_index(policy, index).map(|()| 0)
+                T::target_index(policy, driver_data, index).map(|()| 0)
+            })
         })
     }
 
@@ -1248,7 +1533,10 @@ impl<T: Driver> Registration<T> {
         // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
-        T::fast_switch(policy, target_freq)
+        with_driver_data::<T::DData, _>(|driver_data| {
+            T::fast_switch(policy, driver_data, target_freq)
+        })
+        .unwrap_or(0)
     }
 
     /// Driver's `adjust_perf` callback.
@@ -1266,7 +1554,10 @@ impl<T: Driver> Registration<T> {
         let cpu_id = unsafe { CpuId::from_u32_unchecked(cpu) };
 
         if let Ok(mut policy) = PolicyCpu::from_cpu(cpu_id) {
-            T::adjust_perf(&mut policy, min_perf, target_perf, capacity);
+            let _ = require_driver_data::<T, _>(|driver_data| {
+                T::adjust_perf(&mut policy, driver_data, min_perf, target_perf, capacity);
+                Ok(())
+            });
         }
     }
 
@@ -1288,7 +1579,10 @@ impl<T: Driver> Registration<T> {
         // frequency table.
         let index = unsafe { TableIndex::new(index as usize) };
 
-        T::get_intermediate(policy, index)
+        with_driver_data::<T::DData, _>(|driver_data| {
+            T::get_intermediate(policy, driver_data, index)
+        })
+        .unwrap_or(0)
     }
 
     /// Driver's `target_intermediate` callback.
@@ -1302,15 +1596,17 @@ impl<T: Driver> Registration<T> {
         index: c_uint,
     ) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
 
-            // SAFETY: The C code guarantees that `index` corresponds to a valid entry in the
-            // frequency table.
-            let index = unsafe { TableIndex::new(index as usize) };
+                // SAFETY: The C code guarantees that `index` corresponds to a valid entry in the
+                // frequency table.
+                let index = unsafe { TableIndex::new(index as usize) };
 
-            T::target_intermediate(policy, index).map(|()| 0)
+                T::target_intermediate(policy, driver_data, index).map(|()| 0)
+            })
         })
     }
 
@@ -1323,7 +1619,12 @@ impl<T: Driver> Registration<T> {
         // SAFETY: The C API guarantees that `cpu` refers to a valid CPU number.
         let cpu_id = unsafe { CpuId::from_u32_unchecked(cpu) };
 
-        PolicyCpu::from_cpu(cpu_id).map_or(0, |mut policy| T::get(&mut policy).map_or(0, |f| f))
+        PolicyCpu::from_cpu(cpu_id).map_or(0, |mut policy| {
+            with_driver_data::<T::DData, _>(|driver_data| {
+                T::get(&mut policy, driver_data).map_or(0, |f| f)
+            })
+            .unwrap_or(0)
+        })
     }
 
     /// Driver's `update_limit` callback.
@@ -1336,7 +1637,10 @@ impl<T: Driver> Registration<T> {
         // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
-        T::update_limits(policy);
+        let _ = require_driver_data::<T, _>(|driver_data| {
+            T::update_limits(policy, driver_data);
+            Ok(())
+        });
     }
 
     /// Driver's `bios_limit` callback.
@@ -1350,10 +1654,12 @@ impl<T: Driver> Registration<T> {
         let cpu_id = unsafe { CpuId::from_i32_unchecked(cpu) };
 
         from_result(|| {
-            let mut policy = PolicyCpu::from_cpu(cpu_id)?;
+            require_driver_data::<T, _>(|driver_data| {
+                let mut policy = PolicyCpu::from_cpu(cpu_id)?;
 
-            // SAFETY: `limit` is guaranteed by the C code to be valid.
-            T::bios_limit(&mut policy, &mut (unsafe { *limit })).map(|()| 0)
+                // SAFETY: `limit` is guaranteed by the C code to be valid.
+                T::bios_limit(&mut policy, driver_data, &mut (unsafe { *limit })).map(|()| 0)
+            })
         })
     }
 
@@ -1368,10 +1674,12 @@ impl<T: Driver> Registration<T> {
         state: c_int,
     ) -> c_int {
         from_result(|| {
-            // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
-            // lifetime of `policy`.
-            let policy = unsafe { Policy::from_raw_mut(ptr) };
-            T::set_boost(policy, state).map(|()| 0)
+            require_driver_data::<T, _>(|driver_data| {
+                // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
+                // lifetime of `policy`.
+                let policy = unsafe { Policy::from_raw_mut(ptr) };
+                T::set_boost(policy, driver_data, state).map(|()| 0)
+            })
         })
     }
 
@@ -1385,7 +1693,10 @@ impl<T: Driver> Registration<T> {
         // SAFETY: The `ptr` is guaranteed to be valid by the contract with the C code for the
         // lifetime of `policy`.
         let policy = unsafe { Policy::from_raw_mut(ptr) };
-        T::register_em(policy);
+        let _ = require_driver_data::<T, _>(|driver_data| {
+            T::register_em(policy, driver_data);
+            Ok(())
+        });
     }
 }
 
@@ -1393,6 +1704,16 @@ impl<T: Driver> Drop for Registration<T> {
     /// Unregisters with the cpufreq core.
     fn drop(&mut self) {
         // SAFETY: `self.0` is guaranteed to be valid for the lifetime of `Registration`.
-        unsafe { bindings::cpufreq_unregister_driver(self.0.get_mut()) };
+        let drv = self.0.get_mut();
+        unsafe { bindings::cpufreq_unregister_driver(drv) };
+
+        if !drv.driver_data.is_null() {
+            // SAFETY: Ownership of `driver_data` was transferred during registration and no
+            // callbacks may access it after `cpufreq_unregister_driver` returns.
+            unsafe {
+                <T::DData as ForeignOwnable>::from_foreign(drv.driver_data.cast());
+            }
+            drv.driver_data = ptr::null_mut();
+        }
     }
 }

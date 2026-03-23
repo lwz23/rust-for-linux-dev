@@ -100,6 +100,51 @@ fn to_c_str_array(names: &[CString]) -> Result<KVec<*const c_char>> {
     Ok(list)
 }
 
+/// Creates a null-terminated slice of pointers to borrowed [`CStr`]s.
+fn to_borrowed_c_str_array(names: &[&CStr]) -> Result<KVec<*const c_char>> {
+    let mut list = KVec::with_capacity(names.len() + 1, GFP_KERNEL)?;
+
+    for name in names.iter() {
+        list.push(name.as_char_ptr(), GFP_KERNEL)?;
+    }
+
+    list.push(ptr::null(), GFP_KERNEL)?;
+    Ok(list)
+}
+
+/// RAII token for OPP regulator configuration.
+pub struct RegulatorToken(i32);
+
+impl RegulatorToken {
+    /// Configures OPP regulators for a device and returns a token that clears the configuration
+    /// when dropped.
+    pub fn new(dev: &Device, names: &[&CStr]) -> Result<Self> {
+        if names.is_empty() {
+            return Err(EINVAL);
+        }
+
+        let names = to_borrowed_c_str_array(names)?;
+
+        let mut config = bindings::dev_pm_opp_config {
+            regulator_names: names.as_ptr(),
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // SAFETY: `dev` is valid and the OPP core does not retain the address of `config` or the
+        // temporary name array after the call returns.
+        let ret = unsafe { bindings::dev_pm_opp_set_config(dev.as_raw(), &mut config) };
+
+        to_result(ret).map(|()| Self(ret))
+    }
+}
+
+impl Drop for RegulatorToken {
+    fn drop(&mut self) {
+        // SAFETY: `self.0` is the token returned by `dev_pm_opp_set_config` above.
+        unsafe { bindings::dev_pm_opp_clear_config(self.0) };
+    }
+}
+
 /// The voltage unit.
 ///
 /// Represents voltage in microvolts, wrapping a [`c_ulong`] value.
@@ -699,6 +744,20 @@ impl Table {
         table.cpus = Some(CpumaskVar::try_clone(cpumask)?);
 
         Ok(table)
+    }
+
+    /// Creates an OPP table for a CPU device, tolerating non-defer DT table-add failures when
+    /// an existing table is already present.
+    ///
+    /// This matches the cpufreq-dt pattern where runtime-populated OPP tables are acceptable and
+    /// only `-EPROBE_DEFER` remains fatal at this stage.
+    #[cfg(CONFIG_OF)]
+    pub fn from_cpu_dev_cpumask(dev: &Device, cpumask: &mut Cpumask) -> Result<Self> {
+        match Self::from_of_cpumask(dev, cpumask) {
+            Ok(table) => Ok(table),
+            Err(err) if err.to_errno() != EPROBE_DEFER.to_errno() => Self::from_dev(dev),
+            Err(err) => Err(err),
+        }
     }
 
     /// Remove device tree based [`Table`] for a [`Cpumask`].

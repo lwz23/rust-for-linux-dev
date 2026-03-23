@@ -14,9 +14,11 @@ use crate::{
     },
     driver,
     error::{
+        from_err_ptr,
         from_result,
         to_result, //
     },
+    ffi::c_void,
     io::{
         mem::IoRequest,
         Resource, //
@@ -27,6 +29,7 @@ use crate::{
     },
     of,
     prelude::*,
+    sync::aref::ARef,
     types::Opaque,
     ThisModule, //
 };
@@ -42,6 +45,25 @@ use core::{
 
 /// An adapter for the registration of platform drivers.
 pub struct Adapter<T: Driver>(T);
+
+/// Typed immutable access to platform data stored in a platform device.
+///
+/// # Safety
+///
+/// Implementers must guarantee that converting from the raw `platform_data` pointer using
+/// [`PlatData::from_raw`] is sound for the entire lifetime of the returned borrowed view.
+pub unsafe trait PlatData {
+    /// Borrowed view exposed to safe code.
+    type Borrowed<'a>;
+
+    /// Converts a raw platform-data pointer into a borrowed typed view.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must either be null or point at immutable platform data of the expected type that
+    /// remains valid for the duration of the returned borrow.
+    unsafe fn from_raw<'a>(ptr: *const c_void) -> Option<Self::Borrowed<'a>>;
+}
 
 // SAFETY:
 // - `bindings::platform_driver` is a C type declared as `repr(C)`.
@@ -263,6 +285,16 @@ impl<Ctx: device::DeviceContext> Device<Ctx> {
         self.0.get()
     }
 
+    /// Returns immutable typed platform data, if any.
+    pub fn platdata<T: PlatData>(&self) -> Option<T::Borrowed<'_>> {
+        // SAFETY: `self.as_ref().as_raw()` points at a valid `struct device`, so reading its
+        // immutable `platform_data` field is sound.
+        let ptr = unsafe { (*self.as_ref().as_raw()).platform_data };
+
+        // SAFETY: The soundness contract is delegated to `T::from_raw`.
+        unsafe { T::from_raw(ptr.cast_const()) }
+    }
+
     /// Returns the resource at `index`, if any.
     pub fn resource_by_index(&self, index: u32) -> Option<&Resource> {
         // SAFETY: `self.as_raw()` returns a valid pointer to a `struct platform_device`.
@@ -316,6 +348,19 @@ impl Device<Bound> {
             // SAFETY: `resource` is a valid resource for `&self` during the
             // lifetime of the `IoRequest`.
             .map(|resource| unsafe { IoRequest::new(self.as_ref(), resource) })
+    }
+
+    /// Registers a child platform device under `self`.
+    pub fn register_child(&self, name: &CStr) -> Result<ARef<Device>> {
+        let info = bindings::platform_device_info {
+            parent: self.as_ref().as_raw(),
+            name: name.as_char_ptr(),
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        let pdev = from_err_ptr(unsafe { bindings::platform_device_register_full(&info) })?;
+
+        Ok(unsafe { ARef::from_raw(NonNull::new_unchecked(pdev.cast())) })
     }
 }
 

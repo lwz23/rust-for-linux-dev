@@ -99,6 +99,7 @@
  * structures.
  */
 #include <../../drivers/base/base.h>
+#include <../../drivers/cpufreq/cpufreq-dt.h>
 
 #if defined(CONFIG_DRM_PANIC_SCREEN_QR_CODE)
 // Used by `#[export]` in `drivers/gpu/drm/drm_panic_qr.rs`.

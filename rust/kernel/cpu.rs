@@ -128,6 +128,53 @@ impl From<CpuId> for i32 {
     }
 }
 
+/// Iterator over CPUs currently marked present by the kernel.
+pub struct PresentCpus {
+    next: u32,
+}
+
+impl Iterator for PresentCpus {
+    type Item = CpuId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.next < nr_cpu_ids() {
+            let cpu = self.next;
+            self.next += 1;
+
+            // SAFETY: `cpu` is in range by construction and `__cpu_present_mask` is a valid
+            // global cpumask provided by the kernel.
+            let present = unsafe {
+                bindings::cpumask_test_cpu(
+                    cpu as i32,
+                    (&raw const bindings::__cpu_present_mask).cast_mut(),
+                )
+            };
+
+            if present {
+                // SAFETY: `cpu` has just been verified to be in `[0, nr_cpu_ids())`.
+                return Some(unsafe { CpuId::from_u32_unchecked(cpu) });
+            }
+        }
+
+        None
+    }
+}
+
+/// Returns an iterator over the CPUs that are currently marked present.
+#[inline]
+pub fn present_cpus() -> PresentCpus {
+    PresentCpus { next: 0 }
+}
+
+/// Executes a closure for each present CPU.
+pub fn for_each_present(mut f: impl FnMut(CpuId) -> Result) -> Result {
+    for cpu in present_cpus() {
+        f(cpu)?;
+    }
+
+    Ok(())
+}
+
 /// Creates a new instance of CPU's device.
 ///
 /// # Safety
@@ -149,4 +196,14 @@ pub unsafe fn from_cpu(cpu: CpuId) -> Result<&'static Device> {
     // SAFETY: The pointer returned by `get_cpu_device()`, if not `NULL`, is a valid pointer to
     // a `struct device` and is never freed by the C code.
     Ok(unsafe { Device::from_raw(ptr) })
+}
+
+/// Safely borrows a CPU device for the duration of the provided closure.
+///
+/// This avoids exposing the raw lifetime caveat from [`from_cpu`] to driver code. The returned
+/// value may not retain references to the CPU device beyond the callback's scope.
+pub fn with_device<R>(cpu: CpuId, f: impl FnOnce(&Device) -> Result<R>) -> Result<R> {
+    // SAFETY: The returned reference is only exposed within the callback scope.
+    let dev = unsafe { from_cpu(cpu)? };
+    f(dev)
 }

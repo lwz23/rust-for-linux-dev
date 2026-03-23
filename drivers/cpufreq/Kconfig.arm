@@ -107,7 +107,7 @@ config ARM_IMX6Q_CPUFREQ
 
 config ARM_IMX_CPUFREQ_DT
 	tristate "Freescale i.MX8M cpufreq support"
-	depends on CPUFREQ_DT
+	depends on CPUFREQ_DT || CPUFREQ_DT_RUST
 	depends on ARCH_MXC || COMPILE_TEST
 	help
 	  This adds cpufreq driver support for Freescale i.MX7/i.MX8M
