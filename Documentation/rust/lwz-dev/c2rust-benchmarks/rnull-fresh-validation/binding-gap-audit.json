@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "stage": 3,
+  "baseline_commit": "3253aba3408aa4eb2e4e09365eede3e63ef7536b",
+  "audit_scope": "main.c core + configfs subset",
+  "audit_summary": {
+    "existing_bindings_sufficient_without_changes": false,
+    "driver_layer_raw_bindings_allowed": false,
+    "notes": [
+      "The pre-rnull baseline already exposes core blk-mq structs, request_queue, gendisk, and generic time helpers.",
+      "The baseline did not include configfs, badblocks, or hrtimer headers in rust/bindings/bindings_helper.h.",
+      "The baseline blk-mq Rust abstraction is too small for null_blk semantics even when the raw C structs exist in generated bindings."
+    ]
+  },
+  "binding_inputs_added_to_bindings_helper_h": [
+    {
+      "header": "linux/blkdev.h",
+      "reason": "Needed for queue_limits, request_queue fields, write-cache controls, and blk block-size/queue helpers."
+    },
+    {
+      "header": "linux/configfs.h",
+      "reason": "Needed for configfs_subsystem, config_group, config_item, config_item_type, and callback vtables."
+    },
+    {
+      "header": "linux/badblocks.h",
+      "reason": "Needed for badblocks state and badblocks_{init,show,set,clear,check,exit} APIs."
+    },
+    {
+      "header": "linux/hrtimer.h",
+      "reason": "Needed for hrtimer struct, hrtimer_restart enum, hrtimer_active/cancel/init/start/forward APIs, and timer mode constants."
+    }
+  ],
+  "additional_headers_reserved_for_follow_up_if_helpers_require_them": [
+    {
+      "header": "linux/highmem.h",
+      "reason": "Needed only if the abstraction layer uses generic page-copy helper bridges for request segment I/O."
+    }
+  ],
+  "required_symbol_groups": [
+    {
+      "group": "configfs core types",
+      "symbols": [
+        "configfs_subsystem",
+        "config_group",
+        "config_item",
+        "config_item_type",
+        "configfs_attribute",
+        "configfs_group_operations",
+        "configfs_item_operations",
+        "config_group_init_type_name",
+        "config_item_put",
+        "configfs_register_subsystem",
+        "configfs_unregister_subsystem"
+      ],
+      "status": "covered_after_header_addition",
+      "planned_rust_abstraction": "rust/kernel/configfs.rs"
+    },
+    {
+      "group": "badblocks",
+      "symbols": [
+        "badblocks",
+        "badblocks_init",
+        "badblocks_exit",
+        "badblocks_show",
+        "badblocks_set",
+        "badblocks_clear",
+        "badblocks_check"
+      ],
+      "status": "covered_after_header_addition",
+      "planned_rust_abstraction": "driver-owned typed wrapper over bindings inside rust/kernel/block abstractions and rnull support code"
+    },
+    {
+      "group": "hrtimer core",
+      "symbols": [
+        "hrtimer",
+        "enum hrtimer_restart",
+        "hrtimer_init",
+        "hrtimer_cancel",
+        "hrtimer_active",
+        "hrtimer_forward",
+        "HRTIMER_MODE_REL",
+        "HRTIMER_NORESTART",
+        "HRTIMER_RESTART"
+      ],
+      "status": "partially direct; inline coverage still needs verification",
+      "planned_rust_abstraction": "rust/kernel/time/hrtimer.rs"
+    },
+    {
+      "group": "advanced blk-mq driver callbacks",
+      "symbols": [
+        "blk_mq_ops.complete",
+        "blk_mq_ops.timeout",
+        "blk_mq_ops.poll",
+        "blk_mq_ops.map_queues",
+        "blk_mq_ops.init_hctx",
+        "blk_mq_ops.exit_hctx",
+        "blk_mq_update_nr_hw_queues",
+        "blk_mq_stop_hw_queues",
+        "blk_mq_start_stopped_hw_queues",
+        "blk_mq_requeue_request",
+        "blk_mq_complete_request_remote"
+      ],
+      "status": "struct fields covered; Rust wrapper gap remains",
+      "planned_rust_abstraction": "rust/kernel/block/mq/*"
+    },
+    {
+      "group": "request inspection and segment walking",
+      "symbols": [
+        "req_op",
+        "blk_rq_pos",
+        "blk_rq_sectors",
+        "blk_rq_bytes",
+        "rq_for_each_segment",
+        "blk_should_fake_timeout"
+      ],
+      "status": "header-level availability depends on bindgen inline coverage; helper bridge likely still required",
+      "planned_rust_abstraction": "Request metadata/segment helpers under rust/kernel/block/mq/request.rs"
+    }
+  ],
+  "gaps_that_cannot_be_solved_by_more_bindgen_alone": [
+    {
+      "gap": "queue-owned and hctx-owned safe state",
+      "why": "The bindings expose raw pointers only; the required ownership model must be encoded in Rust wrappers."
+    },
+    {
+      "gap": "request completion ownership",
+      "why": "The baseline Request wrapper only models end_ok and lacks the status-carrying completion paths needed by null_blk."
+    },
+    {
+      "gap": "timer lifecycle and callback safety",
+      "why": "Direct bindings do not provide a driver-safe pinned timer interface."
+    }
+  ],
+  "next_actions": [
+    "Front-port the minimal configfs abstraction into rust/kernel/configfs.rs.",
+    "Extend rust/kernel/block/mq to expose queue data, hctx data, completion, timeout, poll, map_queues, and request metadata safely.",
+    "Add a minimal hrtimer abstraction in rust/kernel/time/hrtimer.rs, using helper bridges only where inline functions block direct Rust use."
+  ]
+}

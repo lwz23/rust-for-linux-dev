@@ -25,6 +25,8 @@
 #include <linux/build_bug.h>
 #include <linux/err.h>
 #include <linux/errname.h>
+#include <linux/highmem.h>
+#include <linux/hrtimer.h>
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 #include <linux/sched/signal.h>
@@ -202,3 +204,90 @@ struct request *rust_helper_blk_mq_rq_from_pdu(void *pdu)
 	return blk_mq_rq_from_pdu(pdu);
 }
 EXPORT_SYMBOL_GPL(rust_helper_blk_mq_rq_from_pdu);
+
+blk_opf_t rust_helper_req_op(struct request *rq)
+{
+	return req_op(rq);
+}
+EXPORT_SYMBOL_GPL(rust_helper_req_op);
+
+sector_t rust_helper_blk_rq_pos(struct request *rq)
+{
+	return blk_rq_pos(rq);
+}
+EXPORT_SYMBOL_GPL(rust_helper_blk_rq_pos);
+
+unsigned int rust_helper_blk_rq_sectors(struct request *rq)
+{
+	return blk_rq_sectors(rq);
+}
+EXPORT_SYMBOL_GPL(rust_helper_blk_rq_sectors);
+
+unsigned int rust_helper_blk_rq_bytes(struct request *rq)
+{
+	return blk_rq_bytes(rq);
+}
+EXPORT_SYMBOL_GPL(rust_helper_blk_rq_bytes);
+
+bool rust_helper_blk_should_fake_timeout(struct request *rq)
+{
+	return blk_should_fake_timeout(rq->q);
+}
+EXPORT_SYMBOL_GPL(rust_helper_blk_should_fake_timeout);
+
+void rust_helper_hrtimer_start(struct hrtimer *timer, ktime_t tim,
+			       enum hrtimer_mode mode)
+{
+	hrtimer_start(timer, tim, mode);
+}
+EXPORT_SYMBOL_GPL(rust_helper_hrtimer_start);
+
+u64 rust_helper_hrtimer_forward_now(struct hrtimer *timer, ktime_t interval)
+{
+	return hrtimer_forward_now(timer, interval);
+}
+EXPORT_SYMBOL_GPL(rust_helper_hrtimer_forward_now);
+
+void rust_helper_kpage_copy_from(void *dst, struct page *src_page,
+				 size_t src_off, size_t len)
+{
+	char *src = kmap_local_page(src_page);
+
+	memcpy(dst, src + src_off, len);
+	kunmap_local(src);
+}
+EXPORT_SYMBOL_GPL(rust_helper_kpage_copy_from);
+
+void rust_helper_kpage_copy_to(struct page *dst_page, size_t dst_off,
+			       const void *src, size_t len)
+{
+	char *dst = kmap_local_page(dst_page);
+
+	memcpy(dst + dst_off, src, len);
+	kunmap_local(dst);
+}
+EXPORT_SYMBOL_GPL(rust_helper_kpage_copy_to);
+
+void rust_helper_kpage_zero_segment(struct page *page, size_t start, size_t size)
+{
+	zero_user(page, start, size);
+}
+EXPORT_SYMBOL_GPL(rust_helper_kpage_zero_segment);
+
+int rust_helper_rq_for_each_segment(struct request *rq, void *data,
+				    int (*cb)(struct page *page, size_t len,
+					      size_t offset, void *data))
+{
+	struct req_iterator iter;
+	struct bio_vec bvec;
+
+	rq_for_each_segment(bvec, rq, iter) {
+		int ret = cb(bvec.bv_page, bvec.bv_len, bvec.bv_offset, data);
+
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rust_helper_rq_for_each_segment);

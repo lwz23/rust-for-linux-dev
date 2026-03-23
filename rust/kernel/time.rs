@@ -8,8 +8,13 @@
 //! C header: [`include/linux/jiffies.h`](srctree/include/linux/jiffies.h).
 //! C header: [`include/linux/ktime.h`](srctree/include/linux/ktime.h).
 
+pub mod hrtimer;
+
 /// The number of nanoseconds per millisecond.
 pub const NSEC_PER_MSEC: i64 = bindings::NSEC_PER_MSEC as i64;
+
+/// The number of nanoseconds per second.
+pub const NSEC_PER_SEC: i64 = bindings::NSEC_PER_SEC as i64;
 
 /// The time unit of Linux kernel. One jiffy equals (1/HZ) second.
 pub type Jiffies = core::ffi::c_ulong;
@@ -46,6 +51,12 @@ impl Ktime {
         Self::from_raw(unsafe { bindings::ktime_get() })
     }
 
+    /// Creates a `Ktime` from nanoseconds.
+    #[inline]
+    pub fn from_ns(ns: i64) -> Self {
+        Self::from_raw(ns)
+    }
+
     /// Divide the number of nanoseconds by a compile-time constant.
     #[inline]
     fn divns_constant<const DIV: i64>(self) -> i64 {
@@ -62,6 +73,12 @@ impl Ktime {
     #[inline]
     pub fn to_ms(self) -> i64 {
         self.divns_constant::<NSEC_PER_MSEC>()
+    }
+
+    /// Adds nanoseconds to the current value.
+    #[inline]
+    pub fn add_ns(self, delta_ns: i64) -> Self {
+        Self::from_raw(self.inner + delta_ns)
     }
 }
 

@@ -59,30 +59,36 @@
 //! use kernel::{
 //!     alloc::flags,
 //!     block::mq::*,
-//!     new_mutex,
 //!     prelude::*,
-//!     sync::{Arc, Mutex},
-//!     types::{ARef, ForeignOwnable},
+//!     sync::Arc,
+//!     types::ARef,
 //! };
 //!
 //! struct MyBlkDevice;
 //!
 //! #[vtable]
 //! impl Operations for MyBlkDevice {
+//!     type QueueData = ();
 //!
-//!     fn queue_rq(rq: ARef<Request<Self>>, _is_last: bool) -> Result {
+//!     fn queue_rq(_queue_data: (), rq: ARef<Request<Self>>, _is_last: bool) -> Result {
 //!         Request::end_ok(rq);
 //!         Ok(())
 //!     }
 //!
-//!     fn commit_rqs() {}
+//!     fn commit_rqs(_queue_data: ()) {}
+//!
+//!     fn complete(rq: ARef<Request<Self>>) {
+//!         Request::end_ok(rq)
+//!             .map_err(|_| EIO)
+//!             .expect("completion must own the request");
+//!     }
 //! }
 //!
 //! let tagset: Arc<TagSet<MyBlkDevice>> =
 //!     Arc::pin_init(TagSet::new(1, 256, 1), flags::GFP_KERNEL)?;
 //! let mut disk = gen_disk::GenDiskBuilder::new()
 //!     .capacity_sectors(4096)
-//!     .build(format_args!("myblk"), tagset)?;
+//!     .build(format_args!("myblk"), tagset, ())?;
 //!
 //! # Ok::<(), kernel::error::Error>(())
 //! ```
@@ -91,8 +97,10 @@ pub mod gen_disk;
 mod operations;
 mod raw_writer;
 mod request;
+mod status;
 mod tag_set;
 
-pub use operations::Operations;
-pub use request::Request;
-pub use tag_set::TagSet;
+pub use operations::{Operations, QueueResult, TimeoutResult};
+pub use request::{QueueKind, Request, RequestOp, Segment};
+pub use status::BlkStatus;
+pub use tag_set::{TagSet, TagSetConfig};

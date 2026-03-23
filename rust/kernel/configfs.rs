@@ -50,7 +50,10 @@
 //!
 //!         try_pin_init!(Self {
 //!             config <- configfs::Subsystem::new(
-//!                 c_str!("rust_configfs"), item_type, Configuration::new()
+//!                 c_str!("rust_configfs"),
+//!                 item_type,
+//!                 kernel::static_lock_class!(),
+//!                 Configuration::new(),
 //!             ),
 //!         })
 //!     }
@@ -116,6 +119,7 @@ use crate::prelude::*;
 use crate::str::CString;
 use crate::sync::Arc;
 use crate::sync::ArcBorrow;
+use crate::sync::LockClassKey;
 use crate::types::Opaque;
 use core::cell::UnsafeCell;
 use core::marker::PhantomData;
@@ -146,9 +150,11 @@ impl<Data> Subsystem<Data> {
     /// The subsystem will appear in configfs as a directory name given by
     /// `name`. The attributes available in directory are specified by
     /// `item_type`.
+    #[inline]
     pub fn new(
         name: &'static CStr,
         item_type: &'static ItemType<Subsystem<Data>, Data>,
+        key: &'static LockClassKey,
         data: impl PinInit<Data, Error>,
     ) -> impl PinInit<Self, Error> {
         try_pin_init!(Self {
@@ -168,7 +174,7 @@ impl<Data> Subsystem<Data> {
                         bindings::__mutex_init(
                             &mut (*place.get()).su_mutex,
                             kernel::optional_name!().as_char_ptr(),
-                            kernel::static_lock_class!().as_ptr(),
+                            key.as_ptr(),
                         )
                     }
                     Ok(())
@@ -183,6 +189,12 @@ impl<Data> Subsystem<Data> {
             )
         })
     }
+
+    /// Returns the data object backing this subsystem.
+    #[inline]
+    pub fn data(&self) -> &Data {
+        &self.data
+    }
 }
 
 #[pinned_drop]
@@ -190,8 +202,6 @@ impl<Data> PinnedDrop for Subsystem<Data> {
     fn drop(self: Pin<&mut Self>) {
         // SAFETY: We registered `self.subsystem` in the initializer returned by `Self::new`.
         unsafe { bindings::configfs_unregister_subsystem(self.subsystem.get()) };
-        // SAFETY: We initialized the mutex in `Subsystem::new`.
-        unsafe { bindings::mutex_destroy(&raw mut (*self.subsystem.get()).su_mutex) };
     }
 }
 
@@ -256,6 +266,7 @@ impl<Data> Group<Data> {
     ///
     /// When instantiated, the group will appear as a directory with the name
     /// given by `name` and it will contain attributes specified by `item_type`.
+    #[inline]
     pub fn new(
         name: CString,
         item_type: &'static ItemType<Group<Data>, Data>,
@@ -273,6 +284,12 @@ impl<Data> Group<Data> {
             }),
             data <- data,
         })
+    }
+
+    /// Returns the data object backing this group.
+    #[inline]
+    pub fn data(&self) -> &Data {
+        &self.data
     }
 }
 
@@ -360,14 +377,11 @@ where
             Err(e) => return e.to_ptr(),
         };
 
-        let child_group = <Arc<Group<Child>> as InPlaceInit<Group<Child>>>::try_pin_init(
-            group_init,
-            flags::GFP_KERNEL,
-        );
+        let child_group = Arc::pin_init(group_init, flags::GFP_KERNEL);
 
         match child_group {
             Ok(child_group) => {
-                let child_group_ptr = child_group.into_raw();
+                let child_group_ptr = Arc::into_raw(child_group);
                 // SAFETY: We allocated the pointee of `child_ptr` above as a
                 // `Group<Child>`.
                 unsafe { Group::<Child>::group(child_group_ptr) }.cast_mut()
@@ -422,8 +436,6 @@ where
         make_group: Some(Self::make_group),
         disconnect_notify: None,
         drop_item: Some(Self::drop_item),
-        is_visible: None,
-        is_bin_visible: None,
     };
 
     const fn vtable_ptr() -> *const bindings::configfs_group_operations {
@@ -611,6 +623,7 @@ where
     /// Create a new attribute.
     ///
     /// The attribute will appear as a file with name given by `name`.
+    #[inline]
     pub const fn new(name: &'static CStr) -> Self {
         Self {
             attribute: Opaque::new(bindings::configfs_attribute {
@@ -693,12 +706,9 @@ unsafe impl<const N: usize, Data> Send for AttributeList<N, Data> {}
 unsafe impl<const N: usize, Data> Sync for AttributeList<N, Data> {}
 
 impl<const N: usize, Data> AttributeList<N, Data> {
-    /// # Safety
-    ///
-    /// This function must only be called by the [`kernel::configfs_attrs`]
-    /// macro.
     #[doc(hidden)]
-    pub const unsafe fn new() -> Self {
+    #[inline]
+    pub const fn new() -> Self {
         Self(UnsafeCell::new([core::ptr::null_mut(); N]), PhantomData)
     }
 
@@ -707,6 +717,7 @@ impl<const N: usize, Data> AttributeList<N, Data> {
     /// The caller must ensure that there are no other concurrent accesses to
     /// `self`. That is, the caller has exclusive access to `self.`
     #[doc(hidden)]
+    #[inline]
     pub const unsafe fn add<const I: usize, const ID: u64, O>(
         &'static self,
         attribute: &'static Attribute<ID, O, Data>,
@@ -724,6 +735,44 @@ impl<const N: usize, Data> AttributeList<N, Data> {
                 .cast()
         };
     }
+}
+
+/// Initializes a statically declared [`AttributeList`] exactly once and then
+/// returns it to the caller.
+///
+/// This is intended for drivers that need to declare attribute lists manually
+/// when [`configfs_attrs!`] cannot be used, while still keeping the `unsafe`
+/// list mutation inside the shared abstraction layer.
+#[macro_export]
+macro_rules! configfs_attr_list_init {
+    ($attrs:expr, $(($index:literal, $id:literal, $attr:expr)),* $(,)?) => {{
+        static STATE: ::core::sync::atomic::AtomicU8 =
+            ::core::sync::atomic::AtomicU8::new(0);
+
+        if STATE.load(::core::sync::atomic::Ordering::Acquire) != 2 {
+            if STATE
+                .compare_exchange(
+                    0,
+                    1,
+                    ::core::sync::atomic::Ordering::AcqRel,
+                    ::core::sync::atomic::Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                $(
+                    // SAFETY: The per-callsite state machine above guarantees
+                    // a single initializer, so these writes have exclusive
+                    // access to the static list slots.
+                    unsafe { $attrs.add::<$index, $id, _>($attr) };
+                )*
+                STATE.store(2, ::core::sync::atomic::Ordering::Release);
+            } else {
+                while STATE.load(::core::sync::atomic::Ordering::Acquire) != 2 {
+                    ::core::hint::spin_loop();
+                }
+            }
+        }
+    }};
 }
 
 /// A representation of the attributes that will appear in a [`Group`] or
@@ -749,6 +798,7 @@ macro_rules! impl_item_type {
     ($tpe:ty) => {
         impl<Data> ItemType<$tpe, Data> {
             #[doc(hidden)]
+            #[inline]
             pub const fn new_with_child_ctor<const N: usize, Child>(
                 owner: &'static ThisModule,
                 attributes: &'static AttributeList<N, Data>,
@@ -772,6 +822,7 @@ macro_rules! impl_item_type {
             }
 
             #[doc(hidden)]
+            #[inline]
             pub const fn new<const N: usize>(
                 owner: &'static ThisModule,
                 attributes: &'static AttributeList<N, Data>,
@@ -797,6 +848,7 @@ impl_item_type!(Subsystem<Data>);
 impl_item_type!(Group<Data>);
 
 impl<Container, Data> ItemType<Container, Data> {
+    #[inline]
     fn as_ptr(&self) -> *const bindings::config_item_type {
         self.item_type.get()
     }

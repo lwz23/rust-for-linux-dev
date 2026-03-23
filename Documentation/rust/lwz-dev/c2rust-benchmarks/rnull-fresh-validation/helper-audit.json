@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "stage": 4,
+  "generated_on": "2026-03-23",
+  "policy": {
+    "driver_private_helpers_allowed": false,
+    "helper_role": "bridge inline or macro blind spots only",
+    "retirement_check_required_in_hardening": true
+  },
+  "actual_generic_helpers": [
+    {
+      "name": "blk_mq_rq_to_pdu",
+      "location": "rust/helpers.c",
+      "purpose": "blk-mq request private-data bridge used by the shared Rust mq request wrapper",
+      "driver_private_state": false,
+      "status": "retained"
+    },
+    {
+      "name": "request metadata helpers",
+      "location": "rust/helpers.c",
+      "symbols": [
+        "rust_helper_req_op",
+        "rust_helper_blk_rq_pos",
+        "rust_helper_blk_rq_sectors",
+        "rust_helper_blk_rq_bytes",
+        "rust_helper_blk_should_fake_timeout"
+      ],
+      "purpose": "inline blk-mq metadata accessors not directly exposed as stable callable bindings on this tree",
+      "driver_private_state": false,
+      "status": "retained"
+    },
+    {
+      "name": "rq_for_each_segment bridge",
+      "location": "rust/helpers.c",
+      "purpose": "generic request segment iteration bridge for the Rust mq request abstraction",
+      "driver_private_state": false,
+      "status": "retained"
+    },
+    {
+      "name": "hrtimer inline bridge",
+      "location": "rust/helpers.c",
+      "symbols": [
+        "rust_helper_hrtimer_start",
+        "rust_helper_hrtimer_forward_now"
+      ],
+      "purpose": "bridge inline hrtimer helpers required by the Rust hrtimer abstraction",
+      "driver_private_state": false,
+      "status": "retained"
+    }
+  ],
+  "retired_or_avoided_helpers": [
+    {
+      "name": "driver-layer configfs attribute wiring helpers",
+      "status": "avoided",
+      "reason": "attribute-list mutation was absorbed into rust/kernel/configfs.rs so the driver stays zero-unsafe"
+    },
+    {
+      "name": "page copy bridge",
+      "status": "not_needed",
+      "reason": "request segment copy and zero paths are handled by the Rust mq request abstraction rather than a driver-specific C helper"
+    },
+    {
+      "name": "C-side nullb private structs",
+      "status": "rejected",
+      "reason": "would move driver-owned lifetime and ownership logic back into C"
+    },
+    {
+      "name": "C-side configfs attribute implementations",
+      "status": "rejected",
+      "reason": "would bypass the Rust configfs abstraction and violate the abstraction-first rule"
+    }
+  ],
+  "hardening_review": {
+    "status": "completed",
+    "findings": [
+      "No helper carries rnull-private state or device-owned lifetimes",
+      "Remaining helpers are all generic bindings bridges reused by shared abstractions",
+      "Helper retirement remains compare-stage work rather than a blind-first blocker on this baseline tree"
+    ]
+  },
+  "current_conclusion": {
+    "helper_budget": "small_nonzero_generic_only",
+    "driver_private_helpers_present": false,
+    "actual_required_domains": [
+      "blk-mq request private-data and metadata inline accessors",
+      "request segment iteration macro bridge",
+      "hrtimer inline wrappers"
+    ],
+    "retirement_goal": "Keep the helper surface generic, reviewable, and removable once baseline-tree abstraction support catches up"
+  }
+}

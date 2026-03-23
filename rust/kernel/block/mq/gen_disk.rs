@@ -7,7 +7,13 @@
 
 use crate::block::mq::{raw_writer::RawWriter, Operations, TagSet};
 use crate::error;
-use crate::{bindings, error::from_err_ptr, error::Result, sync::Arc};
+use crate::{
+    bindings,
+    error::from_err_ptr,
+    error::Result,
+    sync::Arc,
+    types::{ForeignOwnable, ScopeGuard},
+};
 use core::fmt::{self, Write};
 
 /// A builder for [`GenDisk`].
@@ -18,6 +24,9 @@ pub struct GenDiskBuilder {
     logical_block_size: u32,
     physical_block_size: u32,
     capacity_sectors: u64,
+    max_hw_sectors: u32,
+    max_hw_discard_sectors: u32,
+    virt_boundary_mask: u32,
 }
 
 impl Default for GenDiskBuilder {
@@ -27,6 +36,9 @@ impl Default for GenDiskBuilder {
             logical_block_size: bindings::PAGE_SIZE as u32,
             physical_block_size: bindings::PAGE_SIZE as u32,
             capacity_sectors: 0,
+            max_hw_sectors: 0,
+            max_hw_discard_sectors: 0,
+            virt_boundary_mask: 0,
         }
     }
 }
@@ -87,20 +99,53 @@ impl GenDiskBuilder {
         self
     }
 
+    /// Set the queue's maximum hardware sector count.
+    pub fn max_hw_sectors(mut self, sectors: u32) -> Self {
+        self.max_hw_sectors = sectors;
+        self
+    }
+
+    /// Set the queue's maximum discard sectors.
+    pub fn max_hw_discard_sectors(mut self, sectors: u32) -> Self {
+        self.max_hw_discard_sectors = sectors;
+        self
+    }
+
+    /// Set the queue's virtual boundary mask.
+    pub fn virt_boundary_mask(mut self, mask: u32) -> Self {
+        self.virt_boundary_mask = mask;
+        self
+    }
+
     /// Build a new `GenDisk` and add it to the VFS.
     pub fn build<T: Operations>(
         self,
         name: fmt::Arguments<'_>,
         tagset: Arc<TagSet<T>>,
+        queue_data: T::QueueData,
     ) -> Result<GenDisk<T>> {
+        let queue_data = queue_data.into_foreign();
+        let recover_queue_data = ScopeGuard::new(|| {
+            // SAFETY: `queue_data` was produced by `into_foreign` above and
+            // has not been handed back on this error path.
+            drop(unsafe { T::QueueData::from_foreign(queue_data) });
+        });
+
         let lock_class_key = crate::sync::LockClassKey::new();
+        let mut limits: bindings::queue_limits = unsafe { core::mem::zeroed() };
+
+        limits.logical_block_size = self.logical_block_size;
+        limits.physical_block_size = self.physical_block_size;
+        limits.max_hw_sectors = self.max_hw_sectors;
+        limits.max_hw_discard_sectors = self.max_hw_discard_sectors;
+        limits.virt_boundary_mask = self.virt_boundary_mask as u64;
 
         // SAFETY: `tagset.raw_tag_set()` points to a valid and initialized tag set
         let gendisk = from_err_ptr(unsafe {
             bindings::__blk_mq_alloc_disk(
                 tagset.raw_tag_set(),
-                core::ptr::null_mut(), // TODO: We can pass queue limits right here
-                core::ptr::null_mut(),
+                &mut limits,
+                queue_data.cast_mut(),
                 lock_class_key.as_ptr(),
             )
         })?;
@@ -180,6 +225,8 @@ impl GenDiskBuilder {
             },
         )?;
 
+        recover_queue_data.dismiss();
+
         // INVARIANT: `gendisk` was initialized above.
         // INVARIANT: `gendisk` was added to the VFS via `device_add_disk` above.
         Ok(GenDisk {
@@ -205,11 +252,45 @@ pub struct GenDisk<T: Operations> {
 // `TagSet` It is safe to send this to other threads as long as T is Send.
 unsafe impl<T: Operations + Send> Send for GenDisk<T> {}
 
+impl<T: Operations> GenDisk<T> {
+    fn raw_queue(&self) -> *mut bindings::request_queue {
+        // SAFETY: By type invariant, `self.gendisk` always points to a live
+        // `gendisk`.
+        unsafe { (*self.gendisk).queue }
+    }
+
+    /// Enables or disables the queue write-cache setting.
+    pub fn set_write_cache(&self, enabled: bool, fua: bool) {
+        // SAFETY: The queue belongs to this live gendisk.
+        unsafe { bindings::blk_queue_write_cache(self.raw_queue(), enabled, fua) };
+    }
+
+    /// Stops all hardware queues.
+    pub fn stop_hw_queues(&self) {
+        // SAFETY: The queue belongs to this live gendisk.
+        unsafe { bindings::blk_mq_stop_hw_queues(self.raw_queue()) };
+    }
+
+    /// Restarts stopped hardware queues.
+    pub fn start_stopped_hw_queues(&self, asynchronous: bool) {
+        // SAFETY: The queue belongs to this live gendisk.
+        unsafe { bindings::blk_mq_start_stopped_hw_queues(self.raw_queue(), asynchronous) };
+    }
+}
+
 impl<T: Operations> Drop for GenDisk<T> {
     fn drop(&mut self) {
+        // SAFETY: `queuedata` was initialised from `ForeignOwnable::into_foreign`
+        // in `GenDiskBuilder::build` and remains owned by this queue.
+        let queue_data = unsafe { (*(*self.gendisk).queue).queuedata };
+
         // SAFETY: By type invariant, `self.gendisk` points to a valid and
         // initialized instance of `struct gendisk`, and it was previously added
         // to the VFS.
         unsafe { bindings::del_gendisk(self.gendisk) };
+
+        // SAFETY: Ownership of `queue_data` is transferred back exactly once
+        // during `GenDisk` teardown.
+        drop(unsafe { T::QueueData::from_foreign(queue_data) });
     }
 }

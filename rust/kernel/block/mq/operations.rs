@@ -6,12 +6,34 @@
 
 use crate::{
     bindings,
-    block::mq::request::RequestDataWrapper,
-    block::mq::Request,
-    error::{from_result, Result},
-    types::ARef,
+    block::mq::{request::RequestDataWrapper, BlkStatus, Request, TagSet},
+    error::from_result,
+    types::{ARef, ForeignOwnable},
 };
 use core::{marker::PhantomData, sync::atomic::AtomicU64, sync::atomic::Ordering};
+
+type ForeignBorrowed<'a, T> = <T as ForeignOwnable>::Borrowed<'a>;
+
+/// Queueing result returned from `queue_rq`.
+pub type QueueResult = core::result::Result<(), BlkStatus>;
+
+/// Result returned from a blk-mq timeout callback.
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum TimeoutResult {
+    /// Timeout handling is complete.
+    Done,
+    /// Reset the timeout timer and keep waiting.
+    ResetTimer,
+}
+
+impl TimeoutResult {
+    fn to_raw(self) -> bindings::blk_eh_timer_return {
+        match self {
+            TimeoutResult::Done => bindings::blk_eh_timer_return_BLK_EH_DONE,
+            TimeoutResult::ResetTimer => bindings::blk_eh_timer_return_BLK_EH_RESET_TIMER,
+        }
+    }
+}
 
 /// Implement this trait to interface blk-mq as block devices.
 ///
@@ -25,16 +47,36 @@ use core::{marker::PhantomData, sync::atomic::AtomicU64, sync::atomic::Ordering}
 /// [module level documentation]: kernel::block::mq
 #[macros::vtable]
 pub trait Operations: Sized {
+    /// Data associated with the `struct request_queue` that owns this driver's
+    /// blk-mq callbacks.
+    type QueueData: ForeignOwnable;
+
     /// Called by the kernel to queue a request with the driver. If `is_last` is
     /// `false`, the driver is allowed to defer committing the request.
-    fn queue_rq(rq: ARef<Request<Self>>, is_last: bool) -> Result;
+    fn queue_rq(
+        queue_data: ForeignBorrowed<'_, Self::QueueData>,
+        rq: ARef<Request<Self>>,
+        is_last: bool,
+    ) -> QueueResult;
 
     /// Called by the kernel to indicate that queued requests should be submitted.
-    fn commit_rqs();
+    fn commit_rqs(queue_data: ForeignBorrowed<'_, Self::QueueData>);
+
+    /// Called by the kernel when a previously scheduled completion is being
+    /// delivered to the driver.
+    fn complete(rq: ARef<Request<Self>>);
 
     /// Called by the kernel to poll the device for completed requests. Only
     /// used for poll queues.
-    fn poll() -> bool {
+    fn poll(queue_data: ForeignBorrowed<'_, Self::QueueData>, hctx_index: u32) -> u32 {
+        let _ = queue_data;
+        let _ = hctx_index;
+        crate::build_error(crate::error::VTABLE_DEFAULT_ERROR)
+    }
+
+    /// Called by the kernel when a request times out.
+    fn timeout(rq: ARef<Request<Self>>) -> TimeoutResult {
+        let _ = rq;
         crate::build_error(crate::error::VTABLE_DEFAULT_ERROR)
     }
 }
@@ -69,7 +111,7 @@ impl<T: Operations> OperationsVTable<T> {
     ///   promise to not access the request until the driver calls
     ///   `bindings::blk_mq_end_request` for the request.
     unsafe extern "C" fn queue_rq_callback(
-        _hctx: *mut bindings::blk_mq_hw_ctx,
+        hctx: *mut bindings::blk_mq_hw_ctx,
         bd: *const bindings::blk_mq_queue_data,
     ) -> bindings::blk_status_t {
         // SAFETY: `bd.rq` is valid as required by the safety requirement for
@@ -90,15 +132,22 @@ impl<T: Operations> OperationsVTable<T> {
         // SAFETY: We have exclusive access and we just set the refcount above.
         unsafe { Request::start_unchecked(&rq) };
 
+        // SAFETY: `hctx` is valid as required by this function.
+        let queue_data = unsafe { (*(*hctx).queue).queuedata };
+        // SAFETY: `queuedata` originated from `ForeignOwnable::into_foreign`
+        // in `GenDiskBuilder::build` and remains owned by the queue.
+        let queue_data = unsafe { T::QueueData::borrow(queue_data) };
+
         let ret = T::queue_rq(
+            queue_data,
             rq,
             // SAFETY: `bd` is valid as required by the safety requirement for
             // this function.
             unsafe { (*bd).last },
         );
 
-        if let Err(e) = ret {
-            e.to_blk_status()
+        if let Err(status) = ret {
+            status.to_raw()
         } else {
             bindings::BLK_STS_OK as _
         }
@@ -109,9 +158,15 @@ impl<T: Operations> OperationsVTable<T> {
     ///
     /// # Safety
     ///
-    /// This function may only be called by blk-mq C infrastructure.
-    unsafe extern "C" fn commit_rqs_callback(_hctx: *mut bindings::blk_mq_hw_ctx) {
-        T::commit_rqs()
+    /// This function may only be called by blk-mq C infrastructure. The caller
+    /// must ensure that `hctx` is valid.
+    unsafe extern "C" fn commit_rqs_callback(hctx: *mut bindings::blk_mq_hw_ctx) {
+        // SAFETY: `hctx` is valid as required by this function.
+        let queue_data = unsafe { (*(*hctx).queue).queuedata };
+        // SAFETY: `queuedata` originated from `ForeignOwnable::into_foreign`
+        // in `GenDiskBuilder::build` and remains owned by the queue.
+        let queue_data = unsafe { T::QueueData::borrow(queue_data) };
+        T::commit_rqs(queue_data)
     }
 
     /// This function is called by the C kernel. It is not currently
@@ -119,8 +174,14 @@ impl<T: Operations> OperationsVTable<T> {
     ///
     /// # Safety
     ///
-    /// This function may only be called by blk-mq C infrastructure.
-    unsafe extern "C" fn complete_callback(_rq: *mut bindings::request) {}
+    /// This function may only be called by blk-mq C infrastructure. `rq` must
+    /// point to a valid request owned by the driver.
+    unsafe extern "C" fn complete_callback(rq: *mut bindings::request) {
+        // SAFETY: The completion path hands ownership back through this raw
+        // request pointer, so we can reconstruct the `ARef`.
+        let rq = unsafe { Request::aref_from_raw(rq) };
+        T::complete(rq)
+    }
 
     /// This function is called by the C kernel. A pointer to this function is
     /// installed in the `blk_mq_ops` vtable for the driver.
@@ -129,10 +190,28 @@ impl<T: Operations> OperationsVTable<T> {
     ///
     /// This function may only be called by blk-mq C infrastructure.
     unsafe extern "C" fn poll_callback(
-        _hctx: *mut bindings::blk_mq_hw_ctx,
+        hctx: *mut bindings::blk_mq_hw_ctx,
         _iob: *mut bindings::io_comp_batch,
     ) -> core::ffi::c_int {
-        T::poll().into()
+        // SAFETY: `hctx` is valid by blk-mq callback contract.
+        let queue_data = unsafe { (*(*hctx).queue).queuedata };
+        // SAFETY: `queuedata` originates from `ForeignOwnable::into_foreign`.
+        let queue_data = unsafe { T::QueueData::borrow(queue_data) };
+        T::poll(queue_data, unsafe { (*hctx).queue_num }) as core::ffi::c_int
+    }
+
+    unsafe extern "C" fn timeout_callback(
+        rq: *mut bindings::request,
+    ) -> bindings::blk_eh_timer_return {
+        // SAFETY: The request remains owned by the driver while the timeout
+        // callback executes, so we may take a temporary `ARef`.
+        let rq = unsafe { Request::<T>::borrow_inflight(rq) };
+        T::timeout(rq).to_raw()
+    }
+
+    unsafe extern "C" fn map_queues_callback(set: *mut bindings::blk_mq_tag_set) {
+        // SAFETY: blk-mq invokes this callback with a live tag set.
+        unsafe { TagSet::<T>::map_queues(set) };
     }
 
     /// This function is called by the C kernel. A pointer to this function is
@@ -221,7 +300,11 @@ impl<T: Operations> OperationsVTable<T> {
         put_budget: None,
         set_rq_budget_token: None,
         get_rq_budget_token: None,
-        timeout: None,
+        timeout: if T::HAS_TIMEOUT {
+            Some(Self::timeout_callback)
+        } else {
+            None
+        },
         poll: if T::HAS_POLL {
             Some(Self::poll_callback)
         } else {
@@ -234,7 +317,7 @@ impl<T: Operations> OperationsVTable<T> {
         exit_request: Some(Self::exit_request_callback),
         cleanup_rq: None,
         busy: None,
-        map_queues: None,
+        map_queues: Some(Self::map_queues_callback),
         #[cfg(CONFIG_BLK_DEBUG_FS)]
         show_rq: None,
     };

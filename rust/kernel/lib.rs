@@ -12,7 +12,10 @@
 //! do so first instead of bypassing this crate.
 
 #![no_std]
+#![allow(stable_features)]
 #![feature(coerce_unsized)]
+#![feature(box_uninit_write)]
+#![feature(const_mut_refs)]
 #![feature(dispatch_from_dyn)]
 #![feature(new_uninit)]
 #![feature(receiver_trait)]
@@ -26,7 +29,7 @@ compile_error!("Missing kernel configuration for conditional compilation");
 // Allow proc-macros to refer to `::kernel` inside the `kernel` crate (this crate).
 extern crate self as kernel;
 
-pub use ffi;
+pub use core::ffi;
 
 pub mod alloc;
 #[cfg(CONFIG_BLOCK)]

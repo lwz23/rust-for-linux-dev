@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "stage": 5,
+  "selected_patterns": [
+    {
+      "area": "configfs subtree",
+      "pattern": "Pin + Opaque + state machine",
+      "placement": "rust/kernel/configfs.rs",
+      "why": "The configfs lifetime is intrusive and callback-owned; the subsystem/group/item model must stay pinned and drive state transitions explicitly."
+    },
+    {
+      "area": "registered runtime block device",
+      "pattern": "registered object lifecycle",
+      "placement": "rust/kernel/block/mq/{tag_set,gen_disk}.rs plus rnull runtime wrapper",
+      "why": "tag_set, request_queue, gendisk, and load/unload teardown must be modeled as acquire/register/drop pairs rather than ad-hoc raw pointer flows."
+    },
+    {
+      "area": "request and hctx state",
+      "pattern": "callback-owned state",
+      "placement": "rust/kernel/block/mq/request.rs and hctx support added under rust/kernel/block/mq",
+      "why": "queue_rq/complete/timeout/poll all run through blk-mq callbacks and require explicit ownership transfer rules. The driver must not hold a wide mutable borrow over queue-owned state."
+    },
+    {
+      "area": "timer completion and throttling",
+      "pattern": "pinned timer object with narrow callback surface",
+      "placement": "rust/kernel/time/hrtimer.rs",
+      "why": "Timer callbacks outlive the submission stack and need a safe pinned wrapper that exposes restart/cancel/forward semantics without leaking raw hrtimer usage into the driver."
+    },
+    {
+      "area": "memory-backed storage",
+      "pattern": "Rust-native owned storage with safe page-copy boundary",
+      "placement": "rnull runtime internals, not C radix-tree clones",
+      "why": "The C radix-tree/page-cache implementation is an engineering choice, not the semantic target. A Rust-owned storage model preserves behavior while keeping unsafe concentrated below the driver layer."
+    }
+  ],
+  "abstraction_sources_in_priority_order": [
+    {
+      "priority": 1,
+      "source": "baseline abstractions already present in 3253aba3",
+      "applied_to": [
+        "Arc/Mutex/SpinLock foundations",
+        "baseline blk-mq request refcount model"
+      ]
+    },
+    {
+      "priority": 2,
+      "source": "mature public abstractions reasonably forward-portable from current tree",
+      "applied_to": [
+        "configfs public abstraction",
+        "queue-data aware GenDiskBuilder direction",
+        "hrtimer public wrapper design"
+      ]
+    },
+    {
+      "priority": 3,
+      "source": "new minimal abstractions added in rust/kernel/*",
+      "applied_to": [
+        "hctx-owned state model",
+        "status-carrying request completion",
+        "safe request metadata and segment walking"
+      ]
+    },
+    {
+      "priority": 4,
+      "source": "minimal generic helpers only where Rust cannot call a needed inline/macro path directly",
+      "applied_to": [
+        "hrtimer inline wrappers if needed",
+        "request segment/page-copy helper if needed"
+      ]
+    }
+  ],
+  "explicit_non_selections": [
+    {
+      "pattern": "driver directly using bindings::* for blk-mq/configfs/time",
+      "reason": "Violates the zero-unsafe driver requirement and defeats the audit trail."
+    },
+    {
+      "pattern": "wide &mut Private across callbacks",
+      "reason": "Too permissive for request completion ownership and callback interleavings."
+    },
+    {
+      "pattern": "lifting official rnull private structure layout verbatim before stage 9",
+      "reason": "Would violate the blind-first requirement."
+    }
+  ],
+  "planned_patch_landing_points": [
+    "rust/kernel/configfs.rs",
+    "rust/kernel/lib.rs",
+    "rust/kernel/time.rs",
+    "rust/kernel/time/hrtimer.rs",
+    "rust/kernel/block/mq.rs",
+    "rust/kernel/block/mq/operations.rs",
+    "rust/kernel/block/mq/request.rs",
+    "rust/kernel/block/mq/tag_set.rs",
+    "rust/kernel/block/mq/gen_disk.rs"
+  ],
+  "why_not_thinner": "Without the queue/hctx/timer/request abstractions in rust/kernel, the driver would have to manipulate raw request pointers, blk_mq_hw_ctx driver_data, and hrtimer callbacks directly, which would either reintroduce unsafe into the driver or force helper creep."
+}
