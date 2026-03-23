@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "generated_on": "2026-03-23",
+  "pipeline_mode": "calibration",
+  "conversion_stage": "blind",
+  "style_alignment": "unreviewed",
+  "runtime_state": "unvalidated",
+  "static_gates": {
+    "git_diff_check": "pass",
+    "driver_unsafe_scan": "pass",
+    "blind_driver_object_build": "pass",
+    "blind_driver_directory_build": "pass",
+    "full_kernel_build_memory_debug_c": "pass",
+    "full_kernel_build_memory_debug_rust": "pass"
+  },
+  "blind_first": {
+    "bindgen_audit": "complete",
+    "helper_audit": "complete",
+    "pattern_selection": "complete",
+    "driver_files": [
+      "drivers/block/rnull/rnull.rs",
+      "drivers/block/rnull/configfs.rs"
+    ],
+    "driver_explicit_unsafe": 0
+  },
+  "hardening": {
+    "status": "complete",
+    "completed_items": [
+      "driver-layer configfs unsafe removed via shared abstraction macro",
+      "controller-level lifecycle lock added for configfs and power serialization",
+      "badblocks disabled-state warning fixed in the shared abstraction",
+      "home_node configfs wire format tightened to match the C uint parser",
+      "shared_tags powered-on queue-count updates aligned with the C baseline",
+      "unsafe-obligations inventory generated",
+      "difference ledger generated",
+      "normalized unsafe audit generated"
+    ],
+    "open_items": [
+      "helper retirement still deferred to official compare",
+      "runtime_state remains unvalidated because the frozen mbps target still has a C-baseline runtime gap"
+    ]
+  },
+  "runtime": {
+    "primary_profile": "memory-debug",
+    "guest_cpus": 4,
+    "harness_dir": "tools/testing/rust/rnull",
+    "c_baseline": {
+      "build": "pass",
+      "scenarios": {
+        "baseline": {
+          "status": "pass",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.baseline.log"
+        },
+        "lifecycle": {
+          "status": "pass",
+          "loops": 8,
+          "log": "/home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.lifecycle.log"
+        },
+        "matrix-core": {
+          "status": "pass",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.matrix-core.log"
+        },
+        "io-core": {
+          "status": "pass_with_runtime_gap",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log",
+          "runtime_gaps": [
+            "mbps throttling could not be credibly demonstrated under this guest harness; slow0.throttle=runtime_gap"
+          ]
+        }
+      }
+    },
+    "rust_candidate": {
+      "build": "pass",
+      "scenarios": {
+        "baseline": {
+          "status": "pass",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.baseline.log"
+        },
+        "lifecycle": {
+          "status": "pass",
+          "loops": 8,
+          "log": "/home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.lifecycle.log"
+        },
+        "matrix-core": {
+          "status": "pass",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.matrix-core.log"
+        },
+        "io-core": {
+          "status": "pass",
+          "log": "/home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.io-core.log"
+        }
+      }
+    },
+    "ab_status": "partial_alignment_with_c_runtime_gap",
+    "ab_findings": [
+      "baseline, lifecycle, and matrix-core align between C and Rust under the memory-debug guest run",
+      "io-core aligns for basic memory-backed I/O, flush, discard, badblocks, irqmode none softirq timer, and poll completion",
+      "Rust observed mbps throttling while the C baseline remained a runtime gap under this harness, so the frozen target is not fully runtime-validated"
+    ],
+    "additional_profiles": {
+      "concurrency-debug": "not_run",
+      "leak-debug": "not_run"
+    }
+  },
+  "official_compare": {
+    "status": "complete",
+    "lower_bound_commit": "bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5",
+    "lower_bound_path": "drivers/block/rnull.rs",
+    "mature_commit": "63c37d99f6eba4531100ae887c396206e0f7cf3e",
+    "mature_paths": [
+      "drivers/block/rnull/rnull.rs",
+      "drivers/block/rnull/configfs.rs"
+    ]
+  },
+  "notes": [
+    "This remains a fresh workflow validation rerun and does not automatically count toward formal benchmark quota.",
+    "No full functional-equivalence claim is permitted because the frozen mbps target still carries a C-baseline runtime gap."
+  ]
+}

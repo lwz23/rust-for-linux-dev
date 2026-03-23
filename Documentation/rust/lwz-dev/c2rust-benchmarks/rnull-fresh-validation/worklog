@@ -1,0 +1,188 @@
+# rnull-fresh-validation worklog
+
+## 2026-03-23 stage 0
+
+- Confirmed that `/home/lwz/rfl-dev/worktrees/rnull-fresh-validation` did not
+  exist before creation.
+- Confirmed that branch `feature/rnull-fresh-validation` did not exist before
+  creation.
+- Created a fresh worktree from commit
+  `3253aba3408aa4eb2e4e09365eede3e63ef7536b`.
+- Created benchmark artifact directory
+  `Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/`.
+- Frozen task identity:
+  - `pipeline_mode=calibration`
+  - `module_id=rnull`
+  - `conversion_stage=blind`
+  - `style_alignment=unreviewed`
+  - `runtime_state=unvalidated`
+- Frozen functional target:
+  - `drivers/block/null_blk/main.c` core + configfs subset
+  - explicitly excludes zoned support and fault injection
+- Frozen official Rust references:
+  - lower bound: `bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5`
+  - mature: `63c37d99f6eba4531100ae887c396206e0f7cf3e`
+- Frozen process note:
+  - this is a `fresh workflow validation rerun`
+  - it does not automatically count toward formal benchmark quota
+
+## 2026-03-23 stage 1 bootstrap
+
+- Generated initial `module_manifest.yaml`.
+- Generated initial `dut-spec.json`.
+- Generated initial `c-structure-map.json`.
+- Recorded the main object model and ownership pairs from `null_blk/main.c`,
+  `null_blk.h`, and `Documentation/block/null_blk.rst`.
+- Confirmed that the old baseline tree does not contain
+  `Documentation/rust/lwz-dev/tooling-spec/`, so benchmark artifacts for this
+  rerun are being written directly from the frozen handbooks and observed sample
+  style rather than from in-tree schema files.
+
+## 2026-03-23 stage 2 integration
+
+- Added switchable benchmark-harness integration hooks for `drivers/block/rnull/`.
+- Added `drivers/block/rnull/Kconfig` with `CONFIG_BLK_DEV_RUST_NULL`.
+- Wired `drivers/block/Kconfig` and `drivers/block/Makefile` for C/Rust A/B
+  switching without enabling both implementations in the same validation build.
+
+## 2026-03-23 stage 3-5 audit bootstrap
+
+- Resolved the accidental partial cherry-pick state from the public `configfs`
+  front-port attempt and reduced it to the minimum needed landing pieces.
+- Added the following headers to `rust/bindings/bindings_helper.h` for audit
+  and future abstraction support:
+  - `linux/blkdev.h`
+  - `linux/configfs.h`
+  - `linux/badblocks.h`
+  - `linux/hrtimer.h`
+- Landed the initial `rust/kernel/configfs.rs` front-port and the corresponding
+  `rust/kernel/lib.rs` module wiring, without reading official `rnull`.
+- Generated:
+  - `binding-gap-audit.json`
+  - `helper-audit.json`
+  - `pattern-selection.json`
+- Recorded the planned abstraction landing points under `rust/kernel/*` rather
+  than the driver layer.
+
+## 2026-03-23 stage 6 blind-first build stabilization
+
+- Landed the blind-first `drivers/block/rnull/rnull.rs` and
+  `drivers/block/rnull/configfs.rs` implementation without reading the
+  official Rust `rnull` sources.
+- Fixed the `drivers/block/rnull/Makefile` integration so the module target is
+  emitted as `rnull.o`.
+- Reworked the configfs glue to use manual static `Attribute` /
+  `AttributeList` / `ItemType` wiring after `configfs_attrs!` hit a baseline
+  tree paste failure for this use case.
+- Verified:
+  - `make O=/home/lwz/rfl-dev/build-rnull-fresh-validation LLVM=1 drivers/block/rnull/`
+  - `make O=/home/lwz/rfl-dev/build-rnull-fresh-validation LLVM=1 drivers/block/rnull/rnull.o`
+- Confirmed that object-level and directory-level blind-first builds pass, but
+  that a standalone `M=... modules` link without a complete kernel image is not
+  yet runtime evidence.
+
+## 2026-03-23 stage 7 hardening
+
+- Audited the driver layer for explicit `unsafe` and removed the remaining
+  configfs attribute-list `unsafe` from `drivers/block/rnull/configfs.rs` by
+  moving the one-time initialization into `rust/kernel/configfs.rs`.
+- Added a controller-level lifecycle mutex to serialize configfs mutation,
+  power transitions, and shared-tagset sensitive updates, matching the C
+  baseline's global lifecycle-lock intent more closely.
+- Generated:
+  - `unsafe-obligations.json`
+  - `difference_ledger.yaml`
+  - `unsafe_audit.md`
+  - refreshed `verification-summary.json`
+- Confirmed static gates after hardening:
+  - `git diff --check`
+  - `rg -n '\bunsafe\b' drivers/block/rnull`
+  - `make O=/home/lwz/rfl-dev/build-rnull-fresh-validation LLVM=1 drivers/block/rnull/`
+
+## 2026-03-23 stage 8 runtime harness bootstrap
+
+- Created `tools/testing/rust/rnull/` with:
+  - `configure-debug-kernel.sh`
+  - `prepare-test-rootfs.sh`
+  - `run-qemu-test.sh`
+  - `rnull-guest-runner.sh`
+  - `rnull-io-tool.c`
+  - `common.sh`
+- Corrected the harness so it targets the fresh validation worktree instead of
+  inheriting the reference-tree `KERNEL_SRC` from `/home/lwz/rfl-dev/env.sh`.
+- Observed and recorded one environment-specific full-build blocker:
+  - `samples/rust/rust_minimal.o` failed under host `rustc 1.82.0` because
+    stable features are denied as warnings on this baseline tree.
+- Updated the runtime kernel configurator to disable Rust samples and then
+  restarted the `memory-debug + rust candidate` full-kernel build from a clean
+  build directory.
+
+## 2026-03-23 stage 8 runtime validation
+
+- Fixed a Rust full-build blocker caused by `kernel::configfs::Subsystem::new`
+  materializing a non-exported lock-class static across the module boundary.
+  The abstraction now takes the lock class key from the callsite.
+- Fixed a Rust runtime warning in the badblocks wrapper by matching the C
+  baseline's `shift != -1` guard before calling `badblocks_check()`.
+- Fixed a guest-runner defect where `wait_for_path()` clobbered the lifecycle
+  loop counter in busybox `sh`, causing an infinite `cycle1` loop.
+- Fixed a guest I/O tool defect where delayed writeback errors were not checked
+  until `fsync()` / `close()` handling was audited and added.
+- Upgraded the guest harness to use `-smp 4` so queue-count update paths are
+  actually exercisable.
+- Calibrated `matrix-core` to the baseline runtime environment:
+  - `home_node` uses the C-compatible uint wire format
+  - `poll_queues` update scenario now stays within the baseline global cap
+  - `shared_tags` powered-on queue-count updates are treated as legal because
+    the C baseline accepts them
+- Final memory-debug guest results:
+  - C baseline:
+    - `baseline`: pass
+    - `lifecycle`: pass
+    - `matrix-core`: pass
+    - `io-core`: pass with `mbps` recorded as `runtime_gap`
+  - Rust candidate:
+    - `baseline`: pass
+    - `lifecycle`: pass
+    - `matrix-core`: pass
+    - `io-core`: pass, including observed `mbps` throttling
+- Recorded the final guest logs under `/home/lwz/rfl-dev/test-results/rnull/`.
+- Runtime state remains `unvalidated` because the frozen `mbps` target could
+  not be credibly closed on the C baseline under this harness.
+
+## 2026-03-23 stage 9 official compare
+
+- Began official compare only after hardening and memory-debug guest A/B had
+  finished.
+- Confirmed that the official initial `rnull` reference at
+  `bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5` lives at
+  `drivers/block/rnull.rs` rather than the later directory topology.
+- Compared against:
+  - initial lower bound: `bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5:drivers/block/rnull.rs`
+  - mature reference:
+    - `63c37d99f6eba4531100ae887c396206e0f7cf3e:drivers/block/rnull/rnull.rs`
+    - `63c37d99f6eba4531100ae887c396206e0f7cf3e:drivers/block/rnull/configfs.rs`
+- Official compare conclusions recorded:
+  - our feature surface is intentionally wider than both official references in
+    order to chase the frozen C target
+  - the official mature tree still covers only a narrow configfs subset
+  - manual `AttributeList` wiring is a baseline-tree constraint rather than the
+    desired mature shape
+  - the runtime harness defects and helper-audit drift were workflow defects,
+    not target constraints
+
+## 2026-03-23 stage 10 documentation and acceptance
+
+- Refreshed:
+  - `module_manifest.yaml`
+  - `verification-summary.json`
+  - `difference_ledger.yaml`
+  - `unsafe-obligations.json`
+  - `unsafe_audit.md`
+  - `helper-audit.json`
+- Added:
+  - `calibration-delta.json`
+  - `acceptance_checklist.md`
+  - `evaluation_report.md`
+- Re-affirmed that this run is a `fresh workflow validation rerun` and does
+  not automatically count toward the formal benchmark quota.
