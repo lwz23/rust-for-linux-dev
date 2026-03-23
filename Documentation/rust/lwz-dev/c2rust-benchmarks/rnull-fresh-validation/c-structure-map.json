@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "module_id": "rnull",
+  "gold_standard": {
+    "main_file": "drivers/block/null_blk/main.c",
+    "header": "drivers/block/null_blk/null_blk.h",
+    "documentation": "Documentation/block/null_blk.rst"
+  },
+  "target_boundary": {
+    "kind": "main.c core_plus_configfs",
+    "included_files": [
+      "drivers/block/null_blk/main.c",
+      "drivers/block/null_blk/null_blk.h"
+    ],
+    "excluded_files": [
+      "drivers/block/null_blk/zoned.c"
+    ],
+    "excluded_configs": [
+      "CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION"
+    ]
+  },
+  "global_objects": [
+    {
+      "name": "tag_set",
+      "c_type": "struct blk_mq_tag_set",
+      "ownership": "global optional shared tag set",
+      "created_by": [
+        "null_init_global_tag_set"
+      ],
+      "freed_by": [
+        "null_exit"
+      ],
+      "notes": [
+        "Used only when shared_tags is enabled.",
+        "queue mapping depends on submit_queues and poll_queues."
+      ]
+    },
+    {
+      "name": "nullb_list",
+      "c_type": "struct list_head",
+      "ownership": "global registry of active devices",
+      "protected_by": "lock"
+    },
+    {
+      "name": "lock",
+      "c_type": "struct mutex",
+      "ownership": "global lifecycle/configfs mutation lock"
+    },
+    {
+      "name": "nullb_subsys",
+      "c_type": "struct configfs_subsystem",
+      "ownership": "global configfs root"
+    }
+  ],
+  "objects": [
+    {
+      "name": "nullb_device",
+      "c_type": "struct nullb_device",
+      "category": "configfs-owned device configuration object",
+      "allocated_by": [
+        "null_alloc_dev",
+        "nullb_group_make_group"
+      ],
+      "released_by": [
+        "nullb_device_release",
+        "null_destroy_dev"
+      ],
+      "contains": [
+        "config_group group",
+        "radix_tree_root data",
+        "radix_tree_root cache",
+        "badblocks badblocks",
+        "flags",
+        "configuration parameters",
+        "back-pointer to active nullb"
+      ],
+      "lifecycle_states": [
+        "allocated",
+        "configfs-visible",
+        "configured",
+        "up",
+        "powered-off",
+        "released"
+      ]
+    },
+    {
+      "name": "nullb",
+      "c_type": "struct nullb",
+      "category": "registered runtime block device object",
+      "allocated_by": [
+        "null_add_dev"
+      ],
+      "freed_by": [
+        "null_del_dev"
+      ],
+      "contains": [
+        "request_queue *q",
+        "gendisk *disk",
+        "blk_mq_tag_set *tag_set",
+        "embedded __tag_set",
+        "per-hctx queue array",
+        "bw_timer",
+        "cache and throttle state"
+      ],
+      "registration_edges": [
+        "blk_mq_alloc_disk",
+        "add_disk",
+        "list_add_tail(nullb_list)"
+      ],
+      "teardown_edges": [
+        "del_gendisk",
+        "blk_mq_free_tag_set",
+        "kfree(queues)",
+        "kfree(nullb)"
+      ]
+    },
+    {
+      "name": "nullb_queue",
+      "c_type": "struct nullb_queue",
+      "category": "per-hctx queue data",
+      "ownership": "owned by nullb->queues array",
+      "initialized_by": [
+        "null_init_queue",
+        "null_init_hctx"
+      ],
+      "consumed_by": [
+        "null_queue_rq",
+        "null_poll",
+        "null_timeout_rq"
+      ],
+      "contains": [
+        "dev pointer",
+        "requeue_selection",
+        "poll_list",
+        "poll_lock"
+      ]
+    },
+    {
+      "name": "nullb_cmd",
+      "c_type": "struct nullb_cmd",
+      "category": "per-request private data (pdu)",
+      "ownership": "blk-mq request private area",
+      "initialized_by": [
+        "null_queue_rq"
+      ],
+      "completed_by": [
+        "null_complete_rq",
+        "null_timeout_rq",
+        "null_cmd_timer_expired"
+      ],
+      "contains": [
+        "error",
+        "fake_timeout",
+        "nq pointer",
+        "hrtimer timer"
+      ]
+    }
+  ],
+  "callbacks": [
+    {
+      "name": "null_queue_rq",
+      "role": "blk_mq_ops.queue_rq",
+      "inputs": [
+        "blk_mq_hw_ctx",
+        "blk_mq_queue_data"
+      ],
+      "effects": [
+        "bind request to nullb_cmd",
+        "start request",
+        "dispatch timer/softirq/inline completion",
+        "enqueue poll request or requeue"
+      ]
+    },
+    {
+      "name": "null_queue_rqs",
+      "role": "blk_mq_ops.queue_rqs",
+      "effects": [
+        "batch fallback submission using null_queue_rq"
+      ]
+    },
+    {
+      "name": "null_complete_rq",
+      "role": "blk_mq_ops.complete"
+    },
+    {
+      "name": "null_timeout_rq",
+      "role": "blk_mq_ops.timeout",
+      "effects": [
+        "handles fake timeout and poll-queue timeout cleanup"
+      ]
+    },
+    {
+      "name": "null_poll",
+      "role": "blk_mq_ops.poll",
+      "effects": [
+        "splices poll_list",
+        "processes queued commands",
+        "ends or batches requests"
+      ]
+    },
+    {
+      "name": "null_map_queues",
+      "role": "blk_mq_ops.map_queues",
+      "effects": [
+        "maps default and poll hw queues from submit_queues/poll_queues"
+      ]
+    },
+    {
+      "name": "null_init_hctx",
+      "role": "blk_mq_ops.init_hctx",
+      "effects": [
+        "assigns hctx->driver_data to nullb_queue entry"
+      ]
+    }
+  ],
+  "request_path": {
+    "submit": [
+      "null_queue_rq",
+      "blk_mq_start_request"
+    ],
+    "core_processing": [
+      "null_handle_throttled",
+      "null_handle_cmd",
+      "null_process_cmd",
+      "null_handle_memory_backed",
+      "null_handle_rq",
+      "null_handle_flush"
+    ],
+    "completion_modes": [
+      "inline blk_mq_end_request",
+      "softirq blk_mq_complete_request -> null_complete_rq",
+      "hrtimer -> null_cmd_timer_expired"
+    ],
+    "poll_path": [
+      "null_queue_rq adds request to poll_list",
+      "null_poll drains poll_list",
+      "null_timeout_rq removes timed out polled requests"
+    ]
+  },
+  "configfs_model": {
+    "root": "nullb_subsys",
+    "group_make": "nullb_group_make_group",
+    "group_drop": "nullb_group_drop_item",
+    "item_release": "nullb_device_release",
+    "attributes": [
+      "size",
+      "completion_nsec",
+      "submit_queues",
+      "poll_queues",
+      "home_node",
+      "queue_mode",
+      "blocksize",
+      "max_sectors",
+      "irqmode",
+      "hw_queue_depth",
+      "blocking",
+      "use_per_node_hctx",
+      "power",
+      "memory_backed",
+      "discard",
+      "mbps",
+      "cache_size",
+      "badblocks",
+      "virt_boundary",
+      "no_sched",
+      "shared_tags",
+      "shared_tag_bitmap",
+      "fua"
+    ],
+    "power_transition": {
+      "power_on": [
+        "nullb_device_power_store",
+        "null_add_dev",
+        "set CONFIGURED and UP flags"
+      ],
+      "power_off": [
+        "nullb_device_power_store",
+        "null_del_dev",
+        "clear CONFIGURED and UP flags"
+      ]
+    }
+  },
+  "ownership_pairs": [
+    {
+      "resource": "nullb runtime object",
+      "acquire": "null_add_dev",
+      "release": "null_del_dev"
+    },
+    {
+      "resource": "per-device configfs object",
+      "acquire": "null_alloc_dev/nullb_group_make_group",
+      "release": "nullb_device_release or null_destroy_dev"
+    },
+    {
+      "resource": "shared global tag_set",
+      "acquire": "null_init_global_tag_set",
+      "release": "null_exit"
+    },
+    {
+      "resource": "private __tag_set",
+      "acquire": "null_setup_tagset",
+      "release": "null_del_dev"
+    },
+    {
+      "resource": "gendisk",
+      "acquire": "blk_mq_alloc_disk/add_disk",
+      "release": "put_disk/del_gendisk"
+    }
+  ],
+  "validation_constraints": [
+    "queue_mode NULL_Q_RQ is rejected",
+    "queue_mode NULL_Q_BIO is downgraded to NULL_Q_MQ",
+    "submit_queues minimum is 1",
+    "poll_queues cannot exceed global g_poll_queues",
+    "memory_backed implies blocking",
+    "cache_size is meaningless when memory_backed is false",
+    "powered-on configfs object rejects most attribute mutations"
+  ],
+  "uncovered_functionality": [
+    {
+      "feature": "zoned block support",
+      "reason": "Excluded from the frozen target; lives in zoned.c and related hooks."
+    },
+    {
+      "feature": "fault injection",
+      "reason": "Excluded from the frozen target; disabled in build modes."
+    }
+  ]
+}
