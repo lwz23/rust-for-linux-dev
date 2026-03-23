@@ -1,0 +1,100 @@
+schema_version: 1
+module_id: rnull
+module_title: Rust null_blk fresh workflow validation benchmark
+benchmark_track: historical-calibration
+sample_tier: full_driver_subset
+scope: core_plus_configfs
+status: runtime_gap_recorded
+current_grade: prototype-grade
+target_grade: engineering-grade
+source_tree:
+  workspace_root: /home/lwz/rfl-dev
+  kernel_tree: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation
+  reference_tree: /home/lwz/rfl-dev/linux
+  pre_rnull_semantic_baseline: 3253aba3408aa4eb2e4e09365eede3e63ef7536b
+  official_rust_reference:
+    lower_bound: bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5
+    mature: 63c37d99f6eba4531100ae887c396206e0f7cf3e
+  working_branch: feature/rnull-fresh-validation
+dut:
+  subsystem: block
+  c_gold_standard: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/null_blk/main.c
+  rust_candidate_dir: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/drivers/block/rnull
+  rust_reference_blind_read_policy: enforced_until_post_runtime
+  rationale: >
+    This run is a fresh workflow validation rerun for null_blk to Rust rnull.
+    It uses a new agent, a new worktree, and the pre-rnull semantic baseline as
+    the functional gold standard. The goal is not to reuse prior rnull work,
+    but to re-validate the full constrained workflow from bindings audit to
+    runtime evidence, official compare, and acceptance artifacts.
+freeze:
+  pipeline_mode: calibration
+  conversion_stage: blind
+  style_alignment: unreviewed
+  runtime_state: unvalidated
+  c_function_target:
+    description: >
+      main.c core + configfs subset. Includes blk-mq request/completion,
+      configfs device lifecycle and power transitions, queue count updates,
+      shared tags/tag bitmap, poll queues, irqmode, memory_backed/cache/fua,
+      badblocks, mbps throttling, default nr_devices creation, and config
+      constraints/rejection paths.
+    excluded_features:
+      - zoned functionality implemented in drivers/block/null_blk/zoned.c
+      - CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION paths
+    exclusion_rationale: >
+      The excluded features live outside the frozen main.c core target or behind
+      optional debug-only fault injection paths. They remain explicitly listed
+      as uncovered functionality and are not treated as constrained by the
+      official initial rnull scope.
+build:
+  build_dir: /home/lwz/rfl-dev/build-rnull-fresh-validation
+  integration_mode: benchmark_harness_switchable_build
+  config_symbols:
+    - CONFIG_BLK_DEV_NULL_BLK
+    - CONFIG_BLK_DEV_RUST_NULL
+    - CONFIG_BLK_DEV_ZONED=n
+    - CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION=n
+  c_mode:
+    - CONFIG_BLK_DEV_NULL_BLK=y
+    - CONFIG_BLK_DEV_RUST_NULL=n
+  rust_mode:
+    - CONFIG_BLK_DEV_NULL_BLK=n
+    - CONFIG_BLK_DEV_RUST_NULL=y
+validation:
+  runtime_status: partial_ab_with_c_runtime_gap
+  runtime_profiles:
+    - memory-debug
+    - concurrency-debug (not run)
+    - leak-debug (not run)
+  runtime_harness_dir: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/tools/testing/rust/rnull
+  runtime_reports:
+    - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.baseline.log
+    - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.lifecycle.log
+    - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.matrix-core.log
+    - /home/lwz/rfl-dev/test-results/rnull/c-baseline.memory-debug.io-core.log
+    - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.baseline.log
+    - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.lifecycle.log
+    - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.matrix-core.log
+    - /home/lwz/rfl-dev/test-results/rnull/rust-candidate.memory-debug.io-core.log
+artifacts:
+  directory: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation
+  module_manifest: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/module_manifest.yaml
+  dut_spec: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/dut-spec.json
+  c_structure_map: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/c-structure-map.json
+  worklog: /home/lwz/rfl-dev/worktrees/rnull-fresh-validation/Documentation/rust/lwz-dev/c2rust-benchmarks/rnull-fresh-validation/worklog
+conclusions:
+  achieved:
+    - Environment frozen in a fresh worktree at the pre-rnull semantic baseline
+    - c_function_target explicitly frozen as core_plus_configfs
+    - Blind-first implementation completed before official compare
+    - memory-debug guest A/B evidence collected for C and Rust
+    - official compare completed against both the initial and mature official Rust references
+  not_yet_claimed:
+    - Full functional equivalence to the C gold standard
+    - Runtime-validated engineering-grade status
+    - Formal benchmark promotion
+notes:
+  - This is a fresh workflow validation rerun.
+  - It does not automatically count toward the formal benchmark quota.
+  - Runtime state remains unvalidated because the frozen mbps target could not be credibly closed on the C baseline under the current harness.

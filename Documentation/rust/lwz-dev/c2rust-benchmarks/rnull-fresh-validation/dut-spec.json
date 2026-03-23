@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "pipeline_mode": "calibration",
+  "module_id": "rnull",
+  "module_title": "null_blk -> Rust rnull fresh workflow validation",
+  "fresh_workflow_validation_rerun": true,
+  "formal_benchmark_quota_credit": false,
+  "source_tree": {
+    "kernel_tree": "/home/lwz/rfl-dev/worktrees/rnull-fresh-validation",
+    "reference_tree": "/home/lwz/rfl-dev/linux",
+    "baseline_commit": "3253aba3408aa4eb2e4e09365eede3e63ef7536b",
+    "current_tree_head": "63c37d99f6eba4531100ae887c396206e0f7cf3e",
+    "official_initial_rnull": "bc5b533b91ef0b8a09fe507e23d1c6c43c1fb0f5",
+    "configfs_introduction": "446cafc295bfc0e89da94a482fe8290bd8b429fb"
+  },
+  "status_axes": {
+    "conversion_stage": "blind",
+    "style_alignment": "unreviewed",
+    "runtime_state": "unvalidated"
+  },
+  "dut": {
+    "c_gold_standard_main_file": "drivers/block/null_blk/main.c",
+    "module_boundary_kind": "explicit_subset_with_coverage_ledger",
+    "integration_mode": "benchmark_harness_switchable_build"
+  },
+  "c_function_target": {
+    "scope_name": "main.c core + configfs subset",
+    "covered_capabilities": [
+      "blk-mq request submission and completion",
+      "request timeout/poll/timer completion paths in main.c core",
+      "configfs subsystem/group/item hierarchy for device objects",
+      "device create/delete and power on/off lifecycle",
+      "queue count updates via submit_queues and poll_queues",
+      "shared_tags and shared_tag_bitmap configuration",
+      "irqmode none/softirq/timer behavior",
+      "memory_backed, cache_size, fua, discard core behaviors",
+      "badblocks configuration and I/O error path",
+      "mbps throttling and restart path",
+      "default nr_devices module-init creation path",
+      "parameter validation and powered-on mutation rejection paths"
+    ],
+    "excluded_capabilities": [
+      {
+        "feature": "zoned block device support",
+        "paths": [
+          "drivers/block/null_blk/zoned.c",
+          "null_process_zoned_cmd",
+          "null_report_zones",
+          "zone_cond_store"
+        ],
+        "reason": "Out of the frozen main.c core target for this rerun; must remain listed as uncovered functionality."
+      },
+      {
+        "feature": "fault injection",
+        "paths": [
+          "CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION",
+          "timeout/requeue/init_hctx fault configs"
+        ],
+        "reason": "Optional debug-only path excluded from the frozen target and disabled in both C and Rust build modes."
+      }
+    ],
+    "not_capped_by_official_initial_rnull": true
+  },
+  "build_modes": {
+    "c_baseline": {
+      "CONFIG_BLK_DEV_NULL_BLK": "y",
+      "CONFIG_BLK_DEV_RUST_NULL": "n",
+      "CONFIG_BLK_DEV_ZONED": "n",
+      "CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION": "n"
+    },
+    "rust_candidate": {
+      "CONFIG_BLK_DEV_NULL_BLK": "n",
+      "CONFIG_BLK_DEV_RUST_NULL": "y",
+      "CONFIG_BLK_DEV_ZONED": "n",
+      "CONFIG_BLK_DEV_NULL_BLK_FAULT_INJECTION": "n"
+    }
+  },
+  "blind_read_restrictions": {
+    "official_rnull_sources": "forbidden_before_stage_9",
+    "old_rnull_worktree": "forbidden_before_stage_9",
+    "historical_rnull_benchmark_dir": "forbidden_before_stage_9"
+  },
+  "runtime_expectations": {
+    "required": true,
+    "primary_profile": "memory-debug",
+    "secondary_profiles": [
+      "concurrency-debug",
+      "leak-debug"
+    ],
+    "minimum_claim_rule": "No runtime evidence means no functional-equivalence claim."
+  }
+}
