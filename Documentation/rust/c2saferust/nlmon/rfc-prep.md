@@ -95,6 +95,12 @@ patch 输出目录：
 
 `git -C /tmp/nlmon-rfc-v1.k3atFH send-email --dry-run --to rust-for-linux@vger.kernel.org --to netdev@vger.kernel.org --cc linux-kernel@vger.kernel.org --cc ojeda@kernel.org --cc boqun@kernel.org --cc gary@garyguo.net --cc bjorn3_gh@protonmail.com --cc lossin@kernel.org --cc a.hindborg@kernel.org --cc aliceryhl@google.com --cc tmgross@umich.edu --cc dakr@kernel.org --cc andrew+netdev@lunn.ch --cc davem@davemloft.net --cc edumazet@google.com --cc kuba@kernel.org --cc pabeni@redhat.com /tmp/nlmon-rfc-patches/*.patch`
 
+当前环境说明：
+
+- 本机 `git` 暂未安装 `send-email` 子命令
+- 因此目前完成到“patch、收件人、cover letter、命令草案均准备好”
+- 真正试投 RFC 前，需要先在本机补齐 `git-send-email`
+
 ## Cover Letter 重点
 
 - 强调 minimal Rust net abstractions 为什么合理
