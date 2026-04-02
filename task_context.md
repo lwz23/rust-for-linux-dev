@@ -228,7 +228,9 @@
   - worktree：`/tmp/nlmon-rfc-v1.k3atFH`
   - 分支：`rfc/nlmon-reference-driver-v1`
   - 远端分支：`origin/rfc/nlmon-reference-driver-v1`
-- RFC 分支只保留了可能 upstream 的 12 个内核文件：
+  - 对外作者：`Wenzhao Liao <wenzhaoliao@ruc.edu.cn>`
+- RFC 分支只保留了可能 upstream 的 13 个内核文件：
+  - `MAINTAINERS`
   - `drivers/net/Kconfig`
   - `drivers/net/Makefile`
   - `drivers/net/nlmon_rust.rs`
@@ -247,16 +249,17 @@
   - `plan.md`
   - `task_context.md`
   - 实验日志、JSON artifact、QEMU smoke 记录
-- RFC commit series 已整理为 5 个提交：
-  - `40ecb558ee1b rust: bindings: expose networking headers needed by nlmon`
-  - `9abaf979c110 rust: helpers: add net_device and sk_buff helper wrappers`
-  - `a41fdc9e8831 rust: net: add minimal skbuff, netdevice, and stats abstractions`
-  - `af19ace1234d rust: net: add minimal rtnl registration and netlink tap support`
-  - `83612ac07808 net: add Rust reference driver for nlmon`
+- RFC commit series 已整理为 6 个提交：
+  - `bef13e17b4b9 rust: bindings: expose networking headers needed by nlmon`
+  - `b0a8f06ff98f rust: helpers: add net_device and sk_buff helper wrappers`
+  - `a8080ce3ee34 rust: net: add minimal skbuff, netdevice, and stats abstractions`
+  - `654a4d889a92 rust: net: add minimal rtnl registration and netlink tap support`
+  - `482cd5a6601d net: add Rust reference driver for nlmon`
+  - `1765259a2fe6 MAINTAINERS: add Rust net and nlmon entries`
 - RFC patch 目录：
   - `/tmp/nlmon-rfc-patches`
   - 其中 `0000-cover-letter.patch` 已按
-    `[RFC PATCH 0/5] rust: net: introduce minimal rtnl/netdevice abstractions and nlmon reference driver`
+    `[RFC PATCH 0/6] rust: net: introduce minimal rtnl/netdevice abstractions and nlmon reference driver`
     填写完毕
 - RFC 最终验证结果：
   - `gate-agent-candidate`：
@@ -270,6 +273,11 @@
     - `/tmp/nlmon-rfc-smoke.log`
     - `pass = true`
     - `ip link add/up/show/down/del nlmon0` 全部返回 0
+  - `git send-email --dry-run`：
+    - 本机已可直接调用
+    - 使用 `--suppress-cc=self --suppress-cc=sob` 的草案命令 dry-run 通过
+  - `git am`：
+    - `/tmp/nlmon-rfc-patches/0001-0006` 已在临时 clone 成功顺序应用
 - 本轮 RFC 整理过程中额外修复了工具侧一个“假阴性”：
   - `scripts/c2saferust/intake.py`
   - `scripts/c2saferust/safety_verifier.rs`
@@ -277,6 +285,11 @@
   - 根因是 structural rule 之前依赖字面字符串匹配，无法接受等价的多行函数签名
   - 当前已改为对 structural rule 采用 whitespace-insensitive 匹配，并增加了
     多行 `Pin<&mut Self>` 签名测试，避免“安全规则被排版误伤”
+- 当前 RFC 邮件材料状态：
+  - cover letter 已改为英文 plain-text 风格
+  - patch 1/6 与 6/6 的 `checkpatch` 已无 warning
+  - patch 2/6-5/6 仅剩 `checkpatch` 对“new file, does MAINTAINERS need updating?”
+    的通用提醒；该提醒在 series 已包含 `MAINTAINERS` patch 的情况下可接受
   - `net/net_namespace.h` 目前被明确标记为 post-MVP defer 项
 - `helper-audit.json` / `helpers-patch-plan.json` 现已明确：
   - `rust/helpers/` 缺 `netdev_priv` / `dev_lstats_add`
