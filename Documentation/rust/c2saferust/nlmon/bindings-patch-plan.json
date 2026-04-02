@@ -1,0 +1,45 @@
+{
+  "artifact_type": "bindings-patch-plan",
+  "binding_additions": [],
+  "bindings_helper_path": "rust/bindings/bindings_helper.h",
+  "deferred_headers": [
+    {
+      "header": "net/net_namespace.h",
+      "mvp_blocking": false,
+      "reason": "Namespace-specific link handling is outside the first `ip link add nlmon0 type nlmon` MVP.",
+      "required_symbols": [
+        "struct net"
+      ]
+    }
+  ],
+  "inputs": {
+    "binding_gap_audit": "Documentation/rust/c2saferust/nlmon/binding-gap-audit.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "patch_required": false,
+  "patch_units": [],
+  "rust_abstraction_headers": [
+    {
+      "header": "linux/kernel.h",
+      "mvp_blocking": false,
+      "reason": "The Rust side should avoid depending on generic C helper macros from `linux/kernel.h`.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/module.h",
+      "mvp_blocking": false,
+      "reason": "Use `kernel::ThisModule`/`module!` instead of bindgen exposure for `THIS_MODULE` and module lifecycle macros.",
+      "required_symbols": [
+        "THIS_MODULE"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "status": "already_applied",
+  "style_constraints": [
+    "Keep the top include list in `bindings_helper.h` alphabetically ordered.",
+    "Prefer exposing only headers needed by the nlmon abstraction/driver plan; do not mirror every C include blindly."
+  ],
+  "validation_checks": []
+}

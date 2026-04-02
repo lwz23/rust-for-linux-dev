@@ -1,0 +1,61 @@
+{
+  "artifact_type": "agent-gate-report",
+  "blocking_reasons": [],
+  "driver_rust_path": "drivers/net/nlmon_rust.rs",
+  "gates": [
+    {
+      "blockers": [],
+      "id": "translation-readiness",
+      "pass": true,
+      "status": "passed"
+    },
+    {
+      "artifact": "Documentation/rust/c2saferust/nlmon/safety-verdict.json",
+      "id": "verify-safety",
+      "pass": true,
+      "status": "passed",
+      "summary": {
+        "quick_gate_violations": 0,
+        "rust_verifier_violations": 0,
+        "total_violations": 0
+      },
+      "violation_count": 0
+    },
+    {
+      "build_dir": "/tmp/nlmon-build",
+      "build_dir_configured": true,
+      "build_dir_source": "user-specified",
+      "command": "make O=/tmp/nlmon-build LLVM=-15 -j32 drivers/net/nlmon_rust.o",
+      "env_profile": {
+        "ld_library_path_prefix": "/tmp/llvm-15-local/usr/lib/x86_64-linux-gnu",
+        "libclang_path": "/tmp/llvm-15-local/usr/lib/x86_64-linux-gnu",
+        "make_llvm": "-15",
+        "path_prefix": "/tmp/llvm-15-local/usr/bin",
+        "source": "auto-detected-/tmp/llvm-15-local"
+      },
+      "exit_code": 0,
+      "id": "compile-driver-object",
+      "pass": true,
+      "status": "passed",
+      "stderr_tail": [],
+      "stdout_tail": [
+        "make[1]: \u8fdb\u5165\u76ee\u5f55\u201c/tmp/nlmon-build\u201d",
+        "  GEN     Makefile",
+        "  DESCEND objtool",
+        "  CALL    /home/lwz/rfl-dev/worktrees/nlmon-tooling-clean-v1/scripts/checksyscalls.sh",
+        "  INSTALL libsubcmd_headers",
+        "  RUSTC L rust/kernel.o",
+        "  EXPORTS rust/exports_kernel_generated.h",
+        "  RUSTC     drivers/net/nlmon_rust.o",
+        "make[1]: \u79bb\u5f00\u76ee\u5f55\u201c/tmp/nlmon-build\u201d"
+      ],
+      "target": "drivers/net/nlmon_rust.o"
+    }
+  ],
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "pass": true,
+  "ready_for_smoke": true,
+  "schema_version": 1,
+  "workflow_artifact": "Documentation/rust/c2saferust/nlmon/agent-workflow-plan.json"
+}

@@ -1,0 +1,16 @@
+{
+  "artifact_type": "helpers-patch-plan",
+  "helper_dir": "rust/helpers",
+  "inputs": {
+    "helper_audit": "Documentation/rust/c2saferust/nlmon/helper-audit.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "no_makefile_change_required": true,
+  "patch_required": false,
+  "patch_units": [],
+  "schema_version": 1,
+  "status": "already_applied",
+  "validation_checks": [],
+  "wrapper_specs": []
+}

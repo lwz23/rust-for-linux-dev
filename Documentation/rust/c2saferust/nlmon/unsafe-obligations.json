@@ -1,0 +1,156 @@
+{
+  "artifact_type": "unsafe-obligations",
+  "driver_side_rules": [
+    "Do not use `unsafe` in driver code, including `unsafe impl`, `unsafe fn`, or `unsafe {}` blocks.",
+    "Do not reference `bindings::*` directly from driver code; route constants and types through approved abstractions.",
+    "Do not cast `net_device` private storage inside `drivers/net/nlmon_rust.rs`.",
+    "Do not add new raw FFI calls in driver code beyond the abstractions named in `abstraction-plan.json`.",
+    "Driver `start_xmit` may only use `skbuff::SkBuff`, `stats::dev_lstats_add`, and `netdevice::TxOutcome`; ownership must stay inside those safe surfaces.",
+    "Keep `ndo_get_stats64` disabled/deferred until the post-MVP obligations above have an explicit discharge path."
+  ],
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/nlmon/abstraction-plan.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "obligations": [
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "rtnl",
+      "category": "lifetime",
+      "evidence": [
+        "rtnl_link_register",
+        "rtnl_link_unregister",
+        "module_init",
+        "module_exit"
+      ],
+      "id": "rtnl-registration-lifetime",
+      "obligation": "The Rust registration object must own a stable `rtnl_link_ops` table and unregister exactly once before module teardown.",
+      "phase": "mvp",
+      "preferred_discharge": "Hide raw register/unregister behind an RAII-style `Registration` wrapper in `rust/kernel/net/rtnl.rs`."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "netdevice",
+      "category": "pointer-cast",
+      "evidence": [
+        "netdev_priv",
+        ".priv_size = sizeof(struct nlmon)"
+      ],
+      "id": "netdev-private-layout",
+      "obligation": "Casting `net_device` private storage into Rust state requires a proof that allocation size/layout matches the Rust private type.",
+      "phase": "mvp",
+      "preferred_discharge": "Couple `priv_size` to the Rust private-state type in the rtnl/netdevice abstraction and funnel access through the helper wrapper."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "netdevice",
+      "category": "initialization",
+      "evidence": [
+        "alloc_netdev/RTNL private storage is zero-initialized",
+        ".priv_size = sizeof(struct nlmon)"
+      ],
+      "id": "netdev-private-zero-init",
+      "obligation": "A Rust private-state type stored in `net_device` private storage must accept the all-zero bit pattern before any callback observes it.",
+      "phase": "mvp",
+      "preferred_discharge": "Require the private-state type to be `Zeroable` and keep any non-zero initialization requirement out of the MVP callback set."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "netlink_tap",
+      "category": "ffi-pointer",
+      "evidence": [
+        {
+          "field": "dev",
+          "operator": "=",
+          "value": "dev"
+        },
+        {
+          "field": "module",
+          "operator": "=",
+          "value": "THIS_MODULE"
+        },
+        {
+          "field": "module",
+          "value": "THIS_MODULE"
+        }
+      ],
+      "id": "tap-module-pointer-validity",
+      "obligation": "Before `netlink_add_tap`, Rust must populate `netlink_tap.dev` and `netlink_tap.module` with valid pointers that outlive the registration.",
+      "phase": "mvp",
+      "preferred_discharge": "Thread `&'static ThisModule` through the abstraction and write `ThisModule::as_ptr()` inside the wrapper."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "netlink_tap",
+      "category": "state-machine",
+      "evidence": [
+        "netdev_priv",
+        "netlink_add_tap",
+        "netdev_priv",
+        "netlink_remove_tap"
+      ],
+      "id": "tap-open-stop-balance",
+      "obligation": "Open/stop shims must keep tap registration balanced and avoid double-remove on partially initialized state.",
+      "phase": "mvp",
+      "preferred_discharge": "Model tap state explicitly in the wrapper or rely on netdevice lifecycle invariants while keeping transitions localized."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "rtnl+netdevice",
+      "category": "aliasing",
+      "evidence": [
+        "nlmon_setup",
+        "nlmon_validate",
+        "nlmon_open",
+        "nlmon_close",
+        "nlmon_xmit"
+      ],
+      "id": "callback-pointer-aliasing",
+      "obligation": "Raw callback shims must create only short-lived Rust references from C pointers and must not assume broader aliasing guarantees than the kernel provides.",
+      "phase": "mvp",
+      "preferred_discharge": "Keep all pointer-to-reference conversion inside callback trampolines in the abstraction layer."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "rtnl",
+      "category": "bounds",
+      "evidence": [
+        {
+          "field": "IFLA_ADDRESS",
+          "return": "-EINVAL"
+        }
+      ],
+      "id": "validate-attribute-indexing",
+      "obligation": "Access to `tb[IFLA_ADDRESS]` must preserve kernel indexing rules and nullability checks when surfaced to Rust.",
+      "phase": "mvp",
+      "preferred_discharge": "Provide a safe `NlAttrTable` accessor instead of exposing raw pointer arithmetic to driver code."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "stats",
+      "category": "mutable-ffi-output",
+      "evidence": [
+        "dev_lstats_read"
+      ],
+      "id": "stats-buffer-write",
+      "obligation": "Any Rust wrapper for `get_stats64` must guarantee that the output stats buffer is writable and initialized exactly as expected by `dev_lstats_read`.",
+      "phase": "post-mvp",
+      "preferred_discharge": "Introduce a typed `Stats64Mut` wrapper before enabling `ndo_get_stats64` in Phase 4."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "skbuff",
+      "category": "ownership",
+      "evidence": [
+        "dev_lstats_add",
+        "dev_kfree_skb"
+      ],
+      "id": "skb-consumed-once",
+      "obligation": "The xmit path must consume/free each skb exactly once; Rust code must not duplicate ownership across helper and binding calls.",
+      "phase": "mvp",
+      "preferred_discharge": "Model packets as move-only `skbuff::SkBuff`; `TxOutcome::Ok` consumes via drop and `TxOutcome::Busy(skb)` returns ownership to the core explicitly."
+    }
+  ],
+  "schema_version": 1
+}

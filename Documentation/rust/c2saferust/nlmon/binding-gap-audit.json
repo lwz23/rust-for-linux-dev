@@ -1,0 +1,100 @@
+{
+  "artifact_type": "binding-gap-audit",
+  "bindings_helper_path": "rust/bindings/bindings_helper.h",
+  "candidate_missing_binding_headers": [
+    "linux/module.h",
+    "linux/kernel.h",
+    "net/net_namespace.h"
+  ],
+  "current_rust_net_modules": [
+    "rust/kernel/net/netdevice.rs",
+    "rust/kernel/net/netlink_tap.rs",
+    "rust/kernel/net/phy.rs",
+    "rust/kernel/net/phy/reg.rs",
+    "rust/kernel/net/rtnl.rs",
+    "rust/kernel/net/skbuff.rs",
+    "rust/kernel/net/stats.rs"
+  ],
+  "direct_ffi_symbols": [
+    {
+      "reason": "regular function used by stats callback",
+      "symbol": "dev_lstats_read"
+    },
+    {
+      "reason": "regular exported netlink tap registration function",
+      "symbol": "netlink_add_tap"
+    },
+    {
+      "reason": "regular exported netlink tap unregistration function",
+      "symbol": "netlink_remove_tap"
+    },
+    {
+      "reason": "regular exported rtnl link registration function",
+      "symbol": "rtnl_link_register"
+    },
+    {
+      "reason": "regular exported rtnl link unregistration function",
+      "symbol": "rtnl_link_unregister"
+    }
+  ],
+  "headers_already_covered": [
+    "linux/ethtool.h",
+    "linux/netdevice.h",
+    "linux/netlink.h",
+    "linux/if_arp.h",
+    "net/rtnetlink.h"
+  ],
+  "helper_gap_symbols": [
+    {
+      "reason": "skb release helper is exposed as a macro and should not leak macro expansion into Rust",
+      "symbol": "dev_kfree_skb"
+    },
+    {
+      "reason": "per-cpu stats helper; bindgen cannot cross the inline boundary directly",
+      "symbol": "dev_lstats_add"
+    },
+    {
+      "reason": "private data access helper; Rust side should not depend on C macro expansion",
+      "symbol": "netdev_priv"
+    }
+  ],
+  "included_headers": [
+    "linux/ethtool.h",
+    "linux/module.h",
+    "linux/kernel.h",
+    "linux/netdevice.h",
+    "linux/netlink.h",
+    "net/net_namespace.h",
+    "linux/if_arp.h",
+    "net/rtnetlink.h"
+  ],
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "required_rust_abstractions": [
+    {
+      "area": "rtnl",
+      "reason": "nlmon is an rtnl link type and needs Rust-side registration and callback bridging"
+    },
+    {
+      "area": "netdevice",
+      "reason": "nlmon configures net_device state, netdev ops, ethtool ops, flags, and MTU"
+    },
+    {
+      "area": "netlink_tap",
+      "reason": "nlmon open/close lifecycle is defined around netlink tap registration"
+    },
+    {
+      "area": "stats",
+      "reason": "nlmon uses lstats helpers and get_stats64 callback wiring"
+    },
+    {
+      "area": "skbuff",
+      "reason": "nlmon xmit path consumes skb objects and therefore needs a Rust skb wrapper story"
+    }
+  ],
+  "schema_version": 1,
+  "tool_assessment": {
+    "requires_new_rust_net_abstractions": true,
+    "stage_2_can_be_driven_statically": true
+  }
+}

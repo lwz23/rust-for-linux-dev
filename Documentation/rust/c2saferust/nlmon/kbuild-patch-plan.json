@@ -1,0 +1,26 @@
+{
+  "artifact_type": "kbuild-patch-plan",
+  "inputs": {
+    "kbuild_plan": "Documentation/rust/c2saferust/nlmon/kbuild-plan.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "patch_required": false,
+  "patch_units": [],
+  "schema_version": 1,
+  "status": "already_applied",
+  "validation_checks": [
+    {
+      "contains": "config NLMON_RUST",
+      "path": "drivers/net/Kconfig"
+    },
+    {
+      "contains": "ifdef CONFIG_NLMON_RUST",
+      "path": "drivers/net/Makefile"
+    },
+    {
+      "contains": "obj-$(CONFIG_NLMON) += nlmon_rust.o",
+      "path": "drivers/net/Makefile"
+    }
+  ]
+}
