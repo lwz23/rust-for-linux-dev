@@ -37,7 +37,11 @@ impl Tap {
     }
 
     /// Registers the tap for the provided device.
-    pub fn add(self: Pin<&mut Self>, dev: &netdevice::Device, module: &'static ThisModule) -> Result {
+    pub fn add(
+        self: Pin<&mut Self>,
+        dev: &netdevice::Device,
+        module: &'static ThisModule,
+    ) -> Result {
         // SAFETY: The caller pinned `self`, so accessing the interior through the stable address is
         // valid for the duration of this method.
         let this = unsafe { self.get_unchecked_mut() };
