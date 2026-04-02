@@ -1,6 +1,6 @@
 # TASK_CONTEXT
 
-- Updated: 2026-04-01
+- Updated: 2026-04-02
 - Scope: `/home/lwz/rfl-dev/worktrees/nlmon-tooling-clean-v1`
 - Snapshot source: local filesystem + `git` branch state + same-tree official Rust references
 
@@ -18,7 +18,7 @@
 
 ## Workspace Summary
 
-- 当前 worktree 对应分支：`feature/nlmon-tooling-clean-v1`
+- 当前 worktree 对应分支：`review/nlmon-tooling-clean-v1-fullstate`
 - 基线提交：`79e25710e722` (`rust-next`)
 - 当前 worktree 创建方式：从 `linux/rust-next` 新 fork，不复用任何 `lwz23`
   的 `nlmon-*` 历史分支作为实现基底
@@ -218,6 +218,65 @@
     `net/rtnetlink.h`
   - `linux/module.h` / `linux/kernel.h` 不应直接靠 bindgen 暴露给驱动，
     而应由 `kernel::ThisModule` / Rust abstraction 吸收
+
+## RFC / Upstream-Clean 状态
+
+- 已把当前完整实验状态提交并 push 到：
+  - 本地分支：`review/nlmon-tooling-clean-v1-fullstate`
+  - 远端分支：`origin/review/nlmon-tooling-clean-v1-fullstate`
+- 已从干净基线提交 `79e25710e722` 额外切出 upstream-clean RFC worktree：
+  - worktree：`/tmp/nlmon-rfc-v1.k3atFH`
+  - 分支：`rfc/nlmon-reference-driver-v1`
+  - 远端分支：`origin/rfc/nlmon-reference-driver-v1`
+- RFC 分支只保留了可能 upstream 的 12 个内核文件：
+  - `drivers/net/Kconfig`
+  - `drivers/net/Makefile`
+  - `drivers/net/nlmon_rust.rs`
+  - `rust/bindings/bindings_helper.h`
+  - `rust/helpers/helpers.c`
+  - `rust/helpers/net.c`
+  - `rust/kernel/net.rs`
+  - `rust/kernel/net/netdevice.rs`
+  - `rust/kernel/net/netlink_tap.rs`
+  - `rust/kernel/net/rtnl.rs`
+  - `rust/kernel/net/skbuff.rs`
+  - `rust/kernel/net/stats.rs`
+- RFC 分支明确不带：
+  - `Documentation/rust/c2saferust/*`
+  - `scripts/c2saferust/*`
+  - `plan.md`
+  - `task_context.md`
+  - 实验日志、JSON artifact、QEMU smoke 记录
+- RFC commit series 已整理为 5 个提交：
+  - `40ecb558ee1b rust: bindings: expose networking headers needed by nlmon`
+  - `9abaf979c110 rust: helpers: add net_device and sk_buff helper wrappers`
+  - `a41fdc9e8831 rust: net: add minimal skbuff, netdevice, and stats abstractions`
+  - `af19ace1234d rust: net: add minimal rtnl registration and netlink tap support`
+  - `83612ac07808 net: add Rust reference driver for nlmon`
+- RFC patch 目录：
+  - `/tmp/nlmon-rfc-patches`
+  - 其中 `0000-cover-letter.patch` 已按
+    `[RFC PATCH 0/5] rust: net: introduce minimal rtnl/netdevice abstractions and nlmon reference driver`
+    填写完毕
+- RFC 最终验证结果：
+  - `gate-agent-candidate`：
+    - `/tmp/nlmon-rfc-gate.json`
+    - `pass = true`
+  - `verify-safety`：
+    - `/tmp/nlmon-rfc-safety.json`
+    - `pass = true`
+  - `run-smoke-qemu`：
+    - `/tmp/nlmon-rfc-smoke.json`
+    - `/tmp/nlmon-rfc-smoke.log`
+    - `pass = true`
+    - `ip link add/up/show/down/del nlmon0` 全部返回 0
+- 本轮 RFC 整理过程中额外修复了工具侧一个“假阴性”：
+  - `scripts/c2saferust/intake.py`
+  - `scripts/c2saferust/safety_verifier.rs`
+  - `scripts/c2saferust/tests/test_tool_cli.py`
+  - 根因是 structural rule 之前依赖字面字符串匹配，无法接受等价的多行函数签名
+  - 当前已改为对 structural rule 采用 whitespace-insensitive 匹配，并增加了
+    多行 `Pin<&mut Self>` 签名测试，避免“安全规则被排版误伤”
   - `net/net_namespace.h` 目前被明确标记为 post-MVP defer 项
 - `helper-audit.json` / `helpers-patch-plan.json` 现已明确：
   - `rust/helpers/` 缺 `netdev_priv` / `dev_lstats_add`
