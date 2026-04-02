@@ -177,6 +177,14 @@ def _load_text(path: Path) -> str:
     return path.read_text()
 
 
+def _normalize_whitespace(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _compact_whitespace(text: str) -> str:
+    return "".join(text.split())
+
+
 def _strip_rust_noncode(text: str) -> str:
     result: list[str] = []
     index = 0
@@ -1889,8 +1897,22 @@ def build_soundness_discharge(module_path: str | Path, *, repo_root: str | Path 
     for rule in safety_policy["abstraction_policy"]["required_soundness_rules"]:
         path = _path_from_repo(repo, rule["file"])
         text = _load_text(path) if path.exists() else ""
-        missing = [pattern for pattern in rule["must_contain"] if pattern not in text]
-        unexpected = [pattern for pattern in rule["must_not_contain"] if pattern in text]
+        normalized_text = _normalize_whitespace(text)
+        compact_text = _compact_whitespace(text)
+        missing = [
+            pattern
+            for pattern in rule["must_contain"]
+            if pattern not in text
+            and _normalize_whitespace(pattern) not in normalized_text
+            and _compact_whitespace(pattern) not in compact_text
+        ]
+        unexpected = [
+            pattern
+            for pattern in rule["must_not_contain"]
+            if pattern in text
+            or _normalize_whitespace(pattern) in normalized_text
+            or _compact_whitespace(pattern) in compact_text
+        ]
         structural_rules.append(
             {
                 "id": rule["id"],

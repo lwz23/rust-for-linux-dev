@@ -211,6 +211,14 @@ fn strip_rust_noncode(text: &str) -> String {
     result
 }
 
+fn normalize_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn compact_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<String>()
+}
+
 fn token_is_present(line: &str, token: &str) -> bool {
     if token == "unsafe" {
         let bytes = line.as_bytes();
@@ -339,6 +347,8 @@ fn main() -> Result<(), String> {
     for rule in &config.structural_rules {
         let path = repo_root.join(&rule.file);
         let text = fs::read_to_string(&path).map_err(|err| format!("{}: {err}", rule.file))?;
+        let normalized_text = normalize_whitespace(&text);
+        let compact_text = compact_whitespace(&text);
         if rule.status != "discharged" {
             violations.push((
                 "blocked-structural-rule".to_string(),
@@ -348,7 +358,12 @@ fn main() -> Result<(), String> {
             ));
         }
         for needle in &rule.must_contain {
-            if !text.contains(needle) {
+            let normalized_needle = normalize_whitespace(needle);
+            let compact_needle = compact_whitespace(needle);
+            if !text.contains(needle)
+                && !normalized_text.contains(&normalized_needle)
+                && !compact_text.contains(&compact_needle)
+            {
                 violations.push((
                     "missing-structural-pattern".to_string(),
                     rule.file.clone(),
@@ -358,7 +373,12 @@ fn main() -> Result<(), String> {
             }
         }
         for needle in &rule.must_not_contain {
-            if text.contains(needle) {
+            let normalized_needle = normalize_whitespace(needle);
+            let compact_needle = compact_whitespace(needle);
+            if text.contains(needle)
+                || normalized_text.contains(&normalized_needle)
+                || compact_text.contains(&compact_needle)
+            {
                 violations.push((
                     "forbidden-structural-pattern".to_string(),
                     rule.file.clone(),

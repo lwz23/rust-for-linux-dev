@@ -311,7 +311,11 @@ static void nlmon_unregister(void)
             "#[derive(Zeroable)]\n"
             "pub struct Tap { registered: bool }\n"
             "impl Tap {\n"
-            "\tpub fn add(self: Pin<&mut Self>, _dev: &crate::net::netdevice::Device, _module: &'static ThisModule) -> Result { Ok(()) }\n"
+            "\tpub fn add(\n"
+            "\t\tself: Pin<&mut Self>,\n"
+            "\t\t_dev: &crate::net::netdevice::Device,\n"
+            "\t\t_module: &'static ThisModule,\n"
+            "\t) -> Result { Ok(()) }\n"
             "\tpub fn remove(self: Pin<&mut Self>) -> Result { Ok(()) }\n"
             "}\n"
         )
