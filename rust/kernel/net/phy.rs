@@ -232,6 +232,14 @@ impl Device {
         to_result(unsafe { bindings::_phy_start_aneg(phydev) })
     }
 
+    /// Configures the advertisement and restarts auto-negotiation when enabled.
+    pub fn genphy_config_aneg(&mut self) -> Result {
+        let phydev = self.0.get();
+        // SAFETY: `phydev` is pointing to a valid object by the type invariant of `Self`.
+        // So it's just an FFI call.
+        to_result(unsafe { bindings::__genphy_config_aneg(phydev, false) })
+    }
+
     /// Resumes the PHY via `BMCR_PDOWN` bit.
     pub fn genphy_resume(&mut self) -> Result {
         let phydev = self.0.get();
