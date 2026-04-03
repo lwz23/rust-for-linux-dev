@@ -1,0 +1,121 @@
+{
+  "artifact_type": "bindings-patch-plan",
+  "binding_additions": [],
+  "bindings_helper_path": "rust/bindings/bindings_helper.h",
+  "deferred_headers": [],
+  "inputs": {
+    "binding_gap_audit": "Documentation/rust/c2saferust/qsemi/binding-gap-audit.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "patch_required": false,
+  "patch_units": [],
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "rust_abstraction_headers": [
+    {
+      "header": "asm/io.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "asm/irq.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/delay.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/errno.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/etherdevice.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/init.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/kernel.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/mii.h",
+      "mvp_blocking": false,
+      "reason": "Clause 22 register access should go through `kernel::net::phy::reg::C22` and `kernel::uapi` constants.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/module.h",
+      "mvp_blocking": false,
+      "reason": "PHY Rust drivers use `module_phy_driver!` instead of C module macros.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/netdevice.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/skbuff.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/spinlock.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/string.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/uaccess.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    },
+    {
+      "header": "linux/unistd.h",
+      "mvp_blocking": false,
+      "reason": "Rust PHY drivers should default to the existing `kernel::net::phy` and `kernel::uapi` surfaces instead of importing legacy C headers into bindgen.",
+      "required_symbols": []
+    }
+  ],
+  "schema_version": 1,
+  "status": "already_applied",
+  "style_constraints": [
+    "Prefer not to add PHY-driver C headers to `bindings_helper.h` unless the abstraction plan proves they are still needed after wrapper design.",
+    "Do not mirror legacy C include lists into Rust bindings when the Rust driver can stay within `kernel::net::phy` and `kernel::uapi`."
+  ],
+  "validation_checks": []
+}

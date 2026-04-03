@@ -1,0 +1,222 @@
+{
+  "abstraction_areas": [
+    {
+      "area": "phy",
+      "c_evidence": [
+        "struct phy_driver",
+        "phy_read(",
+        "phy_write("
+      ],
+      "deferred_surface": [
+        "Interrupt-specific callbacks and state helpers."
+      ],
+      "depends_on": [],
+      "implementation_path": "rust/kernel/net/phy.rs",
+      "preferred_files": [
+        "rust/kernel/net/phy.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A typed `phy::Driver` trait that owns callback registration and keeps raw trampolines out of driver code.",
+        "A safe `phy::Device` surface for Clause 22/45 register reads and writes.",
+        "A `module_phy_driver!` path that keeps driver registration lifetime managed by the abstraction."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "phy_config_aneg",
+      "c_evidence": [],
+      "deferred_surface": [],
+      "depends_on": [],
+      "implementation_path": "rust/kernel/net/phy.rs",
+      "preferred_files": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "Expose a safe `phy::Device::genphy_config_aneg()` wrapper so drivers do not call PHYLIB bindings directly."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "phy_irq_callbacks",
+      "c_evidence": [
+        "config_intr",
+        "handle_interrupt",
+        "PHY_INTERRUPT_ENABLED",
+        "phy_trigger_machine",
+        "phy_error"
+      ],
+      "deferred_surface": [],
+      "depends_on": [],
+      "implementation_path": null,
+      "preferred_files": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A safe `phy::Driver` extension for `config_intr` and `handle_interrupt`.",
+        "A typed representation of interrupt enable state and handler return status.",
+        "A safe way to report PHY errors and trigger the PHY state machine from the abstraction layer."
+      ],
+      "status": "missing"
+    },
+    {
+      "area": "phy_config_init",
+      "c_evidence": [
+        "config_init"
+      ],
+      "deferred_surface": [],
+      "depends_on": [],
+      "implementation_path": null,
+      "preferred_files": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A safe `phy::Driver::config_init` hook in the PHY abstraction."
+      ],
+      "status": "missing"
+    }
+  ],
+  "artifact_type": "abstraction-plan",
+  "current_rust_net_scope": {
+    "assessment": "The tree already exposes the required PHY abstraction surfaces (`phy`); the current module can stay inside the existing PHY layer.",
+    "implemented_areas": [
+      "phy",
+      "phy_config_aneg"
+    ],
+    "modules": [
+      "rust/kernel/net/phy.rs",
+      "rust/kernel/net/phy/reg.rs"
+    ],
+    "rust_net_root": "rust/kernel/net.rs"
+  },
+  "goal": "Make the missing IRQ/config-init PHY surfaces explicit before any `qsemi` Rust driver work starts.",
+  "inputs": {
+    "bindings_patch_plan": "Documentation/rust/c2saferust/qsemi/bindings-patch-plan.json",
+    "helpers_patch_plan": "Documentation/rust/c2saferust/qsemi/helpers-patch-plan.json",
+    "kbuild_patch_plan": "Documentation/rust/c2saferust/qsemi/kbuild-patch-plan.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "mvp_scope": {
+    "deferred_callbacks": [],
+    "note": "This module is intentionally blocked until the missing PHY IRQ callback surfaces are implemented and reflected in the artifacts.",
+    "required_callbacks": [
+      "qs6612_config_init",
+      "qs6612_config_intr",
+      "qs6612_handle_interrupt"
+    ],
+    "target_command": "insmod qsemi_rust.ko && rmmod qsemi_rust"
+  },
+  "phase_4_readiness": {
+    "driver_generation_rules": [
+      "Driver code may borrow style from existing Rust PHY drivers, but must stay within the safe `kernel::net::phy` driver surface.",
+      "Do not read or write PHY registers through raw `bindings::*`; keep all access through `phy::Device` and typed register wrappers.",
+      "Any new PHY callback beyond the current artifact boundary requires updating the profile and artifacts first."
+    ],
+    "helper_gaps": [],
+    "ready_for_minimal_driver_codegen": false,
+    "required_before_driver_codegen": [
+      "Implement/export the remaining MVP abstractions: phy_irq_callbacks, phy_config_init.",
+      "Apply the Kbuild switch so the Rust object can replace the C object."
+    ]
+  },
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "schema_version": 1,
+  "source_inventory": {
+    "callback_calls": {
+      "config_init": [
+        "phy_write"
+      ],
+      "config_intr": [
+        "qs6612_ack_interrupt",
+        "phy_write"
+      ],
+      "handle_interrupt": [
+        "phy_read",
+        "phy_error",
+        "qs6612_ack_interrupt",
+        "phy_trigger_machine"
+      ]
+    },
+    "callback_tables": {
+      "phy_driver": {
+        "fields": [
+          {
+            "field": "phy_id",
+            "value": "0x00181440"
+          },
+          {
+            "field": "name",
+            "value": "\"QS6612\""
+          },
+          {
+            "field": "phy_id_mask",
+            "value": "0xfffffff0"
+          },
+          {
+            "field": "config_init",
+            "value": "qs6612_config_init"
+          },
+          {
+            "field": "config_intr",
+            "value": "qs6612_config_intr"
+          },
+          {
+            "field": "handle_interrupt",
+            "value": "qs6612_handle_interrupt"
+          }
+        ],
+        "name": "qs6612_driver"
+      }
+    },
+    "open_calls": [],
+    "open_tap_assignments": [],
+    "phy_driver": {
+      "fields": [
+        {
+          "field": "phy_id",
+          "value": "0x00181440"
+        },
+        {
+          "field": "name",
+          "value": "\"QS6612\""
+        },
+        {
+          "field": "phy_id_mask",
+          "value": "0xfffffff0"
+        },
+        {
+          "field": "config_init",
+          "value": "qs6612_config_init"
+        },
+        {
+          "field": "config_intr",
+          "value": "qs6612_config_intr"
+        },
+        {
+          "field": "handle_interrupt",
+          "value": "qs6612_handle_interrupt"
+        }
+      ],
+      "name": "qs6612_driver"
+    },
+    "private_struct_fields": [],
+    "setup_field_writes": [],
+    "stats_calls": [],
+    "stop_calls": [],
+    "validate_checks": [],
+    "xmit_calls": []
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "allowed_driver_surfaces": [
+    "kernel::net::phy::{self, DeviceId, Driver, reg::C22}",
+    "kernel::prelude::*",
+    "kernel::uapi"
+  ],
+  "artifact_type": "translation-plan",
+  "callback_mapping": [
+    {
+      "body_plan": [
+        "Write the vendor PCR initialization register through safe PHY register access only."
+      ],
+      "c_symbol": "qs6612_config_init",
+      "rust_surface": "impl phy::Driver for PhyQS6612::config_init",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Model interrupt enable/disable through a typed PHY abstraction surface rather than raw `phydev->interrupts` inspection in the driver."
+      ],
+      "c_symbol": "qs6612_config_intr",
+      "rust_surface": "impl phy::Driver for PhyQS6612::config_intr",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Return a typed interrupt outcome and keep `phy_error()` / `phy_trigger_machine()` inside the abstraction boundary."
+      ],
+      "c_symbol": "qs6612_handle_interrupt",
+      "rust_surface": "impl phy::Driver for PhyQS6612::handle_interrupt",
+      "status": "required"
+    }
+  ],
+  "deferred_callbacks": [],
+  "driver_policy": {
+    "driver_zero_bindings": true,
+    "driver_zero_extern_c": true,
+    "driver_zero_unsafe": true
+  },
+  "driver_rust_path": "drivers/net/phy/qsemi_rust.rs",
+  "forbidden_driver_calls": [
+    "bindings::",
+    "bindings::mdiobus_read",
+    "bindings::mdiobus_write",
+    "bindings::__genphy_config_aneg",
+    "bindings::genphy_config_aneg",
+    "bindings::genphy_read_status"
+  ],
+  "goal": "Constrain `qsemi` as a second-stage PHY case that is blocked on explicit interrupt-capable PHY abstraction work rather than ad-hoc driver invention.",
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/qsemi/abstraction-plan.json",
+    "bindings_patch_plan": "Documentation/rust/c2saferust/qsemi/bindings-patch-plan.json",
+    "helpers_patch_plan": "Documentation/rust/c2saferust/qsemi/helpers-patch-plan.json",
+    "kbuild_patch_plan": "Documentation/rust/c2saferust/qsemi/kbuild-patch-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/qsemi/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "module_shell": {
+    "device_table": [
+      "phy::DeviceId::new_with_driver::<PhyQS6612>()"
+    ],
+    "drivers": [
+      "PhyQS6612"
+    ],
+    "module_macro_required": true,
+    "module_name": "qsemi_rust",
+    "preferred_driver_type": "PhyQS6612",
+    "preferred_module_macro": "kernel::module_phy_driver!"
+  },
+  "private_state": {
+    "fields": [],
+    "layout": null,
+    "note": "The intended Rust qsemi driver should not require driver-owned private state for the first loop.",
+    "type_name": null
+  },
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "readiness": {
+    "blockers": [
+      "Implement/export the remaining MVP abstractions: phy_irq_callbacks, phy_config_init.",
+      "Apply the Kbuild switch so the Rust object can replace the C object."
+    ],
+    "ready_for_minimal_driver_codegen": false,
+    "upstream_artifact_status": {
+      "abstraction_plan": "blocked",
+      "bindings_patch_plan": "already_applied",
+      "helpers_patch_plan": "already_applied",
+      "kbuild_patch_plan": "pending"
+    }
+  },
+  "schema_version": 1,
+  "setup_translation": [],
+  "unsafe_policy": {
+    "driver_unsafe_expected": false,
+    "linked_obligations": [
+      "phy-core-abstraction-soundness",
+      "phy-driver-registration-lifetime",
+      "phy-callback-pointer-aliasing",
+      "phy-register-ffi",
+      "phy-interrupt-config-state",
+      "phy-interrupt-handler-dispatch"
+    ],
+    "note": "The first Rust loop should keep raw pointer work and bindgen coupling inside the abstractions named above; driver code must remain free of `unsafe` and direct `bindings::*` usage."
+  },
+  "validate_translation": []
+}

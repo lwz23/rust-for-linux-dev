@@ -1,0 +1,95 @@
+{
+  "acceptance_gates": [
+    {
+      "command": "python3 scripts/c2saferust/tool_cli.py verify-safety --module-path drivers/net/phy/et1011c.c --output Documentation/rust/c2saferust/et1011c/safety-verdict.json",
+      "id": "verify-safety",
+      "mandatory": true,
+      "pass_condition": "`safety-verdict.json.pass == true`",
+      "stage": "pre-acceptance"
+    },
+    {
+      "command": "make O=/tmp/c2saferust-et1011c-build <LLVM/ENV> drivers/net/phy/et1011c_rust.o",
+      "id": "compile-driver-object",
+      "mandatory": true,
+      "pass_condition": "`make` exits 0 for `drivers/net/phy/et1011c_rust.o` after safety gate passes.",
+      "stage": "pre-smoke"
+    }
+  ],
+  "agent_contract": {
+    "goal": "Constrain the first `drivers/net/phy/et1011c_rust.rs` to a minimal, artifact-driven Rust PHY driver covering registration, `config_aneg`, and `read_status`.",
+    "must_not_do": [
+      "Do not introduce `unsafe` into driver code.",
+      "Do not call `bindings::*` directly from driver code.",
+      "Do not implement callbacks listed under `deferred_callbacks` without updating the artifacts first.",
+      "Do not edit files outside `generation_scope.managed_files` unless a newer artifact explicitly expands the scope."
+    ],
+    "must_read_before_edit": [
+      "Documentation/rust/c2saferust/et1011c/translation-plan.json",
+      "Documentation/rust/c2saferust/et1011c/safety-policy.json",
+      "Documentation/rust/c2saferust/et1011c/soundness-discharge.json"
+    ],
+    "soundness_claim_scope": {
+      "abstraction_allowlist": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "deferred_callbacks": [],
+      "mvp_callbacks": [
+        "et1011c_config_aneg",
+        "et1011c_read_status"
+      ]
+    }
+  },
+  "artifact_type": "agent-workflow-plan",
+  "driver_object_path": "drivers/net/phy/et1011c_rust.o",
+  "driver_rust_path": "drivers/net/phy/et1011c_rust.rs",
+  "generation_scope": {
+    "abstraction_files": [
+      "rust/kernel/net/phy.rs"
+    ],
+    "allowed_driver_surfaces": [
+      "kernel::net::phy::{self, DeviceId, Driver, reg::C22}",
+      "kernel::prelude::*",
+      "kernel::uapi"
+    ],
+    "deferred_callbacks": [],
+    "driver_files": [
+      "drivers/net/phy/et1011c_rust.rs"
+    ],
+    "forbidden_driver_calls": [
+      "bindings::",
+      "bindings::mdiobus_read",
+      "bindings::mdiobus_write",
+      "bindings::__genphy_config_aneg",
+      "bindings::genphy_config_aneg",
+      "bindings::genphy_read_status"
+    ],
+    "managed_files": [
+      "drivers/net/phy/et1011c_rust.rs",
+      "rust/kernel/net/phy.rs"
+    ],
+    "required_driver_crate_attributes": [
+      "#![forbid(unsafe_code)]"
+    ]
+  },
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/et1011c/abstraction-plan.json",
+    "safety_policy": "Documentation/rust/c2saferust/et1011c/safety-policy.json",
+    "soundness_discharge": "Documentation/rust/c2saferust/et1011c/soundness-discharge.json",
+    "translation_plan": "Documentation/rust/c2saferust/et1011c/translation-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/phy/et1011c.c",
+  "module_id": "et1011c",
+  "preflight": {
+    "blockers": [],
+    "ready_for_agent_codegen": true,
+    "required_reads": [
+      "Documentation/rust/c2saferust/et1011c/abstraction-plan.json",
+      "Documentation/rust/c2saferust/et1011c/translation-plan.json",
+      "Documentation/rust/c2saferust/et1011c/safety-policy.json",
+      "Documentation/rust/c2saferust/et1011c/soundness-discharge.json",
+      "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+    ]
+  },
+  "schema_version": 1
+}

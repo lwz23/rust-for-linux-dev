@@ -1,0 +1,26 @@
+{
+  "artifact_type": "kbuild-patch-plan",
+  "inputs": {
+    "kbuild_plan": "Documentation/rust/c2saferust/et1011c/kbuild-plan.json"
+  },
+  "module_c_path": "drivers/net/phy/et1011c.c",
+  "module_id": "et1011c",
+  "patch_required": false,
+  "patch_units": [],
+  "schema_version": 1,
+  "status": "already_applied",
+  "validation_checks": [
+    {
+      "contains": "config LSI_ET1011C_RUST_PHY",
+      "path": "drivers/net/phy/Kconfig"
+    },
+    {
+      "contains": "ifdef CONFIG_LSI_ET1011C_RUST_PHY",
+      "path": "drivers/net/phy/Makefile"
+    },
+    {
+      "contains": "obj-$(CONFIG_LSI_ET1011C_PHY) += et1011c_rust.o",
+      "path": "drivers/net/phy/Makefile"
+    }
+  ]
+}

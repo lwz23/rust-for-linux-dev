@@ -1,0 +1,84 @@
+{
+  "artifact_type": "binding-gap-audit",
+  "bindings_helper_path": "rust/bindings/bindings_helper.h",
+  "candidate_missing_binding_headers": [
+    "linux/kernel.h",
+    "linux/string.h",
+    "linux/errno.h",
+    "linux/unistd.h",
+    "linux/init.h",
+    "linux/delay.h",
+    "linux/netdevice.h",
+    "linux/etherdevice.h",
+    "linux/skbuff.h",
+    "linux/spinlock.h",
+    "linux/module.h",
+    "linux/mii.h",
+    "asm/io.h",
+    "asm/irq.h",
+    "linux/uaccess.h"
+  ],
+  "current_rust_net_modules": [
+    "rust/kernel/net/phy.rs",
+    "rust/kernel/net/phy/reg.rs"
+  ],
+  "direct_ffi_symbols": [],
+  "headers_already_covered": [
+    "linux/interrupt.h",
+    "linux/mm.h",
+    "linux/ethtool.h",
+    "linux/phy.h"
+  ],
+  "helper_gap_symbols": [],
+  "included_headers": [
+    "linux/kernel.h",
+    "linux/string.h",
+    "linux/errno.h",
+    "linux/unistd.h",
+    "linux/interrupt.h",
+    "linux/init.h",
+    "linux/delay.h",
+    "linux/netdevice.h",
+    "linux/etherdevice.h",
+    "linux/skbuff.h",
+    "linux/spinlock.h",
+    "linux/mm.h",
+    "linux/module.h",
+    "linux/mii.h",
+    "linux/ethtool.h",
+    "linux/phy.h",
+    "asm/io.h",
+    "asm/irq.h",
+    "linux/uaccess.h"
+  ],
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "required_rust_abstractions": [
+    {
+      "area": "phy",
+      "reason": "PHY drivers depend on the `phy::Driver` callback bridge and the safe `phy::Device` register API."
+    },
+    {
+      "area": "phy_irq_callbacks",
+      "reason": "Interrupt-capable PHY drivers need more than the current Rust PHY callback surface."
+    },
+    {
+      "area": "phy_config_init",
+      "reason": "The qsemi family needs a Rust callback surface for one-time PHY initialization."
+    }
+  ],
+  "schema_version": 1,
+  "tool_assessment": {
+    "requires_new_rust_net_abstractions": true,
+    "stage_2_can_be_driven_statically": true
+  }
+}

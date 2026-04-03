@@ -1,0 +1,93 @@
+{
+  "artifact_type": "unsafe-obligations",
+  "driver_side_rules": [
+    "Do not use `unsafe` in driver code, including `unsafe impl`, `unsafe fn`, or `unsafe {}` blocks.",
+    "Do not reference `bindings::*` directly from driver code; keep all PHYLIB interaction inside `kernel::net::phy`.",
+    "Do not add raw pointer manipulation or direct MDIO register FFI calls in `drivers/net/phy/et1011c_rust.rs`.",
+    "Keep driver logic restricted to the callback set declared in `translation-plan.json`."
+  ],
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/et1011c/abstraction-plan.json"
+  },
+  "module_c_path": "drivers/net/phy/et1011c.c",
+  "module_id": "et1011c",
+  "obligations": [
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "phy",
+      "category": "abstraction-boundary",
+      "evidence": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "id": "phy-core-abstraction-soundness",
+      "obligation": "All `unsafe` inside the existing Rust PHY abstraction must remain confined to that abstraction boundary and continue to rely only on the documented PHYLIB lifetime and locking invariants.",
+      "phase": "mvp",
+      "preferred_discharge": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "phy",
+      "category": "lifetime",
+      "evidence": [
+        "phy_drivers_register",
+        "phy_drivers_unregister",
+        "module_phy_driver!"
+      ],
+      "id": "phy-driver-registration-lifetime",
+      "obligation": "The Rust PHY registration object must keep the registered driver tables pinned and unregister them exactly once during teardown.",
+      "phase": "mvp",
+      "preferred_discharge": "Use the existing `phy::Registration` RAII wrapper and keep raw register/unregister calls inside `rust/kernel/net/phy.rs` only."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "phy",
+      "category": "aliasing",
+      "evidence": [
+        "et1011c_config_aneg",
+        "et1011c_read_status"
+      ],
+      "id": "phy-callback-pointer-aliasing",
+      "obligation": "PHY callback trampolines may create short-lived Rust references from `phy_device *`, but the aliasing and lifetime assumptions must remain localized to the PHY abstraction layer.",
+      "phase": "mvp",
+      "preferred_discharge": "Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "phy",
+      "category": "ffi-register-access",
+      "evidence": [
+        "genphy_read_status",
+        "phy_read",
+        "phy_write"
+      ],
+      "id": "phy-register-ffi",
+      "obligation": "All raw PHYLIB/MDIO register FFI must stay behind typed register wrappers so driver code never owns raw pointers or unchecked register access.",
+      "phase": "mvp",
+      "preferred_discharge": "Expose reads and writes through `phy::Device` plus typed `reg::Register` implementations only."
+    },
+    {
+      "allowed_unsafe_location": "abstraction-only",
+      "area": "phy",
+      "category": "ffi-helper",
+      "evidence": [
+        "phy_read",
+        "phy_write",
+        "genphy_config_aneg"
+      ],
+      "id": "genphy-config-aneg-ffi",
+      "obligation": "The generic autoneg helper used by `et1011c` must remain behind a safe `phy::Device` method so driver code never calls PHYLIB FFI directly.",
+      "phase": "mvp",
+      "preferred_discharge": "Expose `genphy_config_aneg()` as a safe method on `phy::Device` and keep the unsafe call inside `rust/kernel/net/phy.rs`."
+    }
+  ],
+  "profile_family": "net-phy",
+  "profile_id": "et1011c",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/et1011c.json",
+    "scripts/c2saferust/profiles/rule_packs/et1011c_phy_safety.json"
+  ],
+  "schema_version": 1
+}

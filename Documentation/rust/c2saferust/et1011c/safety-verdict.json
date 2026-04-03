@@ -1,0 +1,14 @@
+{
+  "artifact_type": "safety-verdict",
+  "discharge_artifact": "Documentation/rust/c2saferust/et1011c/soundness-discharge.json",
+  "module_id": "et1011c",
+  "pass": true,
+  "policy_artifact": "Documentation/rust/c2saferust/et1011c/safety-policy.json",
+  "schema_version": 1,
+  "summary": {
+    "quick_gate_violations": 0,
+    "rust_verifier_violations": 0,
+    "total_violations": 0
+  },
+  "violations": []
+}

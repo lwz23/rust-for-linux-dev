@@ -1,0 +1,25 @@
+{
+  "artifact_type": "helpers-patch-plan",
+  "helper_dir": "rust/helpers",
+  "inputs": {
+    "helper_audit": "Documentation/rust/c2saferust/qsemi/helper-audit.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "no_makefile_change_required": true,
+  "patch_required": false,
+  "patch_units": [],
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "schema_version": 1,
+  "status": "already_applied",
+  "validation_checks": [],
+  "wrapper_specs": []
+}

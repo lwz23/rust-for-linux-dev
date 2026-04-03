@@ -1,0 +1,60 @@
+{
+  "artifact_type": "kbuild-patch-plan",
+  "inputs": {
+    "kbuild_plan": "Documentation/rust/c2saferust/qsemi/kbuild-plan.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "patch_required": true,
+  "patch_units": [
+    {
+      "anchor": {
+        "line": 392,
+        "symbol": "QSEMI_PHY"
+      },
+      "insert_lines": [
+        "config QSEMI_RUST_PHY",
+        "\tbool \"Rust reference driver for Quality Semiconductor PHYs\"",
+        "\tdepends on RUST_PHYLIB_ABSTRACTIONS && QSEMI_PHY",
+        "\thelp",
+        "\t  Uses the Rust reference driver for Quality Semiconductor PHYs (qsemi_rust.ko).",
+        "\t  The features are intended to stay equivalent to the C driver."
+      ],
+      "operation": "insert_after",
+      "reason": "Introduce a Rust switch without replacing the existing `QSEMI_PHY` user-facing symbol.",
+      "target_path": "drivers/net/phy/Kconfig"
+    },
+    {
+      "anchor": {
+        "line": 96,
+        "text": "obj-$(CONFIG_QSEMI_PHY)\t\t+= qsemi.o"
+      },
+      "operation": "replace_exact_line",
+      "reason": "Select `qsemi_rust.o` only when `CONFIG_QSEMI_RUST_PHY=y`; otherwise keep the C object.",
+      "replacement_lines": [
+        "ifdef CONFIG_QSEMI_RUST_PHY",
+        "  obj-$(CONFIG_QSEMI_PHY) += qsemi_rust.o",
+        "else",
+        "  obj-$(CONFIG_QSEMI_PHY) += qsemi.o",
+        "endif"
+      ],
+      "target_path": "drivers/net/phy/Makefile"
+    }
+  ],
+  "schema_version": 1,
+  "status": "pending",
+  "validation_checks": [
+    {
+      "contains": "config QSEMI_RUST_PHY",
+      "path": "drivers/net/phy/Kconfig"
+    },
+    {
+      "contains": "ifdef CONFIG_QSEMI_RUST_PHY",
+      "path": "drivers/net/phy/Makefile"
+    },
+    {
+      "contains": "obj-$(CONFIG_QSEMI_PHY) += qsemi_rust.o",
+      "path": "drivers/net/phy/Makefile"
+    }
+  ]
+}

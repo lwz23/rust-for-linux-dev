@@ -1,0 +1,47 @@
+{
+  "artifact_type": "kbuild-plan",
+  "current_state": {
+    "current_kconfig_present": true,
+    "current_makefile_line": "obj-$(CONFIG_QSEMI_PHY)\t\t+= qsemi.o",
+    "current_rust_switch_present": false
+  },
+  "kconfig_path": "drivers/net/phy/Kconfig",
+  "makefile_path": "drivers/net/phy/Makefile",
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_dir": "drivers/net/phy",
+  "module_id": "qsemi",
+  "next_action": "Apply the Kbuild switch before generating qsemi Rust driver patches.",
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "reference_pattern": {
+    "kconfig_path": "drivers/net/phy/Kconfig",
+    "makefile_path": "drivers/net/phy/Makefile",
+    "rust_driver_path": "drivers/net/phy/ax88796b_rust.rs"
+  },
+  "schema_version": 1,
+  "source_config_symbol": "QSEMI_PHY",
+  "suggested_kconfig_snippet": [
+    "config QSEMI_RUST_PHY",
+    "\tbool \"Rust reference driver for Quality Semiconductor PHYs\"",
+    "\tdepends on RUST_PHYLIB_ABSTRACTIONS && QSEMI_PHY",
+    "\thelp",
+    "\t  Uses the Rust reference driver for Quality Semiconductor PHYs (qsemi_rust.ko).",
+    "\t  The features are intended to stay equivalent to the C driver."
+  ],
+  "suggested_makefile_snippet": [
+    "ifdef CONFIG_QSEMI_RUST_PHY",
+    "  obj-$(CONFIG_QSEMI_PHY) += qsemi_rust.o",
+    "else",
+    "  obj-$(CONFIG_QSEMI_PHY) += qsemi.o",
+    "endif"
+  ],
+  "suggested_rust_config_symbol": "QSEMI_RUST_PHY",
+  "suggested_rust_object": "qsemi_rust.o"
+}

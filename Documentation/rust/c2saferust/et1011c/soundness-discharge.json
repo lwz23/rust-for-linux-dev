@@ -1,0 +1,1222 @@
+{
+  "artifact_type": "soundness-discharge",
+  "driver_rules": [
+    {
+      "id": "driver-zero-unsafe",
+      "must_not_contain": [
+        "unsafe"
+      ],
+      "status": "discharged"
+    },
+    {
+      "id": "driver-zero-bindings",
+      "must_not_contain": [
+        "bindings::"
+      ],
+      "status": "discharged"
+    },
+    {
+      "id": "driver-zero-ffi",
+      "must_not_contain": [
+        "extern \"C\""
+      ],
+      "status": "discharged"
+    }
+  ],
+  "driver_rust_path": "drivers/net/phy/et1011c_rust.rs",
+  "inputs": {
+    "safety_policy": "Documentation/rust/c2saferust/et1011c/safety-policy.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/phy/et1011c.c",
+  "module_id": "et1011c",
+  "proof_sites": [
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-1",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 86,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe fn from_raw<                                         a mut Self {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-fn"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-2",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 91,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { &mut *ptr }",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-3",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 99,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { (*phydev).phy_id }",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-4",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 107,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let state = unsafe { (*phydev).state };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-5",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 132,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let bit_field = unsafe { &(*self.0.get())._bitfield_1 };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-6",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 144,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let bit_field = unsafe { &(*self.0.get())._bitfield_1 };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-7",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 157,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let bit_field = unsafe { &(*self.0.get())._bitfield_1 };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-8",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 166,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { (*phydev).speed = speed as c_int };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-9",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 179,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { (*phydev).duplex = v as c_int };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-10",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 198,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let ret = unsafe { bindings::phy_read_paged(phydev, page.into(), regnum.into()) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-11",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 208,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { bindings::phy_resolve_aneg_linkmode(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-12",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 216,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_soft_reset(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-13",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 224,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::phy_init_hw(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-14",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 232,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::_phy_start_aneg(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-15",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 240,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "genphy-config-aneg-ffi"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Expose `genphy_config_aneg()` as a safe method on `phy::Device` and keep the unsafe call inside `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::__genphy_config_aneg(phydev, false) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-16",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 248,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_resume(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-17",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 256,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_suspend(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-18",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 269,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_update_link(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-19",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 277,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_read_lpa(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-20",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 285,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe { bindings::genphy_read_abilities(phydev) })",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-21",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 293,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe { kernel::device::Device::from_raw(addr_of_mut!((*phydev).mdio.dev)) }",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-22",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 320,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn soft_reset_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-23",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 325,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-24",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 334,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn probe_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-25",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 340,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-26",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 349,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn get_features_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-27",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 354,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-28",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 363,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn suspend_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-29",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 368,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-30",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 377,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn resume_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-31",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 382,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-32",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 391,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn config_aneg_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-33",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 396,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-34",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 405,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn read_status_callback(phydev: *mut bindings::phy_device) -> c_int {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-35",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 410,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-36",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 419,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn match_phy_device_callback(",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-37",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 426,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-38",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 433,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn read_mmd_callback(",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-39",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 442,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-40",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 452,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn write_mmd_callback(",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-41",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 462,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-42",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 471,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe extern     fn link_change_notify_callback(phydev: *mut bindings::phy_device) {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-token"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-43",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 475,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness",
+        "phy-callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access. Keep all pointer-to-reference conversion inside the callback trampolines in `rust/kernel/net/phy.rs`.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "let dev = unsafe { Device::from_raw(phydev) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-44",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 495,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe impl Sync for DriverVTable {}",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-impl"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-45",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 566,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "..unsafe { core::mem::MaybeUninit::<bindings::phy_driver>::zeroed().assume_init() }",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-46",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 655,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe impl Send for Registration {}",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-impl"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-47",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 669,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "to_result(unsafe {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-48",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 681,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/et1011c/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/phy.rs",
+      "id": "proof-site-49",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 752,
+      "linked_obligation_ids": [
+        "phy-core-abstraction-soundness"
+      ],
+      "proof_argument": "Keep driver code zero-unsafe, extend the PHY abstraction only through safe wrapper methods, and preserve the structural rules for registration, callback trampolines, and typed register access.",
+      "safe_api_surface": "phy",
+      "source_excerpt": "unsafe impl RawDeviceId for DeviceId {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-impl"
+    }
+  ],
+  "schema_version": 1,
+  "structural_rules": [
+    {
+      "file": "rust/kernel/net/phy.rs",
+      "id": "phy-registration-raii",
+      "linked_obligation_ids": [
+        "phy-driver-registration-lifetime"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub struct Registration {",
+        "pub fn register(",
+        "bindings::phy_drivers_register",
+        "bindings::phy_drivers_unregister"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/phy.rs",
+      "id": "phy-register-safe-device-surface",
+      "linked_obligation_ids": [
+        "phy-register-ffi"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub fn read<R: reg::Register>(&mut self, reg: R) -> Result<u16> {",
+        "pub fn write<R: reg::Register>(&mut self, reg: R, val: u16) -> Result {",
+        "pub fn genphy_read_status<R: reg::Register>(&mut self) -> Result<u16> {"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/phy/reg.rs",
+      "id": "phy-register-trait-surface",
+      "linked_obligation_ids": [
+        "phy-register-ffi"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "fn read(&self, dev: &mut Device) -> Result<u16>;",
+        "fn write(&self, dev: &mut Device, val: u16) -> Result;",
+        "fn read_status(dev: &mut Device) -> Result<u16>;"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/phy.rs",
+      "id": "phy-callback-trampolines",
+      "linked_obligation_ids": [
+        "phy-callback-pointer-aliasing"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "unsafe extern \"C\" fn config_aneg_callback(",
+        "unsafe extern \"C\" fn read_status_callback(",
+        "let dev = unsafe { Device::from_raw(phydev) };",
+        "T::config_aneg(dev)?;",
+        "T::read_status(dev)?;"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/phy.rs",
+      "id": "phy-genphy-config-aneg-wrapper",
+      "linked_obligation_ids": [
+        "genphy-config-aneg-ffi"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub fn genphy_config_aneg(&mut self) -> Result {",
+        "bindings::__genphy_config_aneg"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "drivers/net/phy/et1011c_rust.rs",
+      "id": "driver-forbid-unsafe-code-attr",
+      "linked_obligation_ids": [],
+      "missing_patterns": [],
+      "must_contain": [
+        "#![forbid(unsafe_code)]"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    }
+  ]
+}

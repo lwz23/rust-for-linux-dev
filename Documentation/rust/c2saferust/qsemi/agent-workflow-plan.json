@@ -1,0 +1,99 @@
+{
+  "acceptance_gates": [
+    {
+      "command": "python3 scripts/c2saferust/tool_cli.py verify-safety --module-path drivers/net/phy/qsemi.c --output Documentation/rust/c2saferust/qsemi/safety-verdict.json",
+      "id": "verify-safety",
+      "mandatory": true,
+      "pass_condition": "`safety-verdict.json.pass == true`",
+      "stage": "pre-acceptance"
+    },
+    {
+      "command": "make O=/tmp/c2saferust-qsemi-build <LLVM/ENV> drivers/net/phy/qsemi_rust.o",
+      "id": "compile-driver-object",
+      "mandatory": true,
+      "pass_condition": "`make` exits 0 for `drivers/net/phy/qsemi_rust.o` after safety gate passes.",
+      "stage": "pre-smoke"
+    }
+  ],
+  "agent_contract": {
+    "goal": "Constrain `qsemi` as a second-stage PHY case that is blocked on explicit interrupt-capable PHY abstraction work rather than ad-hoc driver invention.",
+    "must_not_do": [
+      "Do not introduce `unsafe` into driver code.",
+      "Do not call `bindings::*` directly from driver code.",
+      "Do not implement callbacks listed under `deferred_callbacks` without updating the artifacts first.",
+      "Do not edit files outside `generation_scope.managed_files` unless a newer artifact explicitly expands the scope."
+    ],
+    "must_read_before_edit": [
+      "Documentation/rust/c2saferust/qsemi/translation-plan.json",
+      "Documentation/rust/c2saferust/qsemi/safety-policy.json",
+      "Documentation/rust/c2saferust/qsemi/soundness-discharge.json"
+    ],
+    "soundness_claim_scope": {
+      "abstraction_allowlist": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "deferred_callbacks": [],
+      "mvp_callbacks": [
+        "qs6612_config_init",
+        "qs6612_config_intr",
+        "qs6612_handle_interrupt"
+      ]
+    }
+  },
+  "artifact_type": "agent-workflow-plan",
+  "driver_object_path": "drivers/net/phy/qsemi_rust.o",
+  "driver_rust_path": "drivers/net/phy/qsemi_rust.rs",
+  "generation_scope": {
+    "abstraction_files": [
+      "rust/kernel/net/phy.rs"
+    ],
+    "allowed_driver_surfaces": [
+      "kernel::net::phy::{self, DeviceId, Driver, reg::C22}",
+      "kernel::prelude::*",
+      "kernel::uapi"
+    ],
+    "deferred_callbacks": [],
+    "driver_files": [
+      "drivers/net/phy/qsemi_rust.rs"
+    ],
+    "forbidden_driver_calls": [
+      "bindings::",
+      "bindings::mdiobus_read",
+      "bindings::mdiobus_write",
+      "bindings::__genphy_config_aneg",
+      "bindings::genphy_config_aneg",
+      "bindings::genphy_read_status"
+    ],
+    "managed_files": [
+      "drivers/net/phy/qsemi_rust.rs",
+      "rust/kernel/net/phy.rs"
+    ],
+    "required_driver_crate_attributes": [
+      "#![forbid(unsafe_code)]"
+    ]
+  },
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/qsemi/abstraction-plan.json",
+    "safety_policy": "Documentation/rust/c2saferust/qsemi/safety-policy.json",
+    "soundness_discharge": "Documentation/rust/c2saferust/qsemi/soundness-discharge.json",
+    "translation_plan": "Documentation/rust/c2saferust/qsemi/translation-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/qsemi/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "preflight": {
+    "blockers": [
+      "Implement/export the remaining MVP abstractions: phy_irq_callbacks, phy_config_init.",
+      "Apply the Kbuild switch so the Rust object can replace the C object."
+    ],
+    "ready_for_agent_codegen": false,
+    "required_reads": [
+      "Documentation/rust/c2saferust/qsemi/abstraction-plan.json",
+      "Documentation/rust/c2saferust/qsemi/translation-plan.json",
+      "Documentation/rust/c2saferust/qsemi/safety-policy.json",
+      "Documentation/rust/c2saferust/qsemi/soundness-discharge.json",
+      "Documentation/rust/c2saferust/qsemi/unsafe-obligations.json"
+    ]
+  },
+  "schema_version": 1
+}

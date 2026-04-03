@@ -1,0 +1,169 @@
+{
+  "abstraction_areas": [
+    {
+      "area": "phy",
+      "c_evidence": [
+        "struct phy_driver",
+        "phy_read(",
+        "phy_write("
+      ],
+      "deferred_surface": [
+        "Interrupt-specific callbacks and state helpers."
+      ],
+      "depends_on": [],
+      "implementation_path": "rust/kernel/net/phy.rs",
+      "preferred_files": [
+        "rust/kernel/net/phy.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A typed `phy::Driver` trait that owns callback registration and keeps raw trampolines out of driver code.",
+        "A safe `phy::Device` surface for Clause 22/45 register reads and writes.",
+        "A `module_phy_driver!` path that keeps driver registration lifetime managed by the abstraction."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "phy_config_aneg",
+      "c_evidence": [
+        "genphy_config_aneg"
+      ],
+      "deferred_surface": [],
+      "depends_on": [],
+      "implementation_path": "rust/kernel/net/phy.rs",
+      "preferred_files": [
+        "rust/kernel/net/phy.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "Expose a safe `phy::Device::genphy_config_aneg()` wrapper so drivers do not call PHYLIB bindings directly."
+      ],
+      "status": "implemented"
+    }
+  ],
+  "artifact_type": "abstraction-plan",
+  "current_rust_net_scope": {
+    "assessment": "The tree already exposes the required PHY abstraction surfaces (`phy`); the current module can stay inside the existing PHY layer.",
+    "implemented_areas": [
+      "phy",
+      "phy_config_aneg"
+    ],
+    "modules": [
+      "rust/kernel/net/phy.rs",
+      "rust/kernel/net/phy/reg.rs"
+    ],
+    "rust_net_root": "rust/kernel/net.rs"
+  },
+  "goal": "Constrain the first PHY round so `et1011c` can land through existing Rust PHY abstractions plus the minimal missing `genphy_config_aneg` wrapper, without introducing driver-side `unsafe` or direct `bindings::*`.",
+  "inputs": {
+    "bindings_patch_plan": "Documentation/rust/c2saferust/et1011c/bindings-patch-plan.json",
+    "helpers_patch_plan": "Documentation/rust/c2saferust/et1011c/helpers-patch-plan.json",
+    "kbuild_patch_plan": "Documentation/rust/c2saferust/et1011c/kbuild-patch-plan.json"
+  },
+  "module_c_path": "drivers/net/phy/et1011c.c",
+  "module_id": "et1011c",
+  "mvp_scope": {
+    "deferred_callbacks": [],
+    "note": "The stage-1 oracle for this PHY round is module load/unload. Hardware-attached behavior is still represented statically by callback/body planning and compile-time validation.",
+    "required_callbacks": [
+      "et1011c_config_aneg",
+      "et1011c_read_status"
+    ],
+    "target_command": "insmod et1011c_rust.ko && rmmod et1011c_rust"
+  },
+  "phase_4_readiness": {
+    "driver_generation_rules": [
+      "Driver code may borrow style from existing Rust PHY drivers, but must stay within the safe `kernel::net::phy` driver surface.",
+      "Do not read or write PHY registers through raw `bindings::*`; keep all access through `phy::Device` and typed register wrappers.",
+      "Any new PHY callback beyond the current artifact boundary requires updating the profile and artifacts first."
+    ],
+    "helper_gaps": [],
+    "ready_for_minimal_driver_codegen": true,
+    "required_before_driver_codegen": []
+  },
+  "profile_family": "net-phy",
+  "profile_id": "et1011c",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/et1011c.json",
+    "scripts/c2saferust/profiles/rule_packs/et1011c_phy_safety.json"
+  ],
+  "schema_version": 1,
+  "source_inventory": {
+    "callback_calls": {
+      "config_aneg": [
+        "phy_read",
+        "phy_write",
+        "genphy_config_aneg"
+      ],
+      "read_status": [
+        "genphy_read_status",
+        "phy_read",
+        "phy_write"
+      ]
+    },
+    "callback_tables": {
+      "phy_driver": {
+        "fields": [
+          {
+            "field": "phy_id",
+            "value": "0x0282f014"
+          },
+          {
+            "field": "name",
+            "value": "\"ET1011C\""
+          },
+          {
+            "field": "phy_id_mask",
+            "value": "0xfffffff0"
+          },
+          {
+            "field": "config_aneg",
+            "value": "et1011c_config_aneg"
+          },
+          {
+            "field": "read_status",
+            "value": "et1011c_read_status"
+          }
+        ],
+        "name": "et1011c_driver"
+      }
+    },
+    "open_calls": [],
+    "open_tap_assignments": [],
+    "phy_driver": {
+      "fields": [
+        {
+          "field": "phy_id",
+          "value": "0x0282f014"
+        },
+        {
+          "field": "name",
+          "value": "\"ET1011C\""
+        },
+        {
+          "field": "phy_id_mask",
+          "value": "0xfffffff0"
+        },
+        {
+          "field": "config_aneg",
+          "value": "et1011c_config_aneg"
+        },
+        {
+          "field": "read_status",
+          "value": "et1011c_read_status"
+        }
+      ],
+      "name": "et1011c_driver"
+    },
+    "private_struct_fields": [],
+    "setup_field_writes": [],
+    "stats_calls": [],
+    "stop_calls": [],
+    "validate_checks": [],
+    "xmit_calls": []
+  }
+}

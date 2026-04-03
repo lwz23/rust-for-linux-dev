@@ -1,0 +1,113 @@
+{
+  "abstraction_policy": {
+    "allowlisted_files": [
+      "rust/kernel/net/phy.rs"
+    ],
+    "required_soundness_rules": [
+      {
+        "file": "rust/kernel/net/phy.rs",
+        "id": "phy-registration-raii",
+        "linked_obligation_ids": [
+          "phy-driver-registration-lifetime"
+        ],
+        "must_contain": [
+          "pub struct Registration {",
+          "pub fn register(",
+          "bindings::phy_drivers_register",
+          "bindings::phy_drivers_unregister"
+        ],
+        "must_not_contain": []
+      },
+      {
+        "file": "rust/kernel/net/phy.rs",
+        "id": "phy-register-safe-device-surface",
+        "linked_obligation_ids": [
+          "phy-register-ffi"
+        ],
+        "must_contain": [
+          "pub fn read<R: reg::Register>(&mut self, reg: R) -> Result<u16> {",
+          "pub fn write<R: reg::Register>(&mut self, reg: R, val: u16) -> Result {",
+          "pub fn genphy_read_status<R: reg::Register>(&mut self) -> Result<u16> {"
+        ],
+        "must_not_contain": []
+      },
+      {
+        "file": "rust/kernel/net/phy/reg.rs",
+        "id": "phy-register-trait-surface",
+        "linked_obligation_ids": [
+          "phy-register-ffi"
+        ],
+        "must_contain": [
+          "fn read(&self, dev: &mut Device) -> Result<u16>;",
+          "fn write(&self, dev: &mut Device, val: u16) -> Result;",
+          "fn read_status(dev: &mut Device) -> Result<u16>;"
+        ],
+        "must_not_contain": []
+      },
+      {
+        "file": "rust/kernel/net/phy.rs",
+        "id": "phy-callback-trampolines",
+        "linked_obligation_ids": [
+          "phy-callback-pointer-aliasing"
+        ],
+        "must_contain": [
+          "unsafe extern \"C\" fn config_aneg_callback(",
+          "unsafe extern \"C\" fn read_status_callback(",
+          "let dev = unsafe { Device::from_raw(phydev) };",
+          "T::config_aneg(dev)?;",
+          "T::read_status(dev)?;"
+        ],
+        "must_not_contain": []
+      }
+    ],
+    "unsafe_trait_impls_are_proof_sites": true
+  },
+  "artifact_type": "safety-policy",
+  "driver_policy": {
+    "allowed_surfaces": [
+      "kernel::net::phy::{self, DeviceId, Driver, reg::C22}",
+      "kernel::prelude::*",
+      "kernel::uapi"
+    ],
+    "forbidden_calls": [
+      "bindings::",
+      "bindings::mdiobus_read",
+      "bindings::mdiobus_write",
+      "bindings::__genphy_config_aneg",
+      "bindings::genphy_config_aneg",
+      "bindings::genphy_read_status"
+    ],
+    "forbidden_tokens": [
+      "unsafe",
+      "bindings::",
+      "extern \"C\"",
+      "*mut ",
+      "*const "
+    ],
+    "required_crate_attributes": [
+      "#![forbid(unsafe_code)]"
+    ],
+    "zero_bindings": true,
+    "zero_extern_c": true,
+    "zero_unsafe": true
+  },
+  "driver_rust_path": "drivers/net/phy/qsemi_rust.rs",
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/qsemi/abstraction-plan.json",
+    "soundness_discharge": "Documentation/rust/c2saferust/qsemi/soundness-discharge.json",
+    "translation_plan": "Documentation/rust/c2saferust/qsemi/translation-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/qsemi/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/phy/qsemi.c",
+  "module_id": "qsemi",
+  "profile_family": "net-phy",
+  "profile_id": "qsemi",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_phy_rules.json",
+    "scripts/c2saferust/profiles/families/net_phy.json",
+    "scripts/c2saferust/profiles/rule_packs/net_phy_core_safety.json",
+    "scripts/c2saferust/profiles/modules/qsemi.json",
+    "scripts/c2saferust/profiles/rule_packs/qsemi_phy_irq_safety.json"
+  ],
+  "schema_version": 1
+}
