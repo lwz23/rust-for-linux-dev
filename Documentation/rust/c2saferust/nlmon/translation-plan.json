@@ -1,0 +1,266 @@
+{
+  "allowed_driver_surfaces": [
+    "kernel::net::rtnl::{Registration, Driver, ValidateContext, LinkAttr}",
+    "kernel::net::netdevice::{Device, Operations, TxOutcome, device_type, flags, priv_flags, pcpu_stat_type, features, mtu}",
+    "kernel::net::skbuff::SkBuff",
+    "kernel::net::stats",
+    "kernel::ThisModule",
+    "&THIS_MODULE",
+    "kernel::net::netlink_tap::Tap"
+  ],
+  "artifact_type": "translation-plan",
+  "callback_mapping": [
+    {
+      "body_plan": [
+        "Only use the typed `netdevice::Device` setters listed in `setup_translation`.",
+        "Do not assign `netdev_ops` directly; the rtnl abstraction does that automatically."
+      ],
+      "c_symbol": "nlmon_setup",
+      "rust_surface": "impl rtnl::Driver for NlmonDriver::setup",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Express the current MVP rule through `ValidateContext` only.",
+        "Return `Err(EINVAL)` when `IFLA_ADDRESS` is present."
+      ],
+      "c_symbol": "nlmon_validate",
+      "rust_surface": "impl rtnl::Driver for NlmonDriver::validate",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Access private state through the typed `private` argument only.",
+        "Call `private.tap.add(dev, &THIS_MODULE)?`."
+      ],
+      "c_symbol": "nlmon_open",
+      "rust_surface": "impl netdevice::Operations for NlmonDriver::open",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Access private state through the typed `private` argument only.",
+        "Call `private.tap.remove()?`."
+      ],
+      "c_symbol": "nlmon_close",
+      "rust_surface": "impl netdevice::Operations for NlmonDriver::stop",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Receive the packet as owned `skbuff::SkBuff` and the device as shared `&netdevice::Device` only.",
+        "Call `stats::dev_lstats_add(dev, skb.len())` before returning.",
+        "Return `netdevice::TxOutcome::Ok`; let the skb ownership discharge through the abstraction rather than explicit free calls in driver code."
+      ],
+      "c_symbol": "nlmon_xmit",
+      "rust_surface": "impl netdevice::Operations for NlmonDriver::start_xmit",
+      "status": "required"
+    },
+    {
+      "body_plan": [
+        "Keep this callback out of the first Rust loop until the corresponding abstraction and oracle evidence are ready."
+      ],
+      "c_symbol": "nlmon_get_stats64",
+      "rust_surface": null,
+      "status": "deferred"
+    },
+    {
+      "body_plan": [
+        "Keep this callback out of the first Rust loop until the corresponding abstraction and oracle evidence are ready."
+      ],
+      "c_symbol": "always_on",
+      "rust_surface": null,
+      "status": "deferred"
+    }
+  ],
+  "deferred_callbacks": [
+    "nlmon_get_stats64",
+    "always_on"
+  ],
+  "driver_policy": {
+    "driver_zero_bindings": true,
+    "driver_zero_extern_c": true,
+    "driver_zero_unsafe": true
+  },
+  "driver_rust_path": "drivers/net/nlmon_rust.rs",
+  "forbidden_driver_calls": [
+    "bindings::rtnl_link_register",
+    "bindings::rtnl_link_unregister",
+    "bindings::netdev_priv",
+    "bindings::dev_kfree_skb",
+    "bindings::dev_lstats_add",
+    "bindings::netlink_add_tap",
+    "bindings::netlink_remove_tap"
+  ],
+  "goal": "Constrain the first `drivers/net/nlmon_rust.rs` to a minimal, artifact-driven smoke loop covering registration, setup, validate, open, stop, and xmit.",
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/nlmon/abstraction-plan.json",
+    "bindings_patch_plan": "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json",
+    "helpers_patch_plan": "Documentation/rust/c2saferust/nlmon/helpers-patch-plan.json",
+    "kbuild_patch_plan": "Documentation/rust/c2saferust/nlmon/kbuild-patch-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "module_shell": {
+    "module_aliases": [
+      "rtnl-link-nlmon"
+    ],
+    "module_macro_required": true,
+    "owned_registration": "rtnl::Registration<NlmonDriver>",
+    "preferred_driver_type": "NlmonDriver",
+    "preferred_module_trait": "kernel::InPlaceModule",
+    "preferred_module_type": "NlmonModule",
+    "preferred_private_type": "NlmonPriv",
+    "registration_kind": "c_str!(\"nlmon\")"
+  },
+  "private_state": {
+    "fields": [
+      {
+        "name": "tap",
+        "note": "Own the netlink tap in Rust private storage; the MVP flow only uses it in open/stop.",
+        "rust_type": "netlink_tap::Tap",
+        "source_c_field": "nt"
+      }
+    ],
+    "init_policy": {
+      "allocation_source": "RTNL/net core zero-initialized private storage",
+      "rust_requirement": "The private type must accept the all-zero bit pattern (`Zeroable`)."
+    },
+    "layout": "#[repr(C)]",
+    "type_name": "NlmonPriv"
+  },
+  "profile_family": "net-link-type",
+  "profile_id": "nlmon",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_link_type_rules.json",
+    "scripts/c2saferust/profiles/families/net_link_type.json",
+    "scripts/c2saferust/profiles/rule_packs/net_link_type_core_safety.json",
+    "scripts/c2saferust/profiles/modules/nlmon.json",
+    "scripts/c2saferust/profiles/rule_packs/nlmon_netlink_tap_safety.json"
+  ],
+  "readiness": {
+    "blockers": [],
+    "ready_for_minimal_driver_codegen": true,
+    "upstream_artifact_status": {
+      "abstraction_plan": "ready",
+      "bindings_patch_plan": "already_applied",
+      "helpers_patch_plan": "already_applied",
+      "kbuild_patch_plan": "already_applied"
+    }
+  },
+  "schema_version": 1,
+  "setup_translation": [
+    {
+      "c_field": "type",
+      "c_operator": "=",
+      "c_value": "ARPHRD_NETLINK",
+      "note": "Keep device type selection inside the typed `netdevice::Device` wrapper.",
+      "rust_surface": "dev.set_type(netdevice::device_type::NETLINK)",
+      "status": "required"
+    },
+    {
+      "c_field": "priv_flags",
+      "c_operator": "|=",
+      "c_value": "IFF_NO_QUEUE",
+      "note": "Preserve the `IFF_NO_QUEUE` setup bit without raw field access.",
+      "rust_surface": "dev.add_priv_flag(netdevice::priv_flags::NO_QUEUE)",
+      "status": "required"
+    },
+    {
+      "c_field": "lltx",
+      "c_operator": "=",
+      "c_value": "true",
+      "note": "Keep lockless TX configuration in the wrapper layer.",
+      "rust_surface": "dev.set_lltx(true)",
+      "status": "required"
+    },
+    {
+      "c_field": "netdev_ops",
+      "c_operator": "=",
+      "c_value": "&nlmon_ops",
+      "note": "Do not assign `dev->netdev_ops` in driver code; the rtnl abstraction wires it before `setup`.",
+      "rust_surface": "implicit via `rtnl::Registration::<NlmonDriver>::setup_callback`",
+      "status": "handled_by_abstraction"
+    },
+    {
+      "c_field": "ethtool_ops",
+      "c_operator": "=",
+      "c_value": "&nlmon_ethtool_ops",
+      "note": "Keep `ethtool_ops` out of the first loop together with `always_on`.",
+      "rust_surface": "omit in MVP",
+      "status": "deferred"
+    },
+    {
+      "c_field": "needs_free_netdev",
+      "c_operator": "=",
+      "c_value": "true",
+      "note": "Keep free-on-destroy policy inside the wrapper.",
+      "rust_surface": "dev.set_needs_free_netdev(true)",
+      "status": "required"
+    },
+    {
+      "c_field": "features",
+      "c_operator": "=",
+      "c_value": "NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_HIGHDMA",
+      "note": "Keep the feature bit expression inside the typed netdevice abstraction surface.",
+      "rust_surface": "dev.set_features(netdevice::features::SG | netdevice::features::FRAGLIST | netdevice::features::HIGHDMA)",
+      "status": "required"
+    },
+    {
+      "c_field": "flags",
+      "c_operator": "=",
+      "c_value": "IFF_NOARP",
+      "note": "Preserve the `IFF_NOARP` setup bit through the typed wrapper.",
+      "rust_surface": "dev.set_flags(netdevice::flags::NO_ARP)",
+      "status": "required"
+    },
+    {
+      "c_field": "pcpu_stat_type",
+      "c_operator": "=",
+      "c_value": "NETDEV_PCPU_STAT_LSTATS",
+      "note": "Keep the setup write for parity, but do not enable `ndo_get_stats64` yet.",
+      "rust_surface": "dev.set_pcpu_stat_type(netdevice::pcpu_stat_type::LSTATS)",
+      "status": "mvp-allowed"
+    },
+    {
+      "c_field": "mtu",
+      "c_operator": "=",
+      "c_value": "NLMSG_GOODSIZE",
+      "note": "Keep the softlimit MTU assignment explicit in `setup`, but hide bindgen-dependent constants behind the abstraction.",
+      "rust_surface": "dev.set_mtu(netdevice::mtu::nlmsg_goodsize())",
+      "status": "required"
+    },
+    {
+      "c_field": "min_mtu",
+      "c_operator": "=",
+      "c_value": "sizeof(struct nlmsghdr)",
+      "note": "Expose the `nlmsghdr` size through the abstraction rather than direct bindgen usage in driver code.",
+      "rust_surface": "dev.set_min_mtu(netdevice::mtu::NLMSGHDR)",
+      "status": "required"
+    }
+  ],
+  "unsafe_policy": {
+    "driver_unsafe_expected": false,
+    "linked_obligations": [
+      "rtnl-registration-lifetime",
+      "netdev-private-layout",
+      "netdev-private-zero-init",
+      "callback-pointer-aliasing",
+      "stats-buffer-write",
+      "skb-consumed-once",
+      "tap-module-pointer-validity",
+      "tap-open-stop-balance",
+      "validate-attribute-indexing"
+    ],
+    "note": "The first Rust loop should keep raw pointer work and bindgen coupling inside the abstractions named above; driver code must remain free of `unsafe` and direct `bindings::*` usage."
+  },
+  "validate_translation": [
+    {
+      "c_rule": "tb[IFLA_ADDRESS] => -EINVAL",
+      "note": "Use `ValidateContext`/typed `LinkAttr` instead of raw `tb[]` indexing.",
+      "rust_surface": "if ctx.has_link_attr(rtnl::LinkAttr::ADDRESS) { return Err(EINVAL); }",
+      "status": "required"
+    }
+  ]
+}

@@ -1,0 +1,421 @@
+{
+  "abstraction_areas": [
+    {
+      "area": "rtnl",
+      "c_evidence": [
+        "struct rtnl_link_ops",
+        "rtnl_link_register",
+        "rtnl_link_unregister"
+      ],
+      "deferred_surface": [
+        "Optional `newlink`/`changelink`/`dellink` hooks.",
+        "xstats and queue-count helpers."
+      ],
+      "depends_on": [
+        "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json"
+      ],
+      "implementation_path": "rust/kernel/net/rtnl.rs",
+      "preferred_files": [
+        "rust/kernel/net/rtnl.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A registration owner that balances `rtnl_link_register`/`rtnl_link_unregister`.",
+        "A typed link-ops description carrying `kind`, `priv_size`, `setup`, and optional `validate`.",
+        "Callback shims that keep raw `nlattr`/`netlink_ext_ack` handling out of driver code."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "netdevice",
+      "c_evidence": [
+        "struct net_device_ops",
+        "struct net_device",
+        "struct ethtool_ops"
+      ],
+      "deferred_surface": [
+        "Dedicated `ethtool_ops` wrapper surfaces.",
+        "A typed `get_stats64` callback surface."
+      ],
+      "depends_on": [
+        "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json",
+        "Documentation/rust/c2saferust/nlmon/helpers-patch-plan.json"
+      ],
+      "implementation_path": "rust/kernel/net/netdevice.rs",
+      "preferred_files": [
+        "rust/kernel/net/netdevice.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A typed `net_device` wrapper for `setup` field writes and private storage access.",
+        "A `net_device_ops`-style trait covering `open`, `stop`, and an ownership-safe `start_xmit` surface.",
+        "Enough constants/enums to set device type, flags, priv_flags, free-on-destroy policy, and MTU bounds."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "stats",
+      "c_evidence": [
+        "dev_lstats_add",
+        "dev_lstats_read",
+        "rtnl_link_stats64"
+      ],
+      "deferred_surface": [
+        "A typed wrapper for `dev_lstats_read` and `rtnl_link_stats64`."
+      ],
+      "depends_on": [
+        "Documentation/rust/c2saferust/nlmon/helpers-patch-plan.json",
+        "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json"
+      ],
+      "implementation_path": "rust/kernel/net/stats.rs",
+      "preferred_files": [
+        "rust/kernel/net/stats.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "Expose the per-cpu stats configuration constant for `setup` if the profile keeps that field write.",
+        "Provide a helper-backed `dev_lstats_add` wrapper that driver code can call without touching helper FFI directly."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "skbuff",
+      "c_evidence": [
+        "struct sk_buff",
+        "dev_kfree_skb"
+      ],
+      "deferred_surface": [
+        "Packet mutation helpers beyond `len()`."
+      ],
+      "depends_on": [
+        "Documentation/rust/c2saferust/nlmon/helpers-patch-plan.json"
+      ],
+      "implementation_path": "rust/kernel/net/skbuff.rs",
+      "preferred_files": [
+        "rust/kernel/net/skbuff.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A move-only skb owner for `ndo_start_xmit` that frees on drop and can hand ownership back to the core on `NETDEV_TX_BUSY`."
+      ],
+      "status": "implemented"
+    },
+    {
+      "area": "netlink_tap",
+      "c_evidence": [
+        "struct netlink_tap",
+        "netlink_add_tap",
+        "netlink_remove_tap"
+      ],
+      "deferred_surface": [],
+      "depends_on": [
+        "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json"
+      ],
+      "implementation_path": "rust/kernel/net/netlink_tap.rs",
+      "preferred_files": [
+        "rust/kernel/net/netlink_tap.rs",
+        "rust/kernel/net.rs"
+      ],
+      "priority": "mvp-blocker",
+      "required_surface": [
+        "A private-state-owned tap handle that stores `dev` and `module` before registration.",
+        "Open/stop helper methods that call add/remove in matched lifecycle points."
+      ],
+      "status": "implemented"
+    }
+  ],
+  "artifact_type": "abstraction-plan",
+  "current_rust_net_scope": {
+    "assessment": "The tree now contains the full smoke-path link-type abstractions (`rtnl`, `netdevice`, `stats`, `skbuff`, `netlink_tap`); deferred callbacks remain outside the first loop.",
+    "implemented_areas": [
+      "netdevice",
+      "netlink_tap",
+      "rtnl",
+      "skbuff",
+      "stats"
+    ],
+    "modules": [
+      "rust/kernel/net/netdevice.rs",
+      "rust/kernel/net/netlink_tap.rs",
+      "rust/kernel/net/phy.rs",
+      "rust/kernel/net/phy/reg.rs",
+      "rust/kernel/net/rtnl.rs",
+      "rust/kernel/net/skbuff.rs",
+      "rust/kernel/net/stats.rs"
+    ],
+    "rust_net_root": "rust/kernel/net.rs"
+  },
+  "goal": "Constrain Phase 4 so the first Rust loop reaches the `ip link add/up/down/del nlmon0` smoke closure without unconstrained driver invention.",
+  "inputs": {
+    "bindings_patch_plan": "Documentation/rust/c2saferust/nlmon/bindings-patch-plan.json",
+    "helpers_patch_plan": "Documentation/rust/c2saferust/nlmon/helpers-patch-plan.json",
+    "kbuild_patch_plan": "Documentation/rust/c2saferust/nlmon/kbuild-patch-plan.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "mvp_scope": {
+    "deferred_callbacks": [
+      "nlmon_get_stats64",
+      "always_on"
+    ],
+    "note": "The first Rust loop must already cover the smoke-path lifecycle. `xmit` is required for `ip link set ... up`; `get_stats64` and `ethtool` parity can still land later.",
+    "required_callbacks": [
+      "nlmon_setup",
+      "nlmon_validate",
+      "nlmon_open",
+      "nlmon_close",
+      "nlmon_xmit"
+    ],
+    "target_command": "ip link add nlmon0 type nlmon && ip link set nlmon0 up && ip link show nlmon0 && ip link set nlmon0 down && ip link del nlmon0"
+  },
+  "phase_4_readiness": {
+    "driver_generation_rules": [
+      "Driver code may borrow style from `drivers/net/phy/ax88796b_rust.rs` / `rust/kernel/net/phy.rs`, but only for module/abstraction layering.",
+      "Driver code must not call raw register/unregister or helper exports directly from the driver surface.",
+      "Any Phase 4 expansion beyond the `mvp_scope.deferred_callbacks` list requires updating this artifact first."
+    ],
+    "helper_gaps": [],
+    "ready_for_minimal_driver_codegen": true,
+    "required_before_driver_codegen": []
+  },
+  "profile_family": "net-link-type",
+  "profile_id": "nlmon",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_link_type_rules.json",
+    "scripts/c2saferust/profiles/families/net_link_type.json",
+    "scripts/c2saferust/profiles/rule_packs/net_link_type_core_safety.json",
+    "scripts/c2saferust/profiles/modules/nlmon.json",
+    "scripts/c2saferust/profiles/rule_packs/nlmon_netlink_tap_safety.json"
+  ],
+  "schema_version": 1,
+  "source_inventory": {
+    "callback_calls": {
+      "get_link": [],
+      "ndo_get_stats64": [
+        "dev_lstats_read"
+      ],
+      "ndo_open": [
+        "netdev_priv",
+        "netlink_add_tap"
+      ],
+      "ndo_start_xmit": [
+        "dev_lstats_add",
+        "dev_kfree_skb"
+      ],
+      "ndo_stop": [
+        "netdev_priv",
+        "netlink_remove_tap"
+      ],
+      "setup": [],
+      "validate": []
+    },
+    "callback_tables": {
+      "ethtool_ops": {
+        "fields": [
+          {
+            "field": "get_link",
+            "value": "always_on"
+          }
+        ],
+        "name": "nlmon_ethtool_ops"
+      },
+      "net_device_ops": {
+        "fields": [
+          {
+            "field": "ndo_open",
+            "value": "nlmon_open"
+          },
+          {
+            "field": "ndo_stop",
+            "value": "nlmon_close"
+          },
+          {
+            "field": "ndo_start_xmit",
+            "value": "nlmon_xmit"
+          },
+          {
+            "field": "ndo_get_stats64",
+            "value": "nlmon_get_stats64"
+          }
+        ],
+        "name": "nlmon_ops"
+      },
+      "rtnl_link_ops": {
+        "fields": [
+          {
+            "field": "kind",
+            "value": "\"nlmon\""
+          },
+          {
+            "field": "priv_size",
+            "value": "sizeof(struct nlmon)"
+          },
+          {
+            "field": "setup",
+            "value": "nlmon_setup"
+          },
+          {
+            "field": "validate",
+            "value": "nlmon_validate"
+          }
+        ],
+        "name": "nlmon_link_ops"
+      }
+    },
+    "ethtool_ops": {
+      "fields": [
+        {
+          "field": "get_link",
+          "value": "always_on"
+        }
+      ],
+      "name": "nlmon_ethtool_ops"
+    },
+    "net_device_ops": {
+      "fields": [
+        {
+          "field": "ndo_open",
+          "value": "nlmon_open"
+        },
+        {
+          "field": "ndo_stop",
+          "value": "nlmon_close"
+        },
+        {
+          "field": "ndo_start_xmit",
+          "value": "nlmon_xmit"
+        },
+        {
+          "field": "ndo_get_stats64",
+          "value": "nlmon_get_stats64"
+        }
+      ],
+      "name": "nlmon_ops"
+    },
+    "open_calls": [
+      "netdev_priv",
+      "netlink_add_tap"
+    ],
+    "open_tap_assignments": [
+      {
+        "field": "dev",
+        "operator": "=",
+        "private_binding": "nlmon",
+        "source_field": "nt",
+        "value": "dev"
+      },
+      {
+        "field": "module",
+        "operator": "=",
+        "private_binding": "nlmon",
+        "source_field": "nt",
+        "value": "THIS_MODULE"
+      }
+    ],
+    "private_struct_fields": [
+      {
+        "name": "nt",
+        "type": "struct netlink_tap"
+      }
+    ],
+    "rtnl_link_ops": {
+      "fields": [
+        {
+          "field": "kind",
+          "value": "\"nlmon\""
+        },
+        {
+          "field": "priv_size",
+          "value": "sizeof(struct nlmon)"
+        },
+        {
+          "field": "setup",
+          "value": "nlmon_setup"
+        },
+        {
+          "field": "validate",
+          "value": "nlmon_validate"
+        }
+      ],
+      "name": "nlmon_link_ops"
+    },
+    "setup_field_writes": [
+      {
+        "field": "type",
+        "operator": "=",
+        "value": "ARPHRD_NETLINK"
+      },
+      {
+        "field": "priv_flags",
+        "operator": "|=",
+        "value": "IFF_NO_QUEUE"
+      },
+      {
+        "field": "lltx",
+        "operator": "=",
+        "value": "true"
+      },
+      {
+        "field": "netdev_ops",
+        "operator": "=",
+        "value": "&nlmon_ops"
+      },
+      {
+        "field": "ethtool_ops",
+        "operator": "=",
+        "value": "&nlmon_ethtool_ops"
+      },
+      {
+        "field": "needs_free_netdev",
+        "operator": "=",
+        "value": "true"
+      },
+      {
+        "field": "features",
+        "operator": "=",
+        "value": "NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_HIGHDMA"
+      },
+      {
+        "field": "flags",
+        "operator": "=",
+        "value": "IFF_NOARP"
+      },
+      {
+        "field": "pcpu_stat_type",
+        "operator": "=",
+        "value": "NETDEV_PCPU_STAT_LSTATS"
+      },
+      {
+        "field": "mtu",
+        "operator": "=",
+        "value": "NLMSG_GOODSIZE"
+      },
+      {
+        "field": "min_mtu",
+        "operator": "=",
+        "value": "sizeof(struct nlmsghdr)"
+      }
+    ],
+    "stats_calls": [
+      "dev_lstats_read"
+    ],
+    "stop_calls": [
+      "netdev_priv",
+      "netlink_remove_tap"
+    ],
+    "validate_checks": [
+      {
+        "field": "IFLA_ADDRESS",
+        "return": "-EINVAL"
+      }
+    ],
+    "xmit_calls": [
+      "dev_lstats_add",
+      "dev_kfree_skb"
+    ]
+  }
+}

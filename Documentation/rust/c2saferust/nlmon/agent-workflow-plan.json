@@ -1,0 +1,121 @@
+{
+  "acceptance_gates": [
+    {
+      "command": "python3 scripts/c2saferust/tool_cli.py verify-safety --kernel-tree <linux-tree> --module-path drivers/net/nlmon.c --output Documentation/rust/c2saferust/nlmon/safety-verdict.json",
+      "id": "verify-safety",
+      "mandatory": true,
+      "pass_condition": "`safety-verdict.json.pass == true`",
+      "stage": "pre-acceptance"
+    },
+    {
+      "command": "make O=/tmp/c2saferust-nlmon-build <LLVM/ENV> drivers/net/nlmon_rust.o",
+      "id": "compile-driver-object",
+      "mandatory": true,
+      "pass_condition": "`make` exits 0 for `drivers/net/nlmon_rust.o` after safety gate passes.",
+      "stage": "pre-smoke"
+    }
+  ],
+  "agent_contract": {
+    "goal": "Constrain the first `drivers/net/nlmon_rust.rs` to a minimal, artifact-driven smoke loop covering registration, setup, validate, open, stop, and xmit.",
+    "must_not_do": [
+      "Do not introduce `unsafe` into driver code.",
+      "Do not call `bindings::*` directly from driver code.",
+      "Do not implement callbacks listed under `deferred_callbacks` without updating the artifacts first.",
+      "Do not edit files outside `generation_scope.managed_files` unless a newer artifact explicitly expands the scope."
+    ],
+    "must_read_before_edit": [
+      "Documentation/rust/c2saferust/nlmon/translation-plan.json",
+      "Documentation/rust/c2saferust/nlmon/safety-policy.json",
+      "Documentation/rust/c2saferust/nlmon/soundness-discharge.json"
+    ],
+    "soundness_claim_scope": {
+      "abstraction_allowlist": [
+        "rust/kernel/net/rtnl.rs",
+        "rust/kernel/net/netdevice.rs",
+        "rust/kernel/net/stats.rs",
+        "rust/kernel/net/skbuff.rs",
+        "rust/kernel/net/netlink_tap.rs"
+      ],
+      "deferred_callbacks": [
+        "nlmon_get_stats64",
+        "always_on"
+      ],
+      "mvp_callbacks": [
+        "nlmon_setup",
+        "nlmon_validate",
+        "nlmon_open",
+        "nlmon_close",
+        "nlmon_xmit"
+      ]
+    }
+  },
+  "artifact_type": "agent-workflow-plan",
+  "driver_object_path": "drivers/net/nlmon_rust.o",
+  "driver_rust_path": "drivers/net/nlmon_rust.rs",
+  "generation_scope": {
+    "abstraction_files": [
+      "rust/kernel/net/rtnl.rs",
+      "rust/kernel/net/netdevice.rs",
+      "rust/kernel/net/stats.rs",
+      "rust/kernel/net/skbuff.rs",
+      "rust/kernel/net/netlink_tap.rs"
+    ],
+    "allowed_driver_surfaces": [
+      "kernel::net::rtnl::{Registration, Driver, ValidateContext, LinkAttr}",
+      "kernel::net::netdevice::{Device, Operations, TxOutcome, device_type, flags, priv_flags, pcpu_stat_type, features, mtu}",
+      "kernel::net::skbuff::SkBuff",
+      "kernel::net::stats",
+      "kernel::ThisModule",
+      "&THIS_MODULE",
+      "kernel::net::netlink_tap::Tap"
+    ],
+    "deferred_callbacks": [
+      "nlmon_get_stats64",
+      "always_on"
+    ],
+    "driver_files": [
+      "drivers/net/nlmon_rust.rs"
+    ],
+    "forbidden_driver_calls": [
+      "bindings::rtnl_link_register",
+      "bindings::rtnl_link_unregister",
+      "bindings::netdev_priv",
+      "bindings::dev_kfree_skb",
+      "bindings::dev_lstats_add",
+      "bindings::netlink_add_tap",
+      "bindings::netlink_remove_tap"
+    ],
+    "managed_files": [
+      "drivers/net/nlmon_rust.rs",
+      "rust/kernel/net/rtnl.rs",
+      "rust/kernel/net/netdevice.rs",
+      "rust/kernel/net/stats.rs",
+      "rust/kernel/net/skbuff.rs",
+      "rust/kernel/net/netlink_tap.rs"
+    ],
+    "required_driver_crate_attributes": [
+      "#![forbid(unsafe_code)]"
+    ]
+  },
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/nlmon/abstraction-plan.json",
+    "safety_policy": "Documentation/rust/c2saferust/nlmon/safety-policy.json",
+    "soundness_discharge": "Documentation/rust/c2saferust/nlmon/soundness-discharge.json",
+    "translation_plan": "Documentation/rust/c2saferust/nlmon/translation-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "preflight": {
+    "blockers": [],
+    "ready_for_agent_codegen": true,
+    "required_reads": [
+      "Documentation/rust/c2saferust/nlmon/abstraction-plan.json",
+      "Documentation/rust/c2saferust/nlmon/translation-plan.json",
+      "Documentation/rust/c2saferust/nlmon/safety-policy.json",
+      "Documentation/rust/c2saferust/nlmon/soundness-discharge.json",
+      "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+    ]
+  },
+  "schema_version": 1
+}

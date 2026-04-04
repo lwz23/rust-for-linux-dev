@@ -1,0 +1,167 @@
+{
+  "abstraction_policy": {
+    "allowlisted_files": [
+      "rust/kernel/net/rtnl.rs",
+      "rust/kernel/net/netdevice.rs",
+      "rust/kernel/net/stats.rs",
+      "rust/kernel/net/skbuff.rs",
+      "rust/kernel/net/netlink_tap.rs"
+    ],
+    "required_soundness_rules": [
+      {
+        "file": "rust/kernel/net/rtnl.rs",
+        "id": "typed-link-attr-api",
+        "linked_obligation_ids": [
+          "validate-attribute-indexing"
+        ],
+        "must_contain": [
+          "pub struct LinkAttr",
+          "pub struct InfoAttr",
+          "pub fn has_link_attr(&self, attr: LinkAttr) -> bool",
+          "pub fn has_info_attr(&self, attr: InfoAttr) -> bool",
+          "const LINK_ATTR_TABLE_LEN: usize = bindings::__IFLA_MAX as usize;",
+          "const INFO_ATTR_TABLE_LEN: usize = bindings::__IFLA_INFO_MAX as usize;"
+        ],
+        "must_not_contain": [
+          "pub fn has_link_attr(&self, attr: usize)",
+          "pub fn has_data_attr(&self, attr: usize)"
+        ]
+      },
+      {
+        "file": "rust/kernel/net/rtnl.rs",
+        "id": "private-state-no-drop",
+        "linked_obligation_ids": [
+          "netdev-private-zero-init",
+          "netdev-private-layout"
+        ],
+        "must_contain": [
+          "build_assert!(!core::mem::needs_drop::<T::Private>())"
+        ],
+        "must_not_contain": []
+      },
+      {
+        "file": "rust/kernel/net/netdevice.rs",
+        "id": "shared-xmit-device-api",
+        "linked_obligation_ids": [
+          "callback-pointer-aliasing",
+          "skb-consumed-once"
+        ],
+        "must_contain": [
+          "fn start_xmit(skb: skbuff::SkBuff, dev: &Device) -> TxOutcome;",
+          "extern \"C\" fn start_xmit_callback(",
+          "let dev = unsafe { Device::from_raw_ref(dev) };",
+          "let skb = unsafe { skbuff::SkBuff::from_raw_owned(skb) };",
+          "pub(crate) fn as_ptr(&self) -> *mut bindings::net_device {",
+          "TxOutcome::Busy(skb) =>"
+        ],
+        "must_not_contain": [
+          "fn start_xmit(skb: skbuff::SkBuff, dev: &mut Device) -> TxOutcome;",
+          "pub fn as_ptr(&self) -> *mut bindings::net_device {"
+        ]
+      },
+      {
+        "file": "rust/kernel/net/skbuff.rs",
+        "id": "move-only-skb-api",
+        "linked_obligation_ids": [
+          "skb-consumed-once"
+        ],
+        "must_contain": [
+          "pub struct SkBuff",
+          "pub(crate) unsafe fn from_raw_owned",
+          "pub(crate) fn into_raw(mut self) -> *mut bindings::sk_buff",
+          "impl Drop for SkBuff"
+        ],
+        "must_not_contain": [
+          "impl Clone for SkBuff",
+          "impl Copy for SkBuff",
+          "#[derive(Clone",
+          "#[derive(Copy"
+        ]
+      },
+      {
+        "file": "rust/kernel/net/stats.rs",
+        "id": "shared-device-stats-api",
+        "linked_obligation_ids": [
+          "callback-pointer-aliasing"
+        ],
+        "must_contain": [
+          "pub fn dev_lstats_add(dev: &netdevice::Device, len: u32) {",
+          "bindings::dev_lstats_add"
+        ],
+        "must_not_contain": [
+          "pub fn dev_lstats_add(dev: &mut netdevice::Device, len: u32) {"
+        ]
+      },
+      {
+        "file": "rust/kernel/net/netlink_tap.rs",
+        "id": "pinned-netlink-tap-api",
+        "linked_obligation_ids": [
+          "tap-module-pointer-validity",
+          "tap-open-stop-balance"
+        ],
+        "must_contain": [
+          "pub fn add(self: Pin<&mut Self>",
+          "pub fn remove(self: Pin<&mut Self>) -> Result"
+        ],
+        "must_not_contain": [
+          "pub fn add(&mut self",
+          "pub fn remove(&mut self)"
+        ]
+      }
+    ],
+    "unsafe_trait_impls_are_proof_sites": true
+  },
+  "artifact_type": "safety-policy",
+  "driver_policy": {
+    "allowed_surfaces": [
+      "kernel::net::rtnl::{Registration, Driver, ValidateContext, LinkAttr}",
+      "kernel::net::netdevice::{Device, Operations, TxOutcome, device_type, flags, priv_flags, pcpu_stat_type, features, mtu}",
+      "kernel::net::skbuff::SkBuff",
+      "kernel::net::stats",
+      "kernel::ThisModule",
+      "&THIS_MODULE",
+      "kernel::net::netlink_tap::Tap"
+    ],
+    "forbidden_calls": [
+      "bindings::rtnl_link_register",
+      "bindings::rtnl_link_unregister",
+      "bindings::netdev_priv",
+      "bindings::dev_kfree_skb",
+      "bindings::dev_lstats_add",
+      "bindings::netlink_add_tap",
+      "bindings::netlink_remove_tap"
+    ],
+    "forbidden_tokens": [
+      "unsafe",
+      "bindings::",
+      "extern \"C\"",
+      "*mut ",
+      "*const "
+    ],
+    "required_crate_attributes": [
+      "#![forbid(unsafe_code)]"
+    ],
+    "zero_bindings": true,
+    "zero_extern_c": true,
+    "zero_unsafe": true
+  },
+  "driver_rust_path": "drivers/net/nlmon_rust.rs",
+  "inputs": {
+    "abstraction_plan": "Documentation/rust/c2saferust/nlmon/abstraction-plan.json",
+    "soundness_discharge": "Documentation/rust/c2saferust/nlmon/soundness-discharge.json",
+    "translation_plan": "Documentation/rust/c2saferust/nlmon/translation-plan.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "profile_family": "net-link-type",
+  "profile_id": "nlmon",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_link_type_rules.json",
+    "scripts/c2saferust/profiles/families/net_link_type.json",
+    "scripts/c2saferust/profiles/rule_packs/net_link_type_core_safety.json",
+    "scripts/c2saferust/profiles/modules/nlmon.json",
+    "scripts/c2saferust/profiles/rule_packs/nlmon_netlink_tap_safety.json"
+  ],
+  "schema_version": 1
+}

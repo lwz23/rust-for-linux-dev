@@ -1,0 +1,47 @@
+{
+  "artifact_type": "kbuild-plan",
+  "current_state": {
+    "current_kconfig_present": true,
+    "current_makefile_line": "obj-$(CONFIG_NLMON) += nlmon.o",
+    "current_rust_switch_present": true
+  },
+  "kconfig_path": "drivers/net/Kconfig",
+  "makefile_path": "drivers/net/Makefile",
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_dir": "drivers/net",
+  "module_id": "nlmon",
+  "next_action": "Kbuild switch already exists; keep downstream patch/translation artifacts aligned.",
+  "profile_family": "net-link-type",
+  "profile_id": "nlmon",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_link_type_rules.json",
+    "scripts/c2saferust/profiles/families/net_link_type.json",
+    "scripts/c2saferust/profiles/rule_packs/net_link_type_core_safety.json",
+    "scripts/c2saferust/profiles/modules/nlmon.json",
+    "scripts/c2saferust/profiles/rule_packs/nlmon_netlink_tap_safety.json"
+  ],
+  "reference_pattern": {
+    "kconfig_path": "drivers/net/phy/Kconfig",
+    "makefile_path": "drivers/net/phy/Makefile",
+    "rust_driver_path": "drivers/net/phy/ax88796b_rust.rs"
+  },
+  "schema_version": 1,
+  "source_config_symbol": "NLMON",
+  "suggested_kconfig_snippet": [
+    "config NLMON_RUST",
+    "\tbool \"Rust implementation of nlmon\"",
+    "\tdepends on RUST && NLMON",
+    "\thelp",
+    "\t  Builds the Rust implementation of nlmon (nlmon_rust.ko)",
+    "\t  instead of the original C implementation (nlmon.ko)."
+  ],
+  "suggested_makefile_snippet": [
+    "ifdef CONFIG_NLMON_RUST",
+    "  obj-$(CONFIG_NLMON) += nlmon_rust.o",
+    "else",
+    "  obj-$(CONFIG_NLMON) += nlmon.o",
+    "endif"
+  ],
+  "suggested_rust_config_symbol": "NLMON_RUST",
+  "suggested_rust_object": "nlmon_rust.o"
+}

@@ -1,0 +1,25 @@
+{
+  "artifact_type": "helpers-patch-plan",
+  "helper_dir": "rust/helpers",
+  "inputs": {
+    "helper_audit": "Documentation/rust/c2saferust/nlmon/helper-audit.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "no_makefile_change_required": true,
+  "patch_required": false,
+  "patch_units": [],
+  "profile_family": "net-link-type",
+  "profile_id": "nlmon",
+  "profile_sources": [
+    "scripts/c2saferust/profiles/templates/net_link_type_rules.json",
+    "scripts/c2saferust/profiles/families/net_link_type.json",
+    "scripts/c2saferust/profiles/rule_packs/net_link_type_core_safety.json",
+    "scripts/c2saferust/profiles/modules/nlmon.json",
+    "scripts/c2saferust/profiles/rule_packs/nlmon_netlink_tap_safety.json"
+  ],
+  "schema_version": 1,
+  "status": "already_applied",
+  "validation_checks": [],
+  "wrapper_specs": []
+}

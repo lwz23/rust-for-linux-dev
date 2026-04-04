@@ -1,0 +1,278 @@
+{
+  "artifact_type": "soundness-discharge",
+  "driver_rules": [
+    {
+      "id": "driver-zero-unsafe",
+      "must_not_contain": [
+        "unsafe"
+      ],
+      "status": "discharged"
+    },
+    {
+      "id": "driver-zero-bindings",
+      "must_not_contain": [
+        "bindings::"
+      ],
+      "status": "discharged"
+    },
+    {
+      "id": "driver-zero-ffi",
+      "must_not_contain": [
+        "extern \"C\""
+      ],
+      "status": "discharged"
+    }
+  ],
+  "driver_rust_path": "drivers/net/nlmon_rust.rs",
+  "inputs": {
+    "safety_policy": "Documentation/rust/c2saferust/nlmon/safety-policy.json",
+    "unsafe_obligations": "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+  },
+  "module_c_path": "drivers/net/nlmon.c",
+  "module_id": "nlmon",
+  "proof_sites": [
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/stats.rs",
+      "id": "proof-site-1",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 16,
+      "linked_obligation_ids": [
+        "callback-pointer-aliasing"
+      ],
+      "proof_argument": "Keep all pointer-to-reference conversion inside callback trampolines in the abstraction layer.",
+      "safe_api_surface": "stats",
+      "source_excerpt": "unsafe { bindings::dev_lstats_add(dev.as_ptr(), len) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/skbuff.rs",
+      "id": "proof-site-2",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 29,
+      "linked_obligation_ids": [
+        "skb-consumed-once"
+      ],
+      "proof_argument": "Model packets as move-only `skbuff::SkBuff`; `TxOutcome::Ok` consumes via drop and `TxOutcome::Busy(skb)` returns ownership to the core explicitly.",
+      "safe_api_surface": "skbuff",
+      "source_excerpt": "pub(crate) unsafe fn from_raw_owned(ptr: *mut bindings::sk_buff) -> Self {",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-fn"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/skbuff.rs",
+      "id": "proof-site-3",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 32,
+      "linked_obligation_ids": [
+        "skb-consumed-once"
+      ],
+      "proof_argument": "Model packets as move-only `skbuff::SkBuff`; `TxOutcome::Ok` consumes via drop and `TxOutcome::Busy(skb)` returns ownership to the core explicitly.",
+      "safe_api_surface": "skbuff",
+      "source_excerpt": "ptr: Some(unsafe { NonNull::new_unchecked(ptr) }),",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/skbuff.rs",
+      "id": "proof-site-4",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 45,
+      "linked_obligation_ids": [
+        "skb-consumed-once"
+      ],
+      "proof_argument": "Model packets as move-only `skbuff::SkBuff`; `TxOutcome::Ok` consumes via drop and `TxOutcome::Busy(skb)` returns ownership to the core explicitly.",
+      "safe_api_surface": "skbuff",
+      "source_excerpt": "unsafe { (*self.ptr()).len }",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    },
+    {
+      "caller_obligations": [
+        "Keep the raw pointer/reference conversion inside the abstraction boundary."
+      ],
+      "evidence_refs": [
+        "Documentation/rust/c2saferust/nlmon/unsafe-obligations.json"
+      ],
+      "file": "rust/kernel/net/skbuff.rs",
+      "id": "proof-site-5",
+      "kernel_preconditions": [
+        "The kernel callback or registration path upholds the pointed-to object lifetime."
+      ],
+      "line": 65,
+      "linked_obligation_ids": [
+        "skb-consumed-once"
+      ],
+      "proof_argument": "Model packets as move-only `skbuff::SkBuff`; `TxOutcome::Ok` consumes via drop and `TxOutcome::Busy(skb)` returns ownership to the core explicitly.",
+      "safe_api_surface": "skbuff",
+      "source_excerpt": "unsafe { bindings::dev_kfree_skb(ptr.as_ptr()) };",
+      "status": "discharged",
+      "unsafe_kind": "unsafe-block"
+    }
+  ],
+  "schema_version": 1,
+  "structural_rules": [
+    {
+      "file": "rust/kernel/net/rtnl.rs",
+      "id": "typed-link-attr-api",
+      "linked_obligation_ids": [
+        "validate-attribute-indexing"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub struct LinkAttr",
+        "pub struct InfoAttr",
+        "pub fn has_link_attr(&self, attr: LinkAttr) -> bool",
+        "pub fn has_info_attr(&self, attr: InfoAttr) -> bool",
+        "const LINK_ATTR_TABLE_LEN: usize = bindings::__IFLA_MAX as usize;",
+        "const INFO_ATTR_TABLE_LEN: usize = bindings::__IFLA_INFO_MAX as usize;"
+      ],
+      "must_not_contain": [
+        "pub fn has_link_attr(&self, attr: usize)",
+        "pub fn has_data_attr(&self, attr: usize)"
+      ],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/rtnl.rs",
+      "id": "private-state-no-drop",
+      "linked_obligation_ids": [
+        "netdev-private-zero-init",
+        "netdev-private-layout"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "build_assert!(!core::mem::needs_drop::<T::Private>())"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/netdevice.rs",
+      "id": "shared-xmit-device-api",
+      "linked_obligation_ids": [
+        "callback-pointer-aliasing",
+        "skb-consumed-once"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "fn start_xmit(skb: skbuff::SkBuff, dev: &Device) -> TxOutcome;",
+        "extern \"C\" fn start_xmit_callback(",
+        "let dev = unsafe { Device::from_raw_ref(dev) };",
+        "let skb = unsafe { skbuff::SkBuff::from_raw_owned(skb) };",
+        "pub(crate) fn as_ptr(&self) -> *mut bindings::net_device {",
+        "TxOutcome::Busy(skb) =>"
+      ],
+      "must_not_contain": [
+        "fn start_xmit(skb: skbuff::SkBuff, dev: &mut Device) -> TxOutcome;",
+        "pub fn as_ptr(&self) -> *mut bindings::net_device {"
+      ],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/skbuff.rs",
+      "id": "move-only-skb-api",
+      "linked_obligation_ids": [
+        "skb-consumed-once"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub struct SkBuff",
+        "pub(crate) unsafe fn from_raw_owned",
+        "pub(crate) fn into_raw(mut self) -> *mut bindings::sk_buff",
+        "impl Drop for SkBuff"
+      ],
+      "must_not_contain": [
+        "impl Clone for SkBuff",
+        "impl Copy for SkBuff",
+        "#[derive(Clone",
+        "#[derive(Copy"
+      ],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/stats.rs",
+      "id": "shared-device-stats-api",
+      "linked_obligation_ids": [
+        "callback-pointer-aliasing"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub fn dev_lstats_add(dev: &netdevice::Device, len: u32) {",
+        "bindings::dev_lstats_add"
+      ],
+      "must_not_contain": [
+        "pub fn dev_lstats_add(dev: &mut netdevice::Device, len: u32) {"
+      ],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "rust/kernel/net/netlink_tap.rs",
+      "id": "pinned-netlink-tap-api",
+      "linked_obligation_ids": [
+        "tap-module-pointer-validity",
+        "tap-open-stop-balance"
+      ],
+      "missing_patterns": [],
+      "must_contain": [
+        "pub fn add(self: Pin<&mut Self>",
+        "pub fn remove(self: Pin<&mut Self>) -> Result"
+      ],
+      "must_not_contain": [
+        "pub fn add(&mut self",
+        "pub fn remove(&mut self)"
+      ],
+      "status": "discharged",
+      "unexpected_patterns": []
+    },
+    {
+      "file": "drivers/net/nlmon_rust.rs",
+      "id": "driver-forbid-unsafe-code-attr",
+      "linked_obligation_ids": [],
+      "missing_patterns": [],
+      "must_contain": [
+        "#![forbid(unsafe_code)]"
+      ],
+      "must_not_contain": [],
+      "status": "discharged",
+      "unexpected_patterns": []
+    }
+  ]
+}
