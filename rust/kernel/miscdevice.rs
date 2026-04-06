@@ -9,7 +9,8 @@
 //! Reference: <https://www.kernel.org/doc/html/latest/driver-api/misc_devices.html>
 
 use crate::{
-    bindings,
+    alloc::KBox,
+    bindings, container_of,
     device::Device,
     error::{to_result, Error, Result, VTABLE_DEFAULT_ERROR},
     ffi::{c_int, c_long, c_uint, c_ulong},
@@ -20,7 +21,12 @@ use crate::{
     seq_file::SeqFile,
     types::{ForeignOwnable, Opaque},
 };
-use core::{marker::PhantomData, pin::Pin};
+use core::{
+    marker::{PhantomData, PhantomPinned},
+    pin::Pin,
+    ptr::drop_in_place,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 /// Options for creating a misc device.
 #[derive(Copy, Clone)]
@@ -40,54 +46,133 @@ impl MiscDeviceOptions {
     }
 }
 
+#[repr(C)]
+struct RegistrationBacking<T: MiscDevice> {
+    misc: Opaque<bindings::miscdevice>,
+    data: T::RegistrationData,
+    owner: *const MiscDeviceRegistration<T>,
+    registered: AtomicBool,
+}
+
 /// A registration of a miscdevice.
 ///
 /// # Invariants
 ///
-/// - `inner` contains a `struct miscdevice` that is registered using
-///   `misc_register()`.
-/// - This registration remains valid for the entire lifetime of the
-///   [`MiscDeviceRegistration`] instance.
-/// - Deregistration occurs exactly once in [`Drop`] via `misc_deregister()`.
-/// - `inner` wraps a valid, pinned `miscdevice` created using
+/// - `backing.misc` contains a valid `struct miscdevice` created using
 ///   [`MiscDeviceOptions::into_raw`].
-#[repr(transparent)]
+/// - When `backing.registered` is `true`, `backing.misc` is registered using
+///   `misc_register()`.
+/// - `backing.owner` points back to this wrapper for the entire time the miscdevice is registered.
+/// - Deregistration occurs at most once, either via [`MiscDeviceRegistration::deregister`] or
+///   [`Drop`].
 #[pin_data(PinnedDrop)]
-pub struct MiscDeviceRegistration<T> {
+pub struct MiscDeviceRegistration<T: MiscDevice> {
+    backing: KBox<RegistrationBacking<T>>,
     #[pin]
-    inner: Opaque<bindings::miscdevice>,
+    _pin: PhantomPinned,
     _t: PhantomData<T>,
 }
 
 // SAFETY: It is allowed to call `misc_deregister` on a different thread from where you called
 // `misc_register`.
-unsafe impl<T> Send for MiscDeviceRegistration<T> {}
+unsafe impl<T: MiscDevice> Send for MiscDeviceRegistration<T> {}
 // SAFETY: All `&self` methods on this type are written to ensure that it is safe to call them in
 // parallel.
-unsafe impl<T> Sync for MiscDeviceRegistration<T> {}
+unsafe impl<T: MiscDevice> Sync for MiscDeviceRegistration<T> {}
 
 impl<T: MiscDevice> MiscDeviceRegistration<T> {
     /// Register a misc device.
-    pub fn register(opts: MiscDeviceOptions) -> impl PinInit<Self, Error> {
-        try_pin_init!(Self {
-            inner <- Opaque::try_ffi_init(move |slot: *mut bindings::miscdevice| {
-                // SAFETY: The initializer can write to the provided `slot`.
-                unsafe { slot.write(opts.into_raw::<T>()) };
+    pub fn register(opts: MiscDeviceOptions) -> impl PinInit<Self, Error>
+    where
+        T: MiscDevice<RegistrationData = ()>,
+    {
+        Self::register_with_data(opts, ())
+    }
 
-                // SAFETY: We just wrote the misc device options to the slot. The miscdevice will
-                // get unregistered before `slot` is deallocated because the memory is pinned and
-                // the destructor of this type deallocates the memory.
-                // INVARIANT: If this returns `Ok(())`, then the `slot` will contain a registered
-                // misc device.
-                to_result(unsafe { bindings::misc_register(slot) })
-            }),
-            _t: PhantomData,
-        })
+    /// Register a misc device together with driver-defined registration data.
+    pub fn register_with_data(
+        opts: MiscDeviceOptions,
+        data: T::RegistrationData,
+    ) -> impl PinInit<Self, Error> {
+        let init = move |slot: *mut Self| {
+            let backing = KBox::new(
+                RegistrationBacking {
+                    misc: Opaque::new(opts.into_raw::<T>()),
+                    data,
+                    owner: slot.cast_const(),
+                    registered: AtomicBool::new(false),
+                },
+                GFP_KERNEL,
+            )?;
+
+            // SAFETY: `slot` is valid for writes for the duration of this initializer.
+            unsafe {
+                slot.write(Self {
+                    backing,
+                    _pin: PhantomPinned,
+                    _t: PhantomData,
+                })
+            };
+
+            // SAFETY: `slot` points to the fully-initialized registration wrapper we just wrote
+            // above.
+            let this = unsafe { &*slot };
+            // SAFETY: `this.as_raw()` points at the fully initialized `struct miscdevice`
+            // contained in the heap-backed registration backing.
+            let ret = to_result(unsafe { bindings::misc_register(this.as_raw()) });
+            if let Err(err) = ret {
+                // SAFETY: The wrapper was fully initialized above, so dropping it here correctly
+                // releases the heap-backed registration backing.
+                unsafe { drop_in_place(slot) };
+                return Err(err);
+            }
+
+            this.backing.registered.store(true, Ordering::Release);
+            Ok(())
+        };
+
+        // SAFETY:
+        // - On success, the closure writes a fully-initialized `Self` into `slot` before making
+        //   the miscdevice visible via `misc_register()`.
+        // - On failure after the write, it drops the initialized value before returning.
+        unsafe { pin_init::pin_init_from_closure(init) }
+    }
+
+    /// Returns the registration wrapper for a raw `struct miscdevice` pointer.
+    ///
+    /// # Safety
+    ///
+    /// `misc` must point at the `misc` field of a live [`RegistrationBacking<T>`].
+    unsafe fn from_raw_misc<'a>(misc: *mut bindings::miscdevice) -> &'a Self {
+        // SAFETY: The caller guarantees that `misc` points at the `misc` field of a live
+        // `RegistrationBacking<T>`, whose `owner` points back to the live registration wrapper.
+        let backing =
+            unsafe { &*container_of!(Opaque::cast_from(misc), RegistrationBacking<T>, misc) };
+        // SAFETY: By the type invariant, `owner` points at the live wrapper that owns `backing`.
+        unsafe { &*backing.owner }
     }
 
     /// Returns a raw pointer to the misc device.
     pub fn as_raw(&self) -> *mut bindings::miscdevice {
-        self.inner.get()
+        self.backing.misc.get()
+    }
+
+    /// Returns the registration data that was supplied at registration time.
+    pub fn data(&self) -> &T::RegistrationData {
+        &self.backing.data
+    }
+
+    fn deregister_inner(backing: &RegistrationBacking<T>) {
+        if backing.registered.swap(false, Ordering::AcqRel) {
+            // SAFETY: `registered == true` guarantees that the miscdevice was successfully
+            // registered and has not been deregistered yet.
+            unsafe { bindings::misc_deregister(backing.misc.get()) };
+        }
+    }
+
+    /// Deregister this misc device if it is still registered.
+    pub fn deregister(&self) {
+        Self::deregister_inner(&self.backing);
     }
 
     /// Access the `this_device` field.
@@ -102,10 +187,10 @@ impl<T: MiscDevice> MiscDeviceRegistration<T> {
 }
 
 #[pinned_drop]
-impl<T> PinnedDrop for MiscDeviceRegistration<T> {
+impl<T: MiscDevice> PinnedDrop for MiscDeviceRegistration<T> {
     fn drop(self: Pin<&mut Self>) {
-        // SAFETY: We know that the device is registered by the type invariants.
-        unsafe { bindings::misc_deregister(self.inner.get()) };
+        let this = self.project();
+        Self::deregister_inner(this.backing);
     }
 }
 
@@ -114,6 +199,9 @@ impl<T> PinnedDrop for MiscDeviceRegistration<T> {
 pub trait MiscDevice: Sized {
     /// What kind of pointer should `Self` be wrapped in.
     type Ptr: ForeignOwnable + Send + Sync;
+
+    /// Driver-defined data stored in the miscdevice registration.
+    type RegistrationData: Send + Sync + 'static;
 
     /// Called when the misc device is opened.
     ///
@@ -214,7 +302,7 @@ impl<T: MiscDevice> MiscdeviceVTable<T> {
         // associated `struct miscdevice` before calling into this method. Furthermore,
         // `misc_open()` ensures that the miscdevice can't be unregistered and freed during this
         // call to `fops_open`.
-        let misc = unsafe { &*misc_ptr.cast::<MiscDeviceRegistration<T>>() };
+        let misc = unsafe { MiscDeviceRegistration::<T>::from_raw_misc(misc_ptr.cast()) };
 
         // SAFETY:
         // * This underlying file is valid for (much longer than) the duration of `T::open`.
