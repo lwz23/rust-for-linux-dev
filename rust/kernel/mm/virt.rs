@@ -16,7 +16,11 @@
 
 use crate::{
     bindings,
-    error::{code::EINVAL, to_result, Result},
+    error::{
+        code::{EINVAL, EOVERFLOW},
+        to_result, Result,
+    },
+    io::PhysAddr,
     mm::MmWithUser,
     page::Page,
     types::Opaque,
@@ -90,6 +94,14 @@ impl VmaRef {
         // SAFETY: By the type invariants, the caller holds at least the mmap read lock, so this
         // access is not a data race.
         unsafe { (*self.as_ptr()).__bindgen_anon_1.__bindgen_anon_1.vm_end }
+    }
+
+    /// Returns the page-offset within the backing physical range for this VMA.
+    #[inline]
+    pub fn pgoff(&self) -> usize {
+        // SAFETY: By the type invariants, the caller holds at least the mmap read lock, so this
+        // access is not a data race.
+        unsafe { (*self.as_ptr()).vm_pgoff }
     }
 
     /// Zap pages in the given page range.
@@ -305,6 +317,25 @@ impl VmaNew {
     pub fn set_dontdump(&self) {
         // SAFETY: Setting the VM_DONTDUMP flag is always okay.
         unsafe { self.update_flags(flags::DONTDUMP, 0) };
+    }
+
+    /// Map a physical I/O range into this VMA using the kernel's common PFN-remap helper.
+    ///
+    /// This wraps `vm_iomap_memory()`, which validates the requested range against the current
+    /// VMA, derives the PFN offset from `vm_pgoff`, and installs the remap-specific VMA flags in
+    /// the same way as the C helper.
+    #[inline]
+    pub fn iomap_memory(&self, start: PhysAddr, len: usize) -> Result {
+        if len == 0 {
+            return Err(EINVAL);
+        }
+
+        let len = len.try_into().map_err(|_| EOVERFLOW)?;
+
+        // SAFETY: `self` is a VMA under initialization in an `mmap` callback. The helper performs
+        // the remaining range and flag validation against the current VMA before installing the
+        // mapping.
+        to_result(unsafe { bindings::vm_iomap_memory(self.as_ptr(), start, len) })
     }
 
     /// Returns whether `VM_READ` is set.
