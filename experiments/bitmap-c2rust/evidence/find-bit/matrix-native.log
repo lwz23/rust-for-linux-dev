@@ -1,0 +1,107 @@
+Core dump limits :
+	soft - 0
+	hard - NONE
+Checking environment variables for a tempdir...none found
+Checking if /dev/shm is on tmpfs...OK
+Checking PROT_EXEC mmap in /dev/shm...OK
+Checking that ptrace can change system call numbers...OK
+Checking syscall emulation for ptrace...OK
+Linux version 7.3.0-rc5-g8b1872169d7f-dirty (zjp@zjp) (Ubuntu clang version 21.1.8 (6ubuntu1), Ubuntu LLD 21.1.8) #7 SMP Thu Oct 22 01:02:10 CST 2026
+random: crng init done
+Zone ranges:
+  Normal   [mem 0x0000000000000000-0x000000009fffffff]
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000000000000-0x000000003fffffff]
+Initmem setup node 0 [mem 0x0000000000000000-0x000000003fffffff]
+percpu: Embedded 12 pages/cpu s19232 r0 d29920 u49152
+Kernel command line: kunit.filter_glob=rust_kernel_bitmap.bitmap_find_next_matrix kunit.enable=1 console=tty kunit_shutdown=halt root=98:0
+printk: log buffer data + meta data: 131072 + 458752 = 589824 bytes
+Dentry cache hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+Inode-cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+Sorting __ex_table...
+Built 1 zonelists, mobility grouping on.  Total pages: 262144
+mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU restricting CPUs from NR_CPUS=2 to nr_cpu_ids=1.
+rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=1
+NR_IRQS: 128, nr_irqs: 128, preallocated irqs: 128
+rcu: srcu_init: Setting srcu_struct sizes based on contention.
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
+Calibrating delay loop... 8735.94 BogoMIPS (lpj=43679744)
+Checking that host ptys support output SIGIO...Yes
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 2048 (order: 2, 16384 bytes, linear)
+Mountpoint-cache hash table entries: 2048 (order: 2, 16384 bytes, linear)
+VFS: Finished mounting rootfs on nullfs
+rcu: Hierarchical SRCU implementation.
+rcu: 	Max phase no-delay instances is 1000.
+smp: Bringing up secondary CPUs ...
+smp: Brought up 1 node, 1 CPU
+Memory: 1022064K/1048576K available (4598K kernel code, 1585K rwdata, 1268K rodata, 200K init, 0K bss, 24024K reserved, 0K cma-reserved)
+posixtimers hash table entries: 512 (order: 1, 8192 bytes, linear)
+futex hash table entries: 256 (16384 bytes on 1 NUMA nodes, total 16 KiB, linear).
+vgaarb: loaded
+clocksource: Switched to clocksource timer
+PCI: CLS 0 bytes, default 64
+printk: legacy console [stderr0] disabled
+Checking host MADV_REMOVE support...OK
+mconsole (version 2) initialized on /home/zjp/.uml/eZgSff/mconsole
+PCI host bridge to bus 0000:00
+pci_bus 0000:00: root bus resource [mem 0xf0000000-0xffffffff]
+pci_bus 0000:00: root bus resource [bus 00]
+pci_bus 0000:00: resource 4 [mem 0xf0000000-0xffffffff]
+workingset: timestamp_bits=62 (anon: 57) max_order=18 bucket_order=0 (anon: 0)
+io scheduler mq-deadline registered
+io scheduler kyber registered
+Initialized stdio console driver
+Using a channel type which is configured out of UML
+setup_one_line failed for device 1 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 2 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 3 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 4 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 5 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 6 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 7 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 8 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 9 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 10 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 11 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 12 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 13 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 14 : failed to parse channel pair
+Using a channel type which is configured out of UML
+setup_one_line failed for device 15 : failed to parse channel pair
+Console initialized on /dev/tty0
+printk: legacy console [tty0] enabled
+printk: legacy console [mc-1] enabled
+KTAP version 1
+1..1
+    KTAP version 1
+    # Subtest: rust_kernel_bitmap
+    # speed: normal
+    1..1
+rust_kernel: MATRIX calls=1456 sum=15541043489725629168 unchanged=1
+    # bitmap_find_next_matrix: ASSERTION FAILED at rust/kernel/bitmap.rs:893
+    Expected calls == EXPECTED_CALLS to be true, but is false
+    # bitmap_find_next_matrix.speed: normal
+    not ok 1 bitmap_find_next_matrix
+not ok 1 rust_kernel_bitmap
+reboot: System halted
+

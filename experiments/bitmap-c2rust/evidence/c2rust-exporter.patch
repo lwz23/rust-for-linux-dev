@@ -1,0 +1,103 @@
+diff --git a/c2rust-ast-exporter/src/AstExporter.cpp b/c2rust-ast-exporter/src/AstExporter.cpp
+index a81634c..0fbc3b2 100644
+--- a/c2rust-ast-exporter/src/AstExporter.cpp
++++ b/c2rust-ast-exporter/src/AstExporter.cpp
+@@ -20,6 +20,7 @@
+ #include "clang/AST/DeclVisitor.h"
+ #include "clang/AST/RecordLayout.h"
+ #include "clang/AST/RecursiveASTVisitor.h"
++#include "clang/AST/ExprCXX.h"
+ #include "clang/AST/StmtVisitor.h"
+ #include "clang/AST/TypeVisitor.h"
+ #include "clang/Basic/Builtins.h"
+@@ -673,6 +674,57 @@ private:
+ 
+         VisitQualType(t);
+     }
++
++    // Export Clang types that are only sugar or attributes as ParenType.
++    // The type-table key must be this type object; the inner type is what
++    // the translator uses.
++    void encodeTransparentSugar(const clang::Type *T, QualType inner) {
++        if (inner.isNull() || inner.getTypePtr() == T)
++            inner = Context->IntTy;
++        auto qt = encodeQualType(inner);
++        encodeType(T, TagParenType,
++                   [qt](CborEncoder *local) { cbor_encode_uint(local, qt); });
++        VisitQualType(inner);
++    }
++
++    void VisitAutoType(const AutoType *T) {
++        encodeTransparentSugar(T, T->getDeducedType());
++    }
++
++    void VisitCountAttributedType(const CountAttributedType *T) {
++        encodeTransparentSugar(T, T->desugar());
++    }
++
++    void VisitBTFTagAttributedType(const BTFTagAttributedType *T) {
++        encodeTransparentSugar(T, T->desugar());
++    }
++
++    void VisitMacroQualifiedType(const MacroQualifiedType *T) {
++        encodeTransparentSugar(T, T->desugar());
++    }
++
++    void VisitBitIntType(const BitIntType *T) {
++        QualType inner;
++        unsigned bits = T->getNumBits();
++        if (bits <= 8)
++            inner = T->isUnsigned() ? Context->UnsignedCharTy : Context->SignedCharTy;
++        else if (bits <= 16)
++            inner = T->isUnsigned() ? Context->UnsignedShortTy : Context->ShortTy;
++        else if (bits <= 32)
++            inner = T->isUnsigned() ? Context->UnsignedIntTy : Context->IntTy;
++        else
++            inner = T->isUnsigned() ? Context->UnsignedLongLongTy : Context->LongLongTy;
++        encodeTransparentSugar(T, inner);
++    }
++
++    void VisitArrayParameterType(const ArrayParameterType *T) {
++        VisitConstantArrayType(T);
++    }
++
++    void VisitExtVectorType(const ExtVectorType *T) {
++        VisitVectorType(T);
++    }
++
+ };
+ 
+ class TranslateASTVisitor final
+@@ -2470,6 +2522,23 @@ class TranslateASTVisitor final
+     // Literals
+     //
+ 
++
++    bool VisitTypeTraitExpr(TypeTraitExpr *E) {
++        if (E->isValueDependent() || !E->isStoredAsBoolean()) {
++            printDiag(Context, DiagnosticsEngine::Warning,
++                      "Encountered unsupported type trait expression", E);
++            return true;
++        }
++        unsigned value = E->getBoolValue() ? 1U : 0U;
++        std::vector<void *> childIds;
++        encode_entry(E, TagIntegerLiteral, childIds,
++                     [value](CborEncoder *array) {
++                         cbor_encode_uint(array, value);
++                         cbor_encode_uint(array, 10);
++                     });
++        return true;
++    }
++
+     bool VisitIntegerLiteral(IntegerLiteral *IL) {
+ 
+         auto &sourceManager = Context->getSourceManager();
+@@ -2751,7 +2820,7 @@ class TranslateConsumer : public clang::ASTConsumer {
+                 }
+ 
+                 // Empty-decls aren't exported. This avoids warnings during conversion.
+-                if (isa<EmptyDecl>(d)) {
++                if (isa<EmptyDecl>(d) || isa<FileScopeAsmDecl>(d)) {
+                     continue;
+                 }
+ 

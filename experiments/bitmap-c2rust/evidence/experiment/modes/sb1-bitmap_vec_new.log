@@ -1,0 +1,325 @@
+warning: unused extern crate
+  --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/kernel/bitmap.rs:17:1
+   |
+17 | extern crate c2rust_find_bit;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unused
+   |
+   = note: `-W unused-extern-crates` implied by `-W rust-2018-idioms`
+   = help: to override `-W rust-2018-idioms` add `#[allow(unused_extern_crates)]`
+help: remove the unused `extern crate`
+   |
+16 - #[cfg(miri)]
+17 - extern crate c2rust_find_bit;
+   |
+
+warning: unused extern crate
+  --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/kernel/bitmap.rs:19:1
+   |
+19 | extern crate c2rust_bitmap_helpers;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unused
+   |
+help: remove the unused `extern crate`
+   |
+18 - #[cfg(miri)]
+19 - extern crate c2rust_bitmap_helpers;
+   |
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2047:5
+     |
+2047 | /     __UNIQUE_ID_addressable__find_first_bit_45 = ::core::mem::transmute::<
+2048 | |         Option<
+2049 | |             unsafe extern "C" fn(
+2050 | |                 *const ::core::ffi::c_ulong,
+...    |
+2060 | |             ) -> ::core::ffi::c_ulong,
+2061 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+     = help: this program is using integer-to-pointer casts or (equivalently) `ptr::with_exposed_provenance`, which means that Miri might miss pointer bugs in this program
+     = help: see https://doc.rust-lang.org/nightly/std/ptr/fn.with_exposed_provenance.html for more details on that operation
+     = help: to ensure that Miri does not miss bugs in your program, use Strict Provenance APIs (https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance, https://crates.io/crates/sptr) instead
+     = help: you can then set `MIRIFLAGS=-Zmiri-strict-provenance` to ensure you are not relying on `with_exposed_provenance` semantics
+     = help: alternatively, `MIRIFLAGS=-Zmiri-permissive-provenance` disables this warning
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2062:5
+     |
+2062 | /     __UNIQUE_ID_addressable__find_first_and_bit_49 = ::core::mem::transmute::<
+2063 | |         Option<
+2064 | |             unsafe extern "C" fn(
+2065 | |                 *const ::core::ffi::c_ulong,
+...    |
+2077 | |             ) -> ::core::ffi::c_ulong,
+2078 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2079:5
+     |
+2079 | /     __UNIQUE_ID_addressable__find_first_andnot_bit_53 = ::core::mem::transmute::<
+2080 | |         Option<
+2081 | |             unsafe extern "C" fn(
+2082 | |                 *const ::core::ffi::c_ulong,
+...    |
+2094 | |             ) -> ::core::ffi::c_ulong,
+2095 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2096:5
+     |
+2096 | /     __UNIQUE_ID_addressable__find_first_and_and_bit_57 = ::core::mem::transmute::<
+2097 | |         Option<
+2098 | |             unsafe extern "C" fn(
+2099 | |                 *const ::core::ffi::c_ulong,
+...    |
+2113 | |             ) -> ::core::ffi::c_ulong,
+2114 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2115:5
+     |
+2115 | /     __UNIQUE_ID_addressable__find_first_zero_bit_61 = ::core::mem::transmute::<
+2116 | |         Option<
+2117 | |             unsafe extern "C" fn(
+2118 | |                 *const ::core::ffi::c_ulong,
+...    |
+2128 | |             ) -> ::core::ffi::c_ulong,
+2129 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2130:5
+     |
+2130 | /     __UNIQUE_ID_addressable__find_next_bit_65 = ::core::mem::transmute::<
+2131 | |         Option<
+2132 | |             unsafe extern "C" fn(
+2133 | |                 *const ::core::ffi::c_ulong,
+...    |
+2145 | |             ) -> ::core::ffi::c_ulong,
+2146 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2147:5
+     |
+2147 | /     __UNIQUE_ID_addressable___find_nth_bit_66 = ::core::mem::transmute::<
+2148 | |         Option<
+2149 | |             unsafe extern "C" fn(
+2150 | |                 *const ::core::ffi::c_ulong,
+...    |
+2162 | |             ) -> ::core::ffi::c_ulong,
+2163 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2164:5
+     |
+2164 | /     __UNIQUE_ID_addressable___find_nth_and_bit_67 = ::core::mem::transmute::<
+2165 | |         Option<
+2166 | |             unsafe extern "C" fn(
+2167 | |                 *const ::core::ffi::c_ulong,
+...    |
+2181 | |             ) -> ::core::ffi::c_ulong,
+2182 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2183:5
+     |
+2183 | /     __UNIQUE_ID_addressable___find_nth_and_andnot_bit_68 = ::core::mem::transmute::<
+2184 | |         Option<
+2185 | |             unsafe extern "C" fn(
+2186 | |                 *const ::core::ffi::c_ulong,
+...    |
+2202 | |             ) -> ::core::ffi::c_ulong,
+2203 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2204:5
+     |
+2204 | /     __UNIQUE_ID_addressable__find_next_and_bit_72 = ::core::mem::transmute::<
+2205 | |         Option<
+2206 | |             unsafe extern "C" fn(
+2207 | |                 *const ::core::ffi::c_ulong,
+...    |
+2221 | |             ) -> ::core::ffi::c_ulong,
+2222 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2223:5
+     |
+2223 | /     __UNIQUE_ID_addressable__find_next_andnot_bit_76 = ::core::mem::transmute::<
+2224 | |         Option<
+2225 | |             unsafe extern "C" fn(
+2226 | |                 *const ::core::ffi::c_ulong,
+...    |
+2240 | |             ) -> ::core::ffi::c_ulong,
+2241 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2242:5
+     |
+2242 | /     __UNIQUE_ID_addressable__find_next_or_bit_80 = ::core::mem::transmute::<
+2243 | |         Option<
+2244 | |             unsafe extern "C" fn(
+2245 | |                 *const ::core::ffi::c_ulong,
+...    |
+2259 | |             ) -> ::core::ffi::c_ulong,
+2260 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2261:5
+     |
+2261 | /     __UNIQUE_ID_addressable__find_next_zero_bit_84 = ::core::mem::transmute::<
+2262 | |         Option<
+2263 | |             unsafe extern "C" fn(
+2264 | |                 *const ::core::ffi::c_ulong,
+...    |
+2276 | |             ) -> ::core::ffi::c_ulong,
+2277 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2278:5
+     |
+2278 | /     __UNIQUE_ID_addressable__find_last_bit_85 = ::core::mem::transmute::<
+2279 | |         Option<
+2280 | |             unsafe extern "C" fn(
+2281 | |                 *const ::core::ffi::c_ulong,
+...    |
+2291 | |             ) -> ::core::ffi::c_ulong,
+2292 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2293:5
+     |
+2293 | /     __UNIQUE_ID_addressable_find_next_clump8_86 = ::core::mem::transmute::<
+2294 | |         Option<
+2295 | |             unsafe extern "C" fn(
+2296 | |                 *mut ::core::ffi::c_ulong,
+...    |
+2310 | |             ) -> ::core::ffi::c_ulong,
+2311 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: integer-to-pointer cast
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2312:5
+     |
+2312 | /     __UNIQUE_ID_addressable_find_random_bit_87 = ::core::mem::transmute::<
+2313 | |         Option<
+2314 | |             unsafe extern "C" fn(
+2315 | |                 *const ::core::ffi::c_ulong,
+...    |
+2325 | |             ) -> ::core::ffi::c_ulong,
+2326 | |     )) as *mut ::core::ffi::c_void;
+     | |__________________________________^ integer-to-pointer cast
+     |
+note: the current function got called indirectly due to this code
+    --> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs:2332:1
+     |
+2332 | static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+running 1 test
+test bitmap::tests::bitmap_vec_new ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.14s
+

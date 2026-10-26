@@ -14,6 +14,10 @@ use crate::pr_err;
 #[cfg(miri)]
 extern crate alloc as rust_alloc;
 #[cfg(miri)]
+extern crate c2rust_find_bit;
+#[cfg(miri)]
+extern crate c2rust_bitmap_helpers;
+#[cfg(miri)]
 use self::rust_alloc::{boxed::Box, vec};
 use core::ptr::NonNull;
 
@@ -351,24 +355,12 @@ impl Bitmap {
             self.len(),
             index
         );
-        #[cfg(miri)]
-        {
-            let word = index / usize::BITS as usize;
-            let bit = index % usize::BITS as usize;
-            let words = usize::div_ceil(self.len(), usize::BITS as usize);
-            // SAFETY: `word` is in bounds due to guard above and `words` computed from len.
-            unsafe {
-                let data = core::slice::from_raw_parts_mut(self.as_mut_ptr(), words);
-                data[word] |= 1usize << bit;
-            }
-            return;
-        }
+        
 
-        #[cfg(not(miri))]
-        {
+        
         // SAFETY: Bit `index` is within bounds.
         unsafe { bindings::__set_bit(index, self.as_mut_ptr()) };
-        }
+        
     }
 
     /// Set bit with index `index`, atomically.
@@ -434,24 +426,12 @@ impl Bitmap {
             self.len(),
             index
         );
-        #[cfg(miri)]
-        {
-            let word = index / usize::BITS as usize;
-            let bit = index % usize::BITS as usize;
-            let words = usize::div_ceil(self.len(), usize::BITS as usize);
-            // SAFETY: `word` is in bounds due to guard above and `words` computed from len.
-            unsafe {
-                let data = core::slice::from_raw_parts_mut(self.as_mut_ptr(), words);
-                data[word] &= !(1usize << bit);
-            }
-            return;
-        }
+        
 
-        #[cfg(not(miri))]
-        {
+        
         // SAFETY: `index` is within bounds.
         unsafe { bindings::__clear_bit(index, self.as_mut_ptr()) };
-        }
+        
     }
 
     /// Clear `index` bit, atomically.
@@ -520,22 +500,9 @@ impl Bitmap {
     #[inline]
     pub fn copy_and_extend(&mut self, src: &Bitmap) {
         let len = core::cmp::min(src.len(), self.len());
-        #[cfg(miri)]
-        {
-            let dst_words = usize::div_ceil(self.len(), usize::BITS as usize);
-            let src_words = usize::div_ceil(len, usize::BITS as usize);
-            // SAFETY: both slices are valid for the computed lengths.
-            unsafe {
-                let dst = core::slice::from_raw_parts_mut(self.as_mut_ptr(), dst_words);
-                let src = core::slice::from_raw_parts(src.as_ptr(), src_words);
-                dst.fill(0);
-                dst[..src_words].copy_from_slice(src);
-            }
-            return;
-        }
+        
 
-        #[cfg(not(miri))]
-        {
+        
         // SAFETY: access to `self` and `src` is within bounds.
         unsafe {
             bindings::bitmap_copy_and_extend(
@@ -545,7 +512,7 @@ impl Bitmap {
                 self.len() as u32,
             )
         };
-        }
+        
     }
 
     /// Finds last set bit.
@@ -570,32 +537,9 @@ impl Bitmap {
     /// ```
     #[inline]
     pub fn last_bit(&self) -> Option<usize> {
-        #[cfg(miri)]
-        {
-            if self.len() == 0 {
-                return None;
-            }
-            let words = usize::div_ceil(self.len(), usize::BITS as usize);
-            // SAFETY: slice length is computed from bitmap length.
-            let data = unsafe { core::slice::from_raw_parts(self.as_ptr(), words) };
-            for word_index in (0..words).rev() {
-                let mut word = data[word_index];
-                if word_index == words - 1 {
-                    let rem = self.len() % usize::BITS as usize;
-                    if rem != 0 {
-                        word &= (1usize << rem) - 1;
-                    }
-                }
-                if word != 0 {
-                    let bit = usize::BITS as usize - 1 - word.leading_zeros() as usize;
-                    return Some(word_index * usize::BITS as usize + bit);
-                }
-            }
-            return None;
-        }
+        
 
-        #[cfg(not(miri))]
-        {
+        
         // SAFETY: `_find_next_bit` access is within bounds due to invariant.
         let index = unsafe { bindings::_find_last_bit(self.as_ptr(), self.len()) };
         if index >= self.len() {
@@ -603,7 +547,7 @@ impl Bitmap {
         } else {
             Some(index)
         }
-        }
+        
     }
 
     /// Finds next set bit, starting from `start`.
@@ -617,33 +561,15 @@ impl Bitmap {
             self.len(),
             start
         );
-        #[cfg(miri)]
-        {
-            if start >= self.len() {
-                return None;
-            }
-            for index in start..self.len() {
-                let word = index / usize::BITS as usize;
-                let bit = index % usize::BITS as usize;
-                // SAFETY: `word` is within bounds for `index < self.len()`.
-                let value = unsafe { *self.as_ptr().add(word) };
-                if (value & (1usize << bit)) != 0 {
-                    return Some(index);
-                }
-            }
-            return None;
-        }
-
-        #[cfg(not(miri))]
-        {
         // SAFETY: `_find_next_bit` tolerates out-of-bounds arguments and returns a
         // value larger than or equal to `self.len()` in that case.
+        // Under `cfg(miri)` the symbol is the C2Rust translation of `lib/find_bit.c`,
+        // linked from crate `c2rust_find_bit`.
         let index = unsafe { bindings::_find_next_bit(self.as_ptr(), self.len(), start) };
         if index >= self.len() {
             None
         } else {
             Some(index)
-        }
         }
     }
 
@@ -657,25 +583,9 @@ impl Bitmap {
             self.len(),
             start
         );
-        #[cfg(miri)]
-        {
-            if start >= self.len() {
-                return None;
-            }
-            for index in start..self.len() {
-                let word = index / usize::BITS as usize;
-                let bit = index % usize::BITS as usize;
-                // SAFETY: `word` is within bounds for `index < self.len()`.
-                let value = unsafe { *self.as_ptr().add(word) };
-                if (value & (1usize << bit)) == 0 {
-                    return Some(index);
-                }
-            }
-            return None;
-        }
+        
 
-        #[cfg(not(miri))]
-        {
+        
         // SAFETY: `_find_next_zero_bit` tolerates out-of-bounds arguments and returns a
         // value larger than or equal to `self.len()` in that case.
         let index = unsafe { bindings::_find_next_zero_bit(self.as_ptr(), self.len(), start) };
@@ -684,7 +594,7 @@ impl Bitmap {
         } else {
             Some(index)
         }
-        }
+        
     }
 }
 
@@ -806,4 +716,109 @@ mod tests {
         assert_eq!(Some(17), long_bitmap.last_bit());
         Ok(())
     }
+
+    #[test]
+    fn bitmap_find_next_matrix() {
+        use crate::bindings;
+        // One input set for the native UML C function and the C2Rust function.
+        // `next_bit` is used only when `start < nbits`; the C function is also
+        // called directly for `start >= nbits` and `nbits == 0`.
+        const SEED: u32 = 0x00C2_F1B1;
+        const EXPECTED_CALLS: u64 = 303;
+        const EXPECTED_SUM: u64 = 11143140604619718100;
+        let mut calls = 0u64;
+        let mut sum = 0u64;
+        let mut unchanged = true;
+        let mut rng = SEED;
+
+        let mut mix = |nbits: usize, start: usize, got: usize| {
+            calls += 1;
+            sum = sum
+                .wrapping_mul(1_315_423_911)
+                .wrapping_add(got as u64)
+                .wrapping_add((nbits as u64) << 20)
+                .wrapping_add(start as u64);
+        };
+
+        let mut run = |words: &mut [usize; 4], nbits: usize, start: usize, api: bool| {
+            let before = *words;
+            let got = if api {
+                let bitmap = unsafe { Bitmap::from_raw(words.as_ptr(), nbits) };
+                match bitmap.next_bit(start) {
+                    Some(index) => index,
+                    None => nbits,
+                }
+            } else {
+                unsafe { bindings::_find_next_bit(words.as_ptr(), nbits, start) }
+            };
+            if *words != before {
+                unchanged = false;
+            }
+            mix(nbits, start, got);
+        };
+
+        let fixed = [
+            [0usize, 0, 0, 0],
+            [usize::MAX, usize::MAX, usize::MAX, usize::MAX],
+            [1, 0, 0, 0],
+            [1usize << 63, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 1usize << 63, 0, 0],
+            [
+                0xAAAA_AAAA_AAAA_AAAA,
+                0x5555_5555_5555_5555,
+                0xAAAA_AAAA_AAAA_AAAA,
+                0x5555_5555_5555_5555,
+            ],
+        ];
+        let lengths = [64usize, 65, 128];
+        for pattern in fixed {
+            for nbits in lengths {
+                let mut words = pattern;
+                let mut starts = [0usize, 1, 63, 64, 0, 0, 0];
+                starts[4] = nbits - 1;
+                starts[5] = nbits;
+                starts[6] = nbits + 1;
+                for start in starts {
+                    if start < nbits {
+                        run(&mut words, nbits, start, true);
+                    }
+                    run(&mut words, nbits, start, false);
+                }
+            }
+        }
+
+        let mut empty = [0usize; 4];
+        run(&mut empty, 0, 0, false);
+        run(&mut empty, 0, 1, false);
+
+        for _ in 0..4 {
+            let mut words = [0usize; 4];
+            for slot in &mut words {
+                rng ^= rng << 13;
+                rng ^= rng >> 17;
+                rng ^= rng << 5;
+                *slot = rng as usize | ((rng as usize) << 32);
+                rng ^= rng << 13;
+                rng ^= rng >> 17;
+                rng ^= rng << 5;
+                *slot ^= (rng as usize) << 17;
+            }
+            for nbits in [64usize, 128] {
+                for start in [0usize, 17, 64, 100] {
+                    if start < nbits {
+                        run(&mut words, nbits, start, true);
+                    }
+                    run(&mut words, nbits, start, false);
+                }
+            }
+        }
+
+        #[cfg(not(miri))]
+        pr_err!("MATRIX calls={} sum={} unchanged={}\n", calls, sum, unchanged as u8);
+        assert!(unchanged);
+        assert_eq!(calls, EXPECTED_CALLS);
+        assert_eq!(sum, EXPECTED_SUM);
+    }
+
 }

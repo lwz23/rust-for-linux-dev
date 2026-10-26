@@ -1,0 +1,27 @@
+KTAP version 1
+    # Subtest: rust_kernel_bitmap
+    # speed: normal
+    1..6
+    # bitmap_borrow.speed: normal
+    ok 1 bitmap_borrow
+    # bitmap_copy.speed: normal
+    ok 2 bitmap_copy
+    # bitmap_vec_new.speed: normal
+    ok 3 bitmap_vec_new
+    # bitmap_set_clear_find.speed: normal
+    ok 4 bitmap_set_clear_find
+rust_kernel: Bit `index` must be < 128, was 2048
+rust_kernel: Bit `index` must be < 128, was 2048
+rust_kernel: Bit `index` must be < 128, was 2048
+rust_kernel: Bit `index` must be < 128, was 2048
+    # owned_bitmap_out_of_bounds.speed: normal
+    ok 5 owned_bitmap_out_of_bounds
+    # bitmap_copy_and_extend.speed: normal
+    ok 6 bitmap_copy_and_extend
+# rust_kernel_bitmap: pass:6 fail:0 skip:0 total:6
+# Totals: pass:6 fail:0 skip:0 total:6
+ok 1 rust_kernel_bitmap
+reboot: System halted
+
+[23:25:33] Elapsed time: 53.776s total, 3.204s configuring, 50.458s building, 0.114s running
+

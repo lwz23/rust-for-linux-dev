@@ -1,0 +1,10 @@
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitmap.c:5:1: error: unknown type name '__rust_helper'
+    5 | __rust_helper
+      | ^
+1 error generated.
+Error while processing /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitmap.c.
+Transpiling bitmap.c
+[31merror:[0m Failed to translate bitmap_copy_and_extend: Unimplemented builtin __builtin_dynamic_object_size
+--> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/include/linux/bitmap.h:289:2
+
+[31merror:[0m Translation failed, exiting

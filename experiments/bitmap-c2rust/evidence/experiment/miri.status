@@ -1,0 +1,24 @@
+0000000000000000 T rust_helper_bitmap_copy_and_extend
+0000000000000000 T rust_helper___clear_bit
+0000000000000000 T rust_helper___set_bit
+0000000000000000 T rust_helper_set_bit
+0000000000000000 T _find_last_bit
+0000000000000000 T _find_next_bit
+0000000000000000 T _find_next_zero_bit
+0000000000000000 D _RNvCsSEV2qAi4xt_15c2rust_find_bit41___UNIQUE_ID_addressable__find_last_bit_85
+0000000000000000 D _RNvCsSEV2qAi4xt_15c2rust_find_bit41___UNIQUE_ID_addressable__find_next_bit_65
+0000000000000000 D _RNvCsSEV2qAi4xt_15c2rust_find_bit46___UNIQUE_ID_addressable__find_next_zero_bit_84
+21:30:07 start tb
+21:30:10 tb rc=0
+322:test bitmap::tests::bitmap_borrow ... ok
+323:test bitmap::tests::bitmap_copy ... ok
+324:test bitmap::tests::bitmap_copy_and_extend ... warning: integer-to-pointer cast
+396:test bitmap::tests::bitmap_set_clear_find ... ok
+397:test bitmap::tests::bitmap_vec_new ... ok
+398:test bitmap::tests::owned_bitmap_out_of_bounds ... ok
+400:test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.70s
+21:30:10 start sb
+21:30:13 sb rc=1
+322:test bitmap::tests::bitmap_borrow ... error: Undefined Behavior: attempting a read access using <158956> at alloc64044[0x0], but that tag does not exist in the borrow stack for this location
+395:error: aborting due to 1 previous error; 18 warnings emitted
+21:30:13 COMPLETE

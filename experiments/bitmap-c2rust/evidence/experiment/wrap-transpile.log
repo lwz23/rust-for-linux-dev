@@ -1,0 +1,63 @@
+In file included from /home/zjp/kmiri-workspaces/rfl-uml-c2rust-bitmap-20261026/wrap/bitmap_bindings.c:5:
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:7:6: warning: no previous prototype for function 'rust_helper___set_bit' [-Wmissing-prototypes]
+    7 | void rust_helper___set_bit(unsigned long nr, unsigned long *addr)
+      |      ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:7:1: note: declare 'static' if the function is not intended to be used outside of this translation unit
+    7 | void rust_helper___set_bit(unsigned long nr, unsigned long *addr)
+      | ^
+      | static 
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:13:6: warning: no previous prototype for function 'rust_helper___clear_bit' [-Wmissing-prototypes]
+   13 | void rust_helper___clear_bit(unsigned long nr, unsigned long *addr)
+      |      ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:13:1: note: declare 'static' if the function is not intended to be used outside of this translation unit
+   13 | void rust_helper___clear_bit(unsigned long nr, unsigned long *addr)
+      | ^
+      | static 
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:19:6: warning: no previous prototype for function 'rust_helper_set_bit' [-Wmissing-prototypes]
+   19 | void rust_helper_set_bit(unsigned long nr, volatile unsigned long *addr)
+      |      ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:19:1: note: declare 'static' if the function is not intended to be used outside of this translation unit
+   19 | void rust_helper_set_bit(unsigned long nr, volatile unsigned long *addr)
+      | ^
+      | static 
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:25:6: warning: no previous prototype for function 'rust_helper_clear_bit' [-Wmissing-prototypes]
+   25 | void rust_helper_clear_bit(unsigned long nr, volatile unsigned long *addr)
+      |      ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:25:1: note: declare 'static' if the function is not intended to be used outside of this translation unit
+   25 | void rust_helper_clear_bit(unsigned long nr, volatile unsigned long *addr)
+      | ^
+      | static 
+In file included from /home/zjp/kmiri-workspaces/rfl-uml-c2rust-bitmap-20261026/wrap/bitmap_bindings.c:6:
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitmap.c:6:6: warning: no previous prototype for function 'rust_helper_bitmap_copy_and_extend' [-Wmissing-prototypes]
+    6 | void rust_helper_bitmap_copy_and_extend(unsigned long *to, const unsigned long *from,
+      |      ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitmap.c:6:1: note: declare 'static' if the function is not intended to be used outside of this translation unit
+    6 | void rust_helper_bitmap_copy_and_extend(unsigned long *to, const unsigned long *from,
+      | ^
+      | static 
+5 warnings generated.
+Transpiling bitmap_bindings.c
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.

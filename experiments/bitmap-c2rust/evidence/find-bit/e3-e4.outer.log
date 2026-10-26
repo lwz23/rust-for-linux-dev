@@ -1,0 +1,73 @@
+01:13:37 start
+1d32a397af80b5eb9afb45717d79792716dbe1096a410b8220f76a7032d60442  /home/zjp/.rustup/toolchains/nightly-2026-07-21-x86_64-unknown-linux-gnu/bin/miri
+39a3fbad5ff58c8a4a88e9adab7c6d1bb2c97cbd91d8b9ff555bf43e85d9df5a  /home/zjp/kmiri-workspaces/c2rust/target/release/c2rust
+99f3c2bb58fbb5ae5ae8da1db48a028971564680cc29ac1c691105a0abe8061a  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs
+34eac0b1a29966e9e7f042593ffb6595857fe44cf36cab98e3ae4c8ccbbf9595  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/libc2rust_find_bit.rlib
+6b80fd4392c87d9453e0d88ab18ad9bf4104d33561d54867dc8b4d271e30ca28  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/kernel/bitmap.rs
+791aa0c57790c6b75032b27fa6086080a3e85d80c2a1da01fbd45b5f45035da5  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/lib/find_bit.c
+ORIGINAL 0
+ISOLATED  M rust/kernel/bitmap.rs
+01:13:37 E3 rename
+renamed occurrences 5
+01:13:37 rustc find_bit.rs -> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/renamed
+01:13:37 E3 renamed symbol absent from nm
+01:13:38 E3 rename miri_rc=01:13:37 miri start bitmap_borrow -> e3-rename-tb.log
+01:13:38 miri rc=1 e3-rename-tb.log
+1
+12:error: aborting due to 1 previous error
+01:13:38 E3 restore six
+01:13:41 E3 restore miri_rc=01:13:38 miri start bitmap_borrow bitmap_copy bitmap_set_clear_find bitmap_vec_new owned_bitmap_out_of_bounds -> e3-restore-tb.log
+01:13:41 miri rc=0 e3-restore-tb.log
+0
+310:test bitmap::tests::bitmap_borrow ... ok
+311:test bitmap::tests::bitmap_copy ... ok
+312:test bitmap::tests::bitmap_copy_and_extend ... ok
+313:test bitmap::tests::bitmap_set_clear_find ... ok
+314:test bitmap::tests::bitmap_vec_new ... ok
+315:test bitmap::tests::owned_bitmap_out_of_bounds ... ok
+317:test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.77s
+01:13:41 E4 C inject
+c patched
+01:13:41 E4 transpile rc=0
+01:13:41 oob rs /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/oob-raw/src/find_bit.rs
+fixed 8 bytes 111544
+1250:    let mut kmiri_oob: ::core::ffi::c_ulong = *(addr
+01:13:41 rustc find_bit.rs -> /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/oob
+01:13:42 E4 C miri_rc=01:13:41 miri start bitmap_borrow -> e4-c-oob-tb.log
+01:13:42 miri rc=1 e4-c-oob-tb.log
+1
+12:error: aborting due to 1 previous error
+01:13:42 restore C and regenerate
+01:13:42 C clean
+01:13:42 regen transpile rc=0
+fixed 8 bytes 111364
+01:13:42 rustfmt rc=0
+01:13:42 regen matches postprocessed find_bit.rs after rustfmt
+01:13:42 E4 rust length
+rust length patched
+01:13:45 E4 rust miri_rc=01:13:42 miri start bitmap_borrow -> e4-rust-len-tb.log
+01:13:45 miri rc=1 e4-rust-len-tb.log
+1
+310:test bitmap::tests::bitmap_borrow ... error: Undefined Behavior: memory access failed: attempting to access 8 bytes, but got alloc56289+0x10 which is at or beyond the end of the allocation of size 16 bytes
+314:     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^ Undefined Behavior occurred here
+316:     = help: this indicates a bug in the program: it performed an invalid operation, and caused Undefined Behavior
+383:error: aborting due to 1 previous error; 17 warnings emitted
+01:13:45 bitmap.rs restored
+01:13:45 final six
+01:13:48 final miri_rc=01:13:45 miri start bitmap_borrow bitmap_copy bitmap_set_clear_find bitmap_vec_new owned_bitmap_out_of_bounds -> e4-restore-tb.log
+01:13:48 miri rc=0 e4-restore-tb.log
+0
+310:test bitmap::tests::bitmap_borrow ... ok
+311:test bitmap::tests::bitmap_copy ... ok
+312:test bitmap::tests::bitmap_copy_and_extend ... ok
+313:test bitmap::tests::bitmap_set_clear_find ... ok
+314:test bitmap::tests::bitmap_vec_new ... ok
+315:test bitmap::tests::owned_bitmap_out_of_bounds ... ok
+317:test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.77s
+ORIGINAL_END 0
+ISOLATED_END  M rust/kernel/bitmap.rs
+99f3c2bb58fbb5ae5ae8da1db48a028971564680cc29ac1c691105a0abe8061a  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/src/find_bit.rs
+34eac0b1a29966e9e7f042593ffb6595857fe44cf36cab98e3ae4c8ccbbf9595  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-e2/patched/libc2rust_find_bit.rlib
+6b80fd4392c87d9453e0d88ab18ad9bf4104d33561d54867dc8b4d271e30ca28  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/kernel/bitmap.rs
+791aa0c57790c6b75032b27fa6086080a3e85d80c2a1da01fbd45b5f45035da5  /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/lib/find_bit.c
+01:13:48 done

@@ -1,0 +1,43 @@
+In file included from /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:4:
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/include/linux/find.h:6:2: error: only <linux/bitmap.h> can be included directly
+    6 | #error only <linux/bitmap.h> can be included directly
+      |  ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:6:1: error: unknown type name '__rust_helper'
+    6 | __rust_helper
+      | ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:12:1: error: unknown type name '__rust_helper'
+   12 | __rust_helper
+      | ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:18:1: error: unknown type name '__rust_helper'
+   18 | __rust_helper
+      | ^
+/home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c:24:1: error: unknown type name '__rust_helper'
+   24 | __rust_helper
+      | ^
+5 errors generated.
+Error while processing /home/zjp/kmiri-workspaces/rfl-uml-c2rust-20261021/rust/helpers/bitops.c.
+Transpiling bitops.c
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
+[33mwarning:[0m Did not recognize inline asm constraint: Ir
+It is likely that this will cause compilation errors or incorrect semantics in the translated program; please manually correct.
