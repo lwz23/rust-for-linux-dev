@@ -1,7 +1,5 @@
 # Bitmap：UML + C2Rust 实验代码与运行记录
 
-本目录保存实际实验文件，不是 ZIP 附件，也不是已经验证的一键构建工具。
-
 Linux 基线：`8b1872169d7f2e969122a1d541700e8154ba2a58`。C2Rust 基线：`e9ccd715597f7d63e8635629f4450e040a230118`。
 当前分支的 `rust/kernel/bitmap.rs` 是测试使用的最终源码；`lib/find_bit.c` 保留真实内核输入。C2Rust 导出器的实际改动在配套 C2Rust fork，本目录另保留原始 patch 以便核对。
 
